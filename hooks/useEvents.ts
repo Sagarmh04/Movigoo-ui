@@ -25,9 +25,9 @@ type EventsResponse = {
 const seedEvents = (seedData.events ?? []) as Event[];
 
 export function useEvents(filters: EventFilters = {}) {
-  return useInfiniteQuery<EventsResponse>({
+  return useInfiniteQuery<EventsResponse, Error, { pages: EventsResponse[]; pageParams: number[] }, readonly unknown[], number>({
     queryKey: ["events", filters],
-    queryFn: async ({ pageParam = 1 }) => {
+    queryFn: async ({ pageParam }) => {
       if (!process.env.NEXT_PUBLIC_API_BASE_URL) {
         const pageSize = 6;
         const start = (pageParam - 1) * pageSize;
@@ -39,7 +39,6 @@ export function useEvents(filters: EventFilters = {}) {
           pageSize
         };
       }
-
       const params = new URLSearchParams({
         ...filters,
         page: String(pageParam)
