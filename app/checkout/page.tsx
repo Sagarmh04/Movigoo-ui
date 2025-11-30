@@ -7,8 +7,9 @@ import PaymentFailureAnimation from "@/components/PaymentFailureAnimation";
 import ProcessingLoader from "@/components/ProcessingLoader";
 import { Button } from "@/components/ui/button";
 import TicketCard from "@/components/TicketCard";
+import { Booking } from "@/types/booking";
 
-const mockBooking = {
+const mockBooking: Booking = {
   bookingId: "demo-123",
   userId: "organizer-abc",
   eventId: "event-aurora",
