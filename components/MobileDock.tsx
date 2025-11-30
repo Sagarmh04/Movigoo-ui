@@ -27,7 +27,7 @@ const MobileDock = () => {
             href={href}
             className={cn(
               "relative flex flex-1 flex-col items-center justify-center rounded-full px-2 py-1 text-[10px] font-medium text-slate-400 transition",
-              active && "text-white"
+              active ? "text-white" : undefined
             )}
             aria-label={label}
           >

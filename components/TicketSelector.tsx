@@ -72,7 +72,7 @@ const TicketSelector = ({ tickets, value, onChange }: TicketSelectorProps) => {
                   aria-label={`Decrease ${ticket.name}`}
                   className={cn(
                     "flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 text-white transition hover:bg-white/10",
-                    qty === 0 && "opacity-50"
+                    qty === 0 ? "opacity-50" : undefined
                   )}
                   disabled={qty === 0}
                   onClick={() => handleChange(ticket.id, -1)}
@@ -91,7 +91,7 @@ const TicketSelector = ({ tickets, value, onChange }: TicketSelectorProps) => {
                   aria-label={`Increase ${ticket.name}`}
                   className={cn(
                     "flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 text-white transition hover:bg-white/10",
-                    disabled && "opacity-50"
+                    disabled ? "opacity-50" : undefined
                   )}
                   disabled={disabled}
                   onClick={() => handleChange(ticket.id, 1)}

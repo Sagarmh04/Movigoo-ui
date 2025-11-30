@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import EventList from "@/components/EventList";
 import { useEvents } from "@/hooks/useEvents";
+import { Event } from "@/types/event";
 
 const cities = ["All cities", "Mumbai", "Delhi", "Bengaluru", "Hyderabad", "Rishikesh"];
 const categories = ["All", "Music", "Festival", "Cinema", "Fashion", "Wellness", "Esports"];
@@ -37,7 +38,7 @@ const EventsExplorer = () => {
           <Filter size={16} className="text-accent-amber" />
           <p className="text-sm font-semibold text-white">Ultra filters</p>
           <span className="rounded-full bg-white/10 px-3 py-1 text-xs text-slate-300">
-            {events.data?.pages?.[0]?.total ?? "—"} events
+            {(events.data?.pages?.[0] as any)?.total ?? "—"} events
           </span>
         </div>
         <div className="flex flex-wrap gap-3">
@@ -75,7 +76,7 @@ const EventsExplorer = () => {
       </motion.div>
 
       <EventList
-        pages={events.data?.pages}
+        pages={events.data?.pages as { events: Event[] }[] | undefined}
         isLoading={events.isLoading}
         isError={events.isError}
         fetchNext={events.fetchNextPage}

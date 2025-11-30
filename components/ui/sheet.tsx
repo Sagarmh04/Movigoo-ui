@@ -31,10 +31,10 @@ const SheetContent = ({ side = "right", className, children, ...props }: SheetCo
         transition={{ duration: 0.3, ease: "easeOut" }}
         className={cn(
           "fixed inset-y-0 z-50 w-full border border-white/10 bg-slate-900/90 shadow-2xl backdrop-blur-3xl md:w-[420px]",
-          side === "left" && "left-0 rounded-r-3xl",
-          side === "right" && "right-0 rounded-l-3xl",
-          side === "bottom" && "bottom-0 rounded-t-3xl",
-          side === "top" && "top-0 rounded-b-3xl",
+          side === "left" ? "left-0 rounded-r-3xl" : undefined,
+          side === "right" ? "right-0 rounded-l-3xl" : undefined,
+          side === "bottom" ? "bottom-0 rounded-t-3xl" : undefined,
+          side === "top" ? "top-0 rounded-b-3xl" : undefined,
           className
         )}
       >

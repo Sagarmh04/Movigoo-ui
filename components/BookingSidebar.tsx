@@ -92,7 +92,7 @@ const BookingSidebar = ({ event, ticketTypes }: BookingSidebarProps) => {
       animate={{ opacity: 1, x: 0 }}
       className={cn(
         "sticky top-24 space-y-6 rounded-3xl border border-white/10 bg-white/5 p-6 shadow-card-glass backdrop-blur-3xl",
-        status === "failure" && "border-rose-500/40"
+        status === "failure" ? "border-rose-500/40" : ""
       )}
     >
       <p className="text-sm uppercase tracking-[0.3em] text-slate-500">Booking</p>

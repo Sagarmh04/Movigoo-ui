@@ -23,7 +23,7 @@ const EventCard = ({ event }: EventCardProps) => {
       whileHover={{ y: -6 }}
       className={cn(
         "group relative flex flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/5 shadow-card-glass backdrop-blur-2xl",
-        isHosted && "border-amber-400/40 shadow-[0_25px_65px_rgba(251,176,69,0.25)]"
+        isHosted ? "border-amber-400/40 shadow-[0_25px_65px_rgba(251,176,69,0.25)]" : ""
       )}
     >
       <Link href={`/events/${event.slug}`} className="relative block h-56 overflow-hidden">
