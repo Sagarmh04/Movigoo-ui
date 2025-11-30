@@ -1,0 +1,8 @@
+{
+  "/api/events": "/events",
+  "/api/events/:slug": "/events?slug=:slug",
+  "/api/bookings": "/bookings",
+  "/api/bookings/:bookingId": "/bookings/:bookingId",
+  "/api/admin/banners": "/banners"
+}
+

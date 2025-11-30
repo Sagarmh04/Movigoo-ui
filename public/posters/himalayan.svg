@@ -1,0 +1,13 @@
+<svg width="900" height="1200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="hima" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+  </defs>
+  <rect width="900" height="1200" fill="#030712"/>
+  <rect width="900" height="900" fill="url(#hima)"/>
+  <path d="M0 900 L200 600 L350 780 L500 520 L700 850 L900 700 V1200 H0Z" fill="#34d399" opacity="0.4"/>
+  <path d="M0 950 L220 680 L360 820 L540 540 L760 920 L900 780 V1200 H0Z" fill="#6ee7b7" opacity="0.25"/>
+</svg>
+

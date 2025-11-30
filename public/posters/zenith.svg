@@ -1,0 +1,12 @@
+<svg width="900" height="1200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="zenith" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f472b6"/>
+      <stop offset="100%" stop-color="#f97316"/>
+    </linearGradient>
+  </defs>
+  <rect width="900" height="1200" fill="#0f172a"/>
+  <polygon points="0,1100 450,200 900,1100" fill="url(#zenith)" opacity="0.8"/>
+  <polygon points="0,1050 450,300 900,1050" fill="url(#zenith)" opacity="0.3"/>
+</svg>
+

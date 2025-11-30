@@ -1,0 +1,242 @@
+{
+  "events": [
+    {
+      "id": "event-aurora",
+      "slug": "aurora-chroma-live",
+      "title": "Aurora Chroma Live Experience",
+      "coverWide": "/posters/aurora.svg",
+      "coverPortrait": ["/posters/aurora.svg"],
+      "city": "Mumbai",
+      "venue": "NMACC Grand Theatre",
+      "dateStart": "2025-08-12T19:00:00+05:30",
+      "dateEnd": "2025-08-12T22:30:00+05:30",
+      "categories": ["Music", "Immersive"],
+      "rating": 4.9,
+      "priceFrom": 3999,
+      "description": "A live synesthetic concert blending lasers, orchestra, and interactive visuals.",
+      "organizerId": "organizer-abc",
+      "ticketTypes": [
+        {
+          "id": "aurora-vip",
+          "name": "VIP Infinity",
+          "price": 8999,
+          "available": 40,
+          "maxPerOrder": 4,
+          "perks": "Sky Lounge • Meet & Greet",
+          "description": "Includes pre-show lounge and signed vinyl."
+        },
+        {
+          "id": "aurora-gold",
+          "name": "Gold Immersive",
+          "price": 5999,
+          "available": 120,
+          "maxPerOrder": 6,
+          "perks": "Center Stage • Merch kit"
+        },
+        {
+          "id": "aurora-floor",
+          "name": "Floor Experience",
+          "price": 3999,
+          "available": 200,
+          "maxPerOrder": 8,
+          "perks": "Immersive floor access"
+        }
+      ]
+    },
+    {
+      "id": "event-sonicwave",
+      "slug": "sonic-wave-weekender",
+      "title": "Sonic Wave Weekender",
+      "coverWide": "/posters/sonic-wave.svg",
+      "coverPortrait": ["/posters/sonic-wave.svg"],
+      "city": "Bengaluru",
+      "venue": "Lalbagh Amphitheatre",
+      "dateStart": "2025-07-05T16:00:00+05:30",
+      "categories": ["Festival", "Electronic"],
+      "rating": 4.7,
+      "priceFrom": 2999,
+      "description": "A two-day open-air festival with 3 stages, digital art pods, and gourmet pop-ups.",
+      "organizerId": "org-mhz",
+      "ticketTypes": [
+        {
+          "id": "sonic-weekend",
+          "name": "Weekend Pass",
+          "price": 4999,
+          "available": 500,
+          "maxPerOrder": 6,
+          "perks": "All stages • Afterparties"
+        },
+        {
+          "id": "sonic-day",
+          "name": "Single Day",
+          "price": 2999,
+          "available": 700,
+          "maxPerOrder": 8,
+          "perks": "Choose Sat or Sun"
+        }
+      ]
+    },
+    {
+      "id": "event-starlight",
+      "slug": "starlight-cinema-suite",
+      "title": "Starlight Cinema Suite",
+      "coverWide": "/posters/chroma-night.svg",
+      "coverPortrait": ["/posters/chroma-night.svg"],
+      "city": "Delhi",
+      "venue": "Qutub Panorama",
+      "dateStart": "2025-09-18T20:00:00+05:30",
+      "priceFrom": 3499,
+      "categories": ["Cinema", "Luxury"],
+      "description": "An outdoor cinema with Dolby Atmos domes and chef-led tasting menus.",
+      "organizerId": "organizer-abc",
+      "ticketTypes": [
+        {
+          "id": "starlight-suite",
+          "name": "Private Suite",
+          "price": 7499,
+          "available": 20,
+          "maxPerOrder": 2,
+          "perks": "Private butler • Chauffeur"
+        },
+        {
+          "id": "starlight-duo",
+          "name": "Duo Lounge",
+          "price": 3499,
+          "available": 80,
+          "maxPerOrder": 4,
+          "perks": "Lounge bed • Signature cocktails"
+        }
+      ]
+    },
+    {
+      "id": "event-zenith",
+      "slug": "zenith-fashion-night",
+      "title": "Zenith Fashion Night",
+      "coverWide": "/posters/zenith.svg",
+      "coverPortrait": ["/posters/zenith.svg"],
+      "city": "Mumbai",
+      "venue": "Royal Opera House",
+      "dateStart": "2025-06-28T19:30:00+05:30",
+      "priceFrom": 3299,
+      "categories": ["Fashion", "Lifestyle"],
+      "description": "Runway meets digital couture with holographic styling mirrors.",
+      "organizerId": "org-runway",
+      "ticketTypes": [
+        {
+          "id": "zenith-frontrow",
+          "name": "Front Row Luxe",
+          "price": 8299,
+          "available": 30,
+          "maxPerOrder": 2,
+          "perks": "Backstage tour"
+        },
+        {
+          "id": "zenith-lounge",
+          "name": "Lounge Access",
+          "price": 3299,
+          "available": 150,
+          "maxPerOrder": 4,
+          "perks": "After soirée"
+        }
+      ]
+    },
+    {
+      "id": "event-himalayan",
+      "slug": "himalayan-sonic-retreat",
+      "title": "Himalayan Sonic Retreat",
+      "coverWide": "/posters/himalayan.svg",
+      "coverPortrait": ["/posters/himalayan.svg"],
+      "city": "Rishikesh",
+      "venue": "Clifftop Sanctuary",
+      "dateStart": "2025-10-05T06:00:00+05:30",
+      "priceFrom": 4599,
+      "categories": ["Wellness", "Retreat"],
+      "description": "Sunrise sound baths, river-deck yoga, and projection mapping on the Himalayas.",
+      "organizerId": "org-solace",
+      "ticketTypes": [
+        {
+          "id": "himalayan-signature",
+          "name": "Signature Retreat",
+          "price": 8999,
+          "available": 60,
+          "maxPerOrder": 4,
+          "perks": "3-day retreat • Private cabana"
+        },
+        {
+          "id": "himalayan-day",
+          "name": "Day Experience",
+          "price": 4599,
+          "available": 120,
+          "maxPerOrder": 6,
+          "perks": "Workshops + lunch"
+        }
+      ]
+    },
+    {
+      "id": "event-hyperdrive",
+      "slug": "hyperdrive-esports-championship",
+      "title": "Hyperdrive Esports Championship",
+      "coverWide": "/posters/hyperdrive.svg",
+      "coverPortrait": ["/posters/hyperdrive.svg"],
+      "city": "Hyderabad",
+      "venue": "Nova Arena",
+      "dateStart": "2025-07-20T11:00:00+05:30",
+      "priceFrom": 2599,
+      "categories": ["Esports", "Tech"],
+      "description": "Global teams, 8K LED tunnels, and reactive lighting following gameplay.",
+      "organizerId": "organizer-abc",
+      "ticketTypes": [
+        {
+          "id": "hyperdrive-elixir",
+          "name": "Elixir Suite",
+          "price": 5999,
+          "available": 50,
+          "maxPerOrder": 4,
+          "perks": "Shoutcaster booth tour"
+        },
+        {
+          "id": "hyperdrive-pro",
+          "name": "Pro Arena",
+          "price": 2599,
+          "available": 400,
+          "maxPerOrder": 6,
+          "perks": "Team meet"
+        }
+      ]
+    }
+  ],
+  "banners": [
+    {
+      "id": "banner-premier",
+      "title": "Premium Cinematic",
+      "subtitle": "Metaverse premieres in Dolby Vision",
+      "image": "/posters/chroma-night.svg"
+    },
+    {
+      "id": "banner-wellness",
+      "title": "Wellness Elevated",
+      "subtitle": "Curated retreats with biometric tracking",
+      "image": "/posters/himalayan.svg"
+    }
+  ],
+  "bookings": [
+    {
+      "bookingId": "bk-seed-01",
+      "userId": "organizer-abc",
+      "eventId": "event-aurora",
+      "items": [
+        { "ticketTypeId": "aurora-vip", "quantity": 2, "price": 8999 }
+      ],
+      "status": "confirmed",
+      "totalAmount": 17998,
+      "createdAt": "2025-05-10T10:00:00.000Z",
+      "event": {
+        "title": "Aurora Chroma Live Experience",
+        "venue": "NMACC Grand Theatre",
+        "city": "Mumbai",
+        "dateStart": "2025-08-12T19:00:00+05:30"
+      }
+    }
+  ]
+}
+

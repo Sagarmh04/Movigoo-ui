@@ -1,0 +1,15 @@
+<svg width="900" height="1200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="hyper" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22d3ee"/>
+      <stop offset="50%" stop-color="#818cf8"/>
+      <stop offset="100%" stop-color="#0ea5e9"/>
+    </linearGradient>
+  </defs>
+  <rect width="900" height="1200" fill="#020617"/>
+  <circle cx="450" cy="600" r="380" fill="url(#hyper)" opacity="0.45"/>
+  <path d="M100 600 h700" stroke="#bae6fd" stroke-width="6" stroke-linecap="round"/>
+  <path d="M150 500 h600" stroke="#7dd3fc" stroke-width="4" stroke-linecap="round"/>
+  <path d="M150 700 h600" stroke="#7dd3fc" stroke-width="4" stroke-linecap="round"/>
+</svg>
+

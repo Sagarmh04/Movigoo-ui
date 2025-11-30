@@ -1,0 +1,37 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  min-height: 100vh;
+  background: radial-gradient(circle at top, rgba(67,56,202,0.25), #050816);
+  color: #f8fafc;
+  font-feature-settings: "ss01" on, "ss02" on;
+}
+
+.glass-panel {
+  @apply bg-white/5 backdrop-blur-3xl border border-white/10 shadow-card-glass;
+}
+
+.text-gradient {
+  background: linear-gradient(120deg, #a18cd1, #fbc2eb);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.premium-divider {
+  position: relative;
+}
+
+.premium-divider::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+}
+
