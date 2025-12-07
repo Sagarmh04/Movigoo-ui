@@ -96,7 +96,7 @@ export default function RefundPolicyPage() {
             </p>
             <ul className="mt-3 ml-6 list-disc space-y-2 text-slate-300">
               <li><strong>Advance Notice Required:</strong> Minimum 48-72 hours before the event (varies by event)</li>
-              <li><strong>Cancellation Charges:</strong> May apply as per event organizer's policy (typically 10-20% of ticket value)</li>
+              <li><strong>Cancellation Charges:</strong> May apply as per event organizer&apos;s policy (typically 10-20% of ticket value)</li>
               <li><strong>Service Charges:</strong> Processing fees and service charges are generally non-refundable</li>
               <li><strong>Approval Required:</strong> Subject to organizer approval and refund policy</li>
               <li><strong>Partial Refunds:</strong> May be provided after deducting cancellation charges</li>
@@ -159,7 +159,7 @@ export default function RefundPolicyPage() {
           </ul>
           <p className="mt-4 text-sm text-slate-400">
             <strong>Note:</strong> Actual refund credit to your account may take additional time depending on your bank 
-            or payment provider's processing times. All refunds are processed to the original payment method used for the purchase.
+            or payment provider&apos;s processing times. All refunds are processed to the original payment method used for the purchase.
           </p>
         </div>
       </section>
@@ -174,9 +174,9 @@ export default function RefundPolicyPage() {
             <strong>Online Method:</strong>
             <ul className="ml-6 mt-2 list-disc space-y-1">
               <li>Log into your Movigoo account</li>
-              <li>Navigate to "My Bookings" section</li>
+              <li>Navigate to &quot;My Bookings&quot; section</li>
               <li>Select the booking you wish to cancel</li>
-              <li>Click on "Request Refund" or "Cancel Booking" option</li>
+              <li>Click on &quot;Request Refund&quot; or &quot;Cancel Booking&quot; option</li>
               <li>Provide the reason for cancellation</li>
               <li>Submit your request</li>
             </ul>
@@ -219,7 +219,7 @@ export default function RefundPolicyPage() {
               Ticket Price - Cancellation Charges - Service Charges = Refund Amount
             </p>
             <p className="mt-2 text-sm text-slate-400">
-              Cancellation charges typically range from 10% to 20% of the ticket price, as per event organizer's policy.
+              Cancellation charges typically range from 10% to 20% of the ticket price, as per event organizer&apos;s policy.
             </p>
           </div>
         </div>
@@ -232,7 +232,7 @@ export default function RefundPolicyPage() {
         </p>
         <ul className="ml-6 list-disc space-y-2 text-slate-300">
           <li>You will receive an email confirmation with refund details</li>
-          <li>Refund status can be tracked in your Movigoo account under "My Bookings"</li>
+          <li>Refund status can be tracked in your Movigoo account under &quot;My Bookings&quot;</li>
           <li>You will receive an SMS notification when the refund is initiated</li>
           <li>Refund will appear in your account statement within the stated timeframes</li>
         </ul>
@@ -241,7 +241,7 @@ export default function RefundPolicyPage() {
       <section className="space-y-4">
         <h2 className="text-2xl font-semibold text-white">8. Disputed Refunds</h2>
         <p className="text-slate-300">
-          If you believe a refund should have been processed but hasn't been, or if you disagree with a refund decision:
+          If you believe a refund should have been processed but hasn&apos;t been, or if you disagree with a refund decision:
         </p>
         <ul className="ml-6 list-disc space-y-2 text-slate-300">
           <li>Contact our customer support team within 30 days of the event date</li>

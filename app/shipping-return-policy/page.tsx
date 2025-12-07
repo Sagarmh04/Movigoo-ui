@@ -41,7 +41,7 @@ export default function ShippingReturnPolicyPage() {
             <ul className="mt-3 ml-6 list-disc space-y-2 text-slate-300">
               <li>E-tickets are typically delivered within minutes of purchase</li>
               <li>You will receive a confirmation email with your ticket(s)</li>
-              <li>Tickets can be accessed through your Movigoo account under "My Bookings"</li>
+              <li>Tickets can be accessed through your Movigoo account under &quot;My Bookings&quot;</li>
               <li>E-tickets can be scanned directly from your mobile device at the venue</li>
             </ul>
           </div>
@@ -92,7 +92,7 @@ export default function ShippingReturnPolicyPage() {
         </p>
         <ol className="ml-6 list-decimal space-y-2 text-slate-300">
           <li>Check your spam/junk folder for the confirmation email</li>
-          <li>Log into your Movigoo account and check "My Bookings" section</li>
+          <li>Log into your Movigoo account and check &quot;My Bookings&quot; section</li>
           <li>Verify that the email address associated with your account is correct</li>
           <li>Contact our customer support team immediately with your booking reference number</li>
         </ol>
@@ -147,7 +147,7 @@ export default function ShippingReturnPolicyPage() {
             </p>
             <ul className="mt-3 ml-6 list-disc space-y-2 text-slate-300">
               <li>Cancellation requests must be made at least 48-72 hours before the event (timeframe varies by event)</li>
-              <li>Cancellation charges may apply as per the event organizer's policy</li>
+              <li>Cancellation charges may apply as per the event organizer&apos;s policy</li>
               <li>Refunds (if approved) will be processed to the original payment method</li>
               <li>Processing fees and service charges are generally non-refundable</li>
               <li>Refund eligibility is subject to approval by the event organizer</li>
@@ -205,9 +205,9 @@ export default function ShippingReturnPolicyPage() {
         </p>
         <ol className="ml-6 list-decimal space-y-2 text-slate-300">
           <li>Log into your Movigoo account</li>
-          <li>Navigate to "My Bookings" section</li>
+          <li>Navigate to &quot;My Bookings&quot; section</li>
           <li>Select the booking you wish to cancel</li>
-          <li>Click on "Request Cancellation" (if available for your booking)</li>
+          <li>Click on &quot;Request Cancellation&quot; (if available for your booking)</li>
           <li>Provide a reason for cancellation</li>
           <li>Submit the request</li>
           <li>Alternatively, contact our customer support team with your booking reference number</li>

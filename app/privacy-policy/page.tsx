@@ -186,7 +186,7 @@ export default function PrivacyPolicyPage() {
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-2xl font-semibold text-white">8. Children's Privacy</h2>
+        <h2 className="text-2xl font-semibold text-white">8. Children&apos;s Privacy</h2>
         <p className="text-slate-300">
           Our services are not intended for individuals under the age of 18. We do not knowingly collect personal 
           information from children. If you believe we have inadvertently collected information from a minor, please 
@@ -217,7 +217,7 @@ export default function PrivacyPolicyPage() {
         <p className="text-slate-300">
           We may update this Privacy Policy from time to time to reflect changes in our practices or legal requirements. 
           We will notify you of significant changes by posting the updated policy on our website and updating the 
-          "Last updated" date. Your continued use of our services after changes are made constitutes acceptance of 
+          &quot;Last updated&quot; date. Your continued use of our services after changes are made constitutes acceptance of 
           the updated policy.
         </p>
       </section>
@@ -262,7 +262,7 @@ export default function PrivacyPolicyPage() {
 
       <section className="rounded-2xl border border-white/10 bg-white/5 p-6">
         <p className="text-sm text-slate-400">
-          By using Movigoo's services, you acknowledge that you have read, understood, and agree to this Privacy Policy. 
+          By using Movigoo&apos;s services, you acknowledge that you have read, understood, and agree to this Privacy Policy. 
           If you do not agree with any part of this policy, please discontinue use of our services.
         </p>
       </section>

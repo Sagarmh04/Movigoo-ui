@@ -86,7 +86,7 @@ export default function AboutUsPage() {
       <section className="space-y-4">
         <h2 className="text-2xl font-semibold text-white">Contact Us</h2>
         <p className="text-slate-300">
-          If you have any questions, concerns, or feedback, please don't hesitate to reach out to us. Our team 
+          If you have any questions, concerns, or feedback, please don&apos;t hesitate to reach out to us. Our team 
           is committed to providing you with the best possible service.
         </p>
         <p className="text-slate-400 text-sm">
