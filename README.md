@@ -37,7 +37,9 @@ NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=xxxxxxx
 NEXT_PUBLIC_FIREBASE_APP_ID=1:xxxx:web:xxxxxxxx
 ```
 
-**Firebase Setup (Realtime Events):**
+**Firebase Setup (Hosted Events Only):**
+
+The app now **only displays hosted events** from Firestore. Static/mock events have been removed.
 
 1. Create a Firebase project at [Firebase Console](https://console.firebase.google.com/)
 2. Enable Firestore Database (start in test mode for development)
@@ -45,19 +47,22 @@ NEXT_PUBLIC_FIREBASE_APP_ID=1:xxxx:web:xxxxxxxx
 4. Add the `NEXT_PUBLIC_FIREBASE_*` variables to `.env.local`
 5. Create a Firestore collection named `events` with documents containing:
    - `title` (string, required)
+   - **To mark as hosted, use ONE of:**
+     - `status` (string) - set to `"hosted"` (recommended)
+     - `isHosted` (boolean) - set to `true`
    - `description` (string, optional)
-   - `startAt` (Timestamp, required for ordering)
+   - `startAt` (Timestamp, optional) - used for sorting
    - `endAt` (Timestamp, optional)
    - `image` (string, optional) - image URL
    - `host` (string, optional) - organizer name
-   - `status` (string, required) - set to `"published"` for events to appear
-   - `createdAt` (Timestamp, optional)
+   - `createdAt` (Timestamp, optional) - used for sorting if startAt is missing
    - Additional fields: `city`, `venue`, `categories`, `priceFrom`, `organizerId`, `slug`, `coverWide`, `coverPortrait`, `rating`, `hosted`
-6. Create a Firestore index for the query: `status` (ascending) + `startAt` (ascending)
-   - Firebase Console will prompt you to create this index when you first run the query
+6. **No Firestore indexes required** - queries don't use orderBy (sorting is client-side)
 7. Restart your dev server: `npm run dev`
 
-Once Firebase is configured, events will load in real-time from Firestore. If Firebase is not configured, the app falls back to the API/seed data.
+**Important:** Only events with `status: "hosted"` OR `isHosted: true` will appear. Drafts, unpublished events, and static/mock data are not shown.
+
+See `docs/hosted-events-setup.md` for detailed setup instructions and test plan.
 
 `NEXT_PUBLIC_API_BASE_URL` powers all `/api/events`, `/api/bookings`, and `/api/payments/verify` calls. Local mock: run `npx json-server ./scripts/mock-server.js` (see below) and point the base URL to `http://localhost:4000`.
 

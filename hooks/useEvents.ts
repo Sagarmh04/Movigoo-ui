@@ -4,7 +4,8 @@ import { useMemo } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { Event } from "@/types/event";
-import seedData from "@/scripts/seed-data.json";
+// Static seed data commented out - now using only hosted events from Firestore
+// import seedData from "@/scripts/seed-data.json";
 import { useFirebaseEvents } from "./useFirebaseEvents";
 
 export type EventFilters = {
@@ -24,7 +25,9 @@ type EventsResponse = {
   pageSize: number;
 };
 
-const seedEvents = (seedData.events ?? []) as Event[];
+// Static seed events removed - only hosted events from Firestore are shown
+// const seedEvents = (seedData.events ?? []) as Event[];
+const seedEvents: Event[] = []; // Empty array - no static/mock events
 
 /**
  * Check if Firebase is configured

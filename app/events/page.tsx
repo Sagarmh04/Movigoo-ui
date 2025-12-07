@@ -1,4 +1,4 @@
-import EventsExplorer from "@/components/events/EventsExplorer";
+import HostedEventListClient from "@/components/HostedEventListClient";
 
 export const metadata = {
   title: "Events • Movigoo"
@@ -14,7 +14,8 @@ export default function EventsPage() {
           Curated happenings with glass filters, parallax posters, and real-time availability.
         </p>
       </div>
-      <EventsExplorer />
+      {/* Client component that loads only hosted events from Firestore */}
+      <HostedEventListClient />
     </div>
   );
 }
