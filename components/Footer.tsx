@@ -52,17 +52,42 @@ const Footer = () => {
           <div>
             <p className="mb-2 text-xs uppercase tracking-[0.3em] text-slate-500">Support</p>
             <ul className="space-y-2">
-              <li>Help Center</li>
-              <li>Refunds</li>
+              <li>
+                <Link href="/refund-policy" className="transition hover:text-white">
+                  Refunds
+                </Link>
+              </li>
+              <li>
+                <Link href="/shipping-return-policy" className="transition hover:text-white">
+                  Shipping & Returns
+                </Link>
+              </li>
               <li>Partner with us</li>
             </ul>
           </div>
           <div>
             <p className="mb-2 text-xs uppercase tracking-[0.3em] text-slate-500">Legal</p>
             <ul className="space-y-2">
-              <li>Terms</li>
-              <li>Privacy</li>
-              <li>Security</li>
+              <li>
+                <Link href="/about-us" className="transition hover:text-white">
+                  About Us
+                </Link>
+              </li>
+              <li>
+                <Link href="/privacy-policy" className="transition hover:text-white">
+                  Privacy Policy
+                </Link>
+              </li>
+              <li>
+                <Link href="/refund-policy" className="transition hover:text-white">
+                  Refund Policy
+                </Link>
+              </li>
+              <li>
+                <Link href="/shipping-return-policy" className="transition hover:text-white">
+                  Shipping & Return Policy
+                </Link>
+              </li>
             </ul>
           </div>
         </div>
