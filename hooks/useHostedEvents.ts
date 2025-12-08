@@ -1,21 +1,23 @@
 // hooks/useHostedEvents.ts
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   collection,
   query,
   where,
-  orderBy,
   onSnapshot,
   QuerySnapshot,
   DocumentData,
   Timestamp,
+  getDocs,
+  collectionGroup,
+  Firestore
 } from "firebase/firestore";
 import { db } from "@/lib/firebaseClient";
 import { Event } from "@/types/event";
 
-export type HostedEventItem = {
+type HostedEventItem = {
   id: string;
   title: string;
   description?: string;
@@ -25,9 +27,15 @@ export type HostedEventItem = {
   host?: string | null;
   status?: string | null;
   isHosted?: boolean | null;
+  hosted?: boolean | null;
+  published?: boolean | null;
+  visibility?: string | null;
   createdAt?: Date | null;
   updatedAt?: Date | null;
-  // Additional fields that might exist in Firestore
+  seatsTotal?: number | null;
+  seatsBooked?: number | null;
+  bookingEnabled?: boolean | null;
+  bookingUrl?: string | null;
   city?: string;
   venue?: string;
   categories?: string[];
@@ -37,259 +45,344 @@ export type HostedEventItem = {
   coverWide?: string;
   coverPortrait?: string[];
   rating?: number;
-  hosted?: boolean;
   raw?: DocumentData;
 };
 
-/**
- * Converts a Firestore event document to the Event type used in the app
- */
-function mapFirebaseEventToEvent(firebaseEvent: HostedEventItem): Event {
-  // Generate slug from title if not provided
+type DebugInfo = {
+  counts: Record<string, number>;
+  lastUpdated: string | null;
+  lastSeenDocIds: string[];
+  fallbackUsed: boolean;
+  fallbackDocs: string[];
+  notes?: string[];
+};
+
+const HOSTED_STATUSES = ["hosted", "published", "live"];
+
+const isDev = process.env.NODE_ENV !== "production";
+
+const toDate = (value: any): Date | null => {
+  if (!value) return null;
+  if (value instanceof Timestamp) return value.toDate();
+  if (value instanceof Date) return value;
+  if (typeof value === "string" || typeof value === "number") {
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  if (typeof value?.toDate === "function") return value.toDate();
+  return null;
+};
+
+const isHostedFlag = (data: DocumentData): boolean => {
+  const status = (data.status || data.visibility || "").toString().toLowerCase();
+  return (
+    HOSTED_STATUSES.includes(status) ||
+    data.isHosted === true ||
+    data.hosted === true ||
+    data.published === true ||
+    (typeof data.visibility === "string" && data.visibility.toLowerCase() === "hosted")
+  );
+};
+
+const mapToHostedEvent = (docId: string, data: DocumentData): HostedEventItem => {
+  return {
+    id: docId,
+    title: data.title || "Untitled",
+    description: data.description || "",
+    startAt: toDate(data.startAt),
+    endAt: toDate(data.endAt),
+    image: data.image || data.coverWide || data.coverPortrait?.[0] || null,
+    host: data.host || data.organizer || null,
+    status: data.status || null,
+    isHosted: data.isHosted ?? null,
+    hosted: data.hosted ?? null,
+    published: data.published ?? null,
+    visibility: data.visibility ?? null,
+    createdAt: toDate(data.createdAt) || toDate(data.created_at),
+    updatedAt: toDate(data.updatedAt) || toDate(data.updated_at),
+    seatsTotal: typeof data.seatsTotal === "number" ? data.seatsTotal : null,
+    seatsBooked: typeof data.seatsBooked === "number" ? data.seatsBooked : null,
+    bookingEnabled: typeof data.bookingEnabled === "boolean" ? data.bookingEnabled : null,
+    bookingUrl: typeof data.bookingUrl === "string" ? data.bookingUrl : null,
+    city: data.city || "TBA",
+    venue: data.venue || "TBA",
+    categories: Array.isArray(data.categories) ? data.categories : [],
+    priceFrom: typeof data.priceFrom === "number" ? data.priceFrom : 0,
+    organizerId: data.organizerId || data.hostId || data.organizer || "",
+    slug: data.slug || "",
+    coverWide: data.coverWide,
+    coverPortrait: data.coverPortrait,
+    rating: typeof data.rating === "number" ? data.rating : undefined,
+    raw: data
+  };
+};
+
+const toEvent = (item: HostedEventItem): Event => {
   const slug =
-    firebaseEvent.slug ||
-    firebaseEvent.title
+    item.slug ||
+    item.title
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/(^-|-$)/g, "");
 
-  // Convert Firestore timestamps to ISO strings
-  const dateStart = firebaseEvent.startAt
-    ? firebaseEvent.startAt.toISOString()
-    : new Date().toISOString();
-  const dateEnd = firebaseEvent.endAt ? firebaseEvent.endAt.toISOString() : undefined;
-
   return {
-    id: firebaseEvent.id,
+    id: item.id,
     slug,
-    title: firebaseEvent.title || "Untitled Event",
-    coverWide: firebaseEvent.coverWide || firebaseEvent.image || "/placeholder-event.jpg",
-    coverPortrait: firebaseEvent.coverPortrait || [firebaseEvent.image || "/placeholder-event.jpg"],
-    city: firebaseEvent.city || "TBA",
-    venue: firebaseEvent.venue || "TBA",
-    dateStart,
-    dateEnd,
-    categories: firebaseEvent.categories || [],
-    rating: firebaseEvent.rating,
-    priceFrom: firebaseEvent.priceFrom || 0,
-    description: firebaseEvent.description || "",
-    organizerId: firebaseEvent.organizerId || firebaseEvent.host || "",
-    hosted: firebaseEvent.hosted || firebaseEvent.isHosted || false,
+    title: item.title || "Untitled Event",
+    coverWide: item.coverWide || item.image || "/placeholder-event.jpg",
+    coverPortrait: item.coverPortrait || [item.image || "/placeholder-event.jpg"],
+    city: item.city || "TBA",
+    venue: item.venue || "TBA",
+    dateStart: (item.startAt ?? new Date()).toISOString(),
+    dateEnd: item.endAt ? item.endAt.toISOString() : undefined,
+    categories: item.categories || [],
+    rating: item.rating,
+    priceFrom: item.priceFrom ?? 0,
+    description: item.description || "",
+    organizerId: item.organizerId || item.host || "",
+    hosted: true
   };
-}
+};
 
 /**
- * Hook to fetch only hosted events from Firestore
- * Supports two patterns:
- * 1. status == "hosted"
- * 2. isHosted == true
- * Merges and deduplicates results by document ID
+ * Hook to fetch only hosted events with aggressive fallback strategies and debug info.
+ *
+ * Causes that typically block data:
+ * - Wrong collection path (events stored under subcollections)
+ * - Field name mismatch (status vs isHosted vs hosted vs published)
+ * - Firestore security rules denying read
+ * - Missing indexes for "in" queries
  */
 export function useHostedEvents() {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const eventsMapRef = useRef<Map<string, HostedEventItem>>(new Map());
+  const [debug, setDebug] = useState<DebugInfo>({
+    counts: {},
+    lastUpdated: null,
+    lastSeenDocIds: [],
+    fallbackUsed: false,
+    fallbackDocs: [],
+    notes: []
+  });
+
+  const mapRef = useRef<Map<string, HostedEventItem>>(new Map());
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (!db) {
-      setError("Firebase not initialized. Please check your environment variables.");
+      setError("Firebase not initialized. Please check NEXT_PUBLIC_FIREBASE_* vars.");
       setLoading(false);
       return;
     }
+    const firestore = db as Firestore;
 
-    setLoading(true);
-    setError(null);
-    eventsMapRef.current.clear();
+    const disposers: Array<() => void> = [];
+    const localDebug: DebugInfo = {
+      counts: {},
+      lastUpdated: null,
+      lastSeenDocIds: [],
+      fallbackUsed: false,
+      fallbackDocs: [],
+      notes: []
+    };
 
-    const unsubscribers: (() => void)[] = [];
+    const hostedQueries: { key: string; build: () => any }[] = [
+      {
+        key: "status_in",
+        build: () => query(collection(firestore, "events"), where("status", "in", HOSTED_STATUSES))
+      },
+      { key: "isHosted_true", build: () => query(collection(firestore, "events"), where("isHosted", "==", true)) },
+      { key: "hosted_true", build: () => query(collection(firestore, "events"), where("hosted", "==", true)) },
+      { key: "published_true", build: () => query(collection(firestore, "events"), where("published", "==", true)) },
+      { key: "visibility_hosted", build: () => query(collection(firestore, "events"), where("visibility", "==", "hosted")) }
+    ];
 
-    try {
-      // Query 1: status == "hosted"
-      // Note: We query without orderBy to avoid index requirements and missing field issues.
-      // Sorting is done client-side after merging results from both queries.
-      const qStatus = query(
-        collection(db, "events"),
-        where("status", "==", "hosted")
-      );
-
-      const unsub1 = onSnapshot(
-        qStatus,
-        (snap: QuerySnapshot<DocumentData>) => {
-          snap.docs.forEach((doc) => {
-            const d = doc.data();
-            const existing = eventsMapRef.current.get(doc.id);
-            const updatedAt = d.updatedAt instanceof Timestamp ? d.updatedAt.toDate() : d.updatedAt?.toDate?.() || null;
-            const existingUpdatedAt = existing?.updatedAt || null;
-
-            // Prefer latest data if document appears in both queries
-            if (!existing || (updatedAt && existingUpdatedAt && updatedAt > existingUpdatedAt)) {
-              eventsMapRef.current.set(doc.id, {
-                id: doc.id,
-                title: d.title || "Untitled",
-                description: d.description || "",
-                startAt: d.startAt instanceof Timestamp ? d.startAt.toDate() : d.startAt?.toDate?.() || null,
-                endAt: d.endAt instanceof Timestamp ? d.endAt.toDate() : d.endAt?.toDate?.() || null,
-                image: d.image || null,
-                host: d.host || null,
-                status: d.status || null,
-                isHosted: d.isHosted,
-                createdAt: d.createdAt instanceof Timestamp ? d.createdAt.toDate() : d.createdAt?.toDate?.() || null,
-                updatedAt,
-                city: d.city,
-                venue: d.venue,
-                categories: d.categories,
-                priceFrom: d.priceFrom,
-                organizerId: d.organizerId,
-                slug: d.slug,
-                coverWide: d.coverWide,
-                coverPortrait: d.coverPortrait,
-                rating: d.rating,
-                hosted: d.hosted,
-                raw: d,
-              });
-            }
-          });
-
-          // Remove documents that are no longer in this query
-          const currentIds = new Set(snap.docs.map((doc) => doc.id));
-          eventsMapRef.current.forEach((_, id) => {
-            if (!currentIds.has(id) && eventsMapRef.current.get(id)?.status === "hosted") {
-              eventsMapRef.current.delete(id);
-            }
-          });
-
-          updateEventsList();
-        },
-        (err) => {
-          console.error("useHostedEvents status query error", err);
-          // Don't set error if it's just a missing index - try the other query
-          if (!err.message?.includes("index")) {
-            setError(err.message || "Failed to load hosted events");
-          }
-        }
-      );
-
-      unsubscribers.push(unsub1);
-
-      // Query 2: isHosted == true
-      // Note: We query without orderBy to avoid index requirements and missing field issues.
-      // Sorting is done client-side after merging results from both queries.
-      const qIsHosted = query(
-        collection(db, "events"),
-        where("isHosted", "==", true)
-      );
-
-      const unsub2 = onSnapshot(
-        qIsHosted,
-        (snap: QuerySnapshot<DocumentData>) => {
-          snap.docs.forEach((doc) => {
-            const d = doc.data();
-            const existing = eventsMapRef.current.get(doc.id);
-            const updatedAt = d.updatedAt instanceof Timestamp ? d.updatedAt.toDate() : d.updatedAt?.toDate?.() || null;
-            const existingUpdatedAt = existing?.updatedAt || null;
-
-            // Prefer latest data if document appears in both queries
-            // Prefer status: "hosted" if both patterns exist (canonical field)
-            if (!existing || (updatedAt && existingUpdatedAt && updatedAt > existingUpdatedAt)) {
-              eventsMapRef.current.set(doc.id, {
-                id: doc.id,
-                title: d.title || "Untitled",
-                description: d.description || "",
-                startAt: d.startAt instanceof Timestamp ? d.startAt.toDate() : d.startAt?.toDate?.() || null,
-                endAt: d.endAt instanceof Timestamp ? d.endAt.toDate() : d.endAt?.toDate?.() || null,
-                image: d.image || null,
-                host: d.host || null,
-                status: d.status || null,
-                isHosted: d.isHosted,
-                createdAt: d.createdAt instanceof Timestamp ? d.createdAt.toDate() : d.createdAt?.toDate?.() || null,
-                updatedAt,
-                city: d.city,
-                venue: d.venue,
-                categories: d.categories,
-                priceFrom: d.priceFrom,
-                organizerId: d.organizerId,
-                slug: d.slug,
-                coverWide: d.coverWide,
-                coverPortrait: d.coverPortrait,
-                rating: d.rating,
-                hosted: d.hosted,
-                raw: d,
-              });
-            }
-          });
-
-          // Remove documents that are no longer in this query
-          const currentIds = new Set(snap.docs.map((doc) => doc.id));
-          eventsMapRef.current.forEach((_, id) => {
-            if (!currentIds.has(id) && eventsMapRef.current.get(id)?.isHosted === true) {
-              eventsMapRef.current.delete(id);
-            }
-          });
-
-          updateEventsList();
-        },
-        (err) => {
-          console.error("useHostedEvents isHosted query error", err);
-          // Don't set error if it's just a missing index - the other query might work
-          if (!err.message?.includes("index")) {
-            setError(err.message || "Failed to load hosted events");
-          }
-        }
-      );
-
-      unsubscribers.push(unsub2);
-
-      // Helper function to update the events list from the map
-      function updateEventsList() {
-        const eventsArray = Array.from(eventsMapRef.current.values());
-        
-        // Sort: events with startAt first (by startAt), then by createdAt
-        eventsArray.sort((a, b) => {
-          if (a.startAt && b.startAt) {
-            return a.startAt.getTime() - b.startAt.getTime();
-          }
-          if (a.startAt) return -1;
-          if (b.startAt) return 1;
-          // Both missing startAt - sort by createdAt
-          if (a.createdAt && b.createdAt) {
-            return a.createdAt.getTime() - b.createdAt.getTime();
-          }
-          if (a.createdAt) return -1;
-          if (b.createdAt) return 1;
-          return 0;
-        });
-
-        const mappedEvents = eventsArray.map(mapFirebaseEventToEvent);
-        setEvents(mappedEvents);
-        setLoading(false);
+    const mergeDoc = (item: HostedEventItem, source: string) => {
+      const existing = mapRef.current.get(item.id);
+      if (!existing) {
+        mapRef.current.set(item.id, item);
+        return;
       }
 
-      // Initial load check - if both queries complete without data, we're done loading
-      let statusLoaded = false;
-      let isHostedLoaded = false;
+      // Prefer doc with startAt/createdAt and latest updatedAt
+      const updatedExisting = existing.updatedAt?.getTime() ?? -1;
+      const updatedIncoming = item.updatedAt?.getTime() ?? -1;
+      const incomingHasDate = Boolean(item.startAt || item.createdAt);
+      const existingHasDate = Boolean(existing.startAt || existing.createdAt);
 
-      const checkBothLoaded = () => {
-        if (statusLoaded && isHostedLoaded && eventsMapRef.current.size === 0) {
-          setLoading(false);
-        }
-      };
+      const shouldReplace =
+        (incomingHasDate && !existingHasDate) ||
+        updatedIncoming > updatedExisting ||
+        (!existingHasDate && !incomingHasDate);
 
-      // Set up initial load tracking
-      const statusSnap = qStatus;
-      const isHostedSnap = qIsHosted;
+      if (shouldReplace) {
+        mapRef.current.set(item.id, { ...existing, ...item });
+      }
+    };
 
-    } catch (err: any) {
-      console.error("useHostedEvents setup error", err);
-      setError(err.message || "Failed to set up Firestore listeners");
+    const emit = (label: string) => {
+      const list = Array.from(mapRef.current.values());
+      // Sort: startAt asc, then createdAt desc (newest first)
+      list.sort((a, b) => {
+        if (a.startAt && b.startAt) return a.startAt.getTime() - b.startAt.getTime();
+        if (a.startAt) return -1;
+        if (b.startAt) return 1;
+        const aCreated = a.createdAt?.getTime() ?? 0;
+        const bCreated = b.createdAt?.getTime() ?? 0;
+        return bCreated - aCreated;
+      });
+
+      const mapped = list.map(toEvent);
+      setEvents(mapped);
       setLoading(false);
-    }
+
+      const ids = list.slice(0, 5).map((d) => d.id);
+      setDebug((prev) => ({
+        ...prev,
+        counts: { ...prev.counts, ...localDebug.counts },
+        lastUpdated: new Date().toISOString(),
+        lastSeenDocIds: ids,
+        fallbackUsed: prev.fallbackUsed || localDebug.fallbackUsed,
+        fallbackDocs: prev.fallbackDocs.length ? prev.fallbackDocs : localDebug.fallbackDocs,
+        notes: Array.from(new Set([...(prev.notes ?? []), ...(localDebug.notes ?? [])]))
+      }));
+
+      if (isDev) {
+        // eslint-disable-next-line no-console
+        console.debug(`[useHostedEvents] ${label}`, {
+          total: list.length,
+          sample: list.slice(0, 3).map((d) => ({
+            id: d.id,
+            status: d.status,
+            isHosted: d.isHosted,
+            hosted: d.hosted,
+            published: d.published,
+            visibility: d.visibility,
+            startAt: d.startAt,
+            createdAt: d.createdAt
+          }))
+        });
+      }
+    };
+
+    const attachListener = (key: string, qBuilder: () => any) => {
+      try {
+        const q = qBuilder();
+        const unsub = onSnapshot(
+          q,
+          (snap: QuerySnapshot<DocumentData>) => {
+            localDebug.counts[key] = snap.docs.length;
+            snap.docs.forEach((doc) => mergeDoc(mapToHostedEvent(doc.id, doc.data()), key));
+            emit(key);
+          },
+          (err) => {
+            localDebug.notes?.push(`Query ${key} failed: ${err?.message ?? err}`);
+            if (isDev) {
+              // eslint-disable-next-line no-console
+              console.warn(`[useHostedEvents] listener error (${key})`, err);
+            }
+          }
+        );
+        disposers.push(unsub);
+      } catch (err: any) {
+        localDebug.notes?.push(`Query ${key} setup failed: ${err?.message ?? err}`);
+        if (isDev) {
+          // eslint-disable-next-line no-console
+          console.warn(`[useHostedEvents] failed to attach listener (${key})`, err);
+        }
+      }
+    };
+
+    hostedQueries.forEach((q) => attachListener(q.key, q.build));
+
+    // Fallback: one-time fetch from /events
+    const runFallbackFetch = async () => {
+      try {
+        const snap = await getDocs(collection(firestore, "events"));
+        const found: string[] = [];
+        snap.docs.forEach((doc) => {
+          const data = doc.data();
+          if (isHostedFlag(data)) {
+            const item = mapToHostedEvent(doc.id, data);
+            mergeDoc(item, "fallback_getDocs");
+            found.push(doc.id);
+          }
+        });
+        if (found.length) {
+          localDebug.fallbackUsed = true;
+          localDebug.fallbackDocs = found;
+          emit("fallback_getDocs");
+        }
+      } catch (err: any) {
+        localDebug.notes?.push(`fallback getDocs failed: ${err?.message ?? err}`);
+        if (isDev) {
+          // eslint-disable-next-line no-console
+          console.warn("[useHostedEvents] fallback getDocs error", err);
+        }
+      }
+    };
+
+    // Fallback: collectionGroup listener to catch nested events
+    const attachCollectionGroup = () => {
+      try {
+        const unsub = onSnapshot(
+          collectionGroup(firestore, "events"),
+          (snap) => {
+            localDebug.counts.collectionGroup = snap.docs.length;
+            snap.docs.forEach((doc) => {
+              const data = doc.data();
+              if (isHostedFlag(data)) {
+                mergeDoc(mapToHostedEvent(doc.id, data), "collectionGroup");
+              }
+            });
+            emit("collectionGroup");
+          },
+          (err) => {
+            localDebug.notes?.push(`collectionGroup failed: ${err?.message ?? err}`);
+            if (isDev) {
+              // eslint-disable-next-line no-console
+              console.warn("[useHostedEvents] collectionGroup error", err);
+            }
+          }
+        );
+        disposers.push(unsub);
+      } catch (err: any) {
+        localDebug.notes?.push(`collectionGroup setup failed: ${err?.message ?? err}`);
+        if (isDev) {
+          // eslint-disable-next-line no-console
+          console.warn("[useHostedEvents] collectionGroup setup error", err);
+        }
+      }
+    };
+
+    attachCollectionGroup();
+    runFallbackFetch();
+
+    // If nothing received after 5s but fallback had docs, use fallback
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      if (!mapRef.current.size && localDebug.fallbackDocs.length) {
+        emit("fallback_timeout");
+      }
+    }, 5000);
 
     return () => {
-      unsubscribers.forEach((unsub) => unsub());
+      disposers.forEach((fn) => fn());
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
   }, []);
 
-  return { events, loading, error };
+  const result = useMemo(
+    () => ({
+      events,
+      loading,
+      error,
+      debug
+    }),
+    [events, loading, error, debug]
+  );
+
+  return result;
 }
 

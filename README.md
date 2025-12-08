@@ -64,6 +64,31 @@ The app now **only displays hosted events** from Firestore. Static/mock events h
 
 See `docs/hosted-events-setup.md` for detailed setup instructions and test plan.
 
+### Quick hosted-events test
+1. In Firestore create a doc in `events` with `status: "hosted"` (or `isHosted: true`, `hosted: true`, `published: true`, `visibility: "hosted"`).
+2. Add `title` and (optionally) `startAt` / `createdAt`.
+3. Open `/events` in dev mode — the event should appear within ~1–2 seconds (realtime).
+4. Browser console (dev): shows snapshot logs + any permission/index errors.
+5. On `/events`, open the **Debug (dev only)** panel to see counts, last doc IDs, and fallback scan results.
+
+### Suggested Firestore rules (public read of hosted-only)
+```javascript
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /events/{eventId} {
+      allow read: if resource.data.status == "hosted"
+                || resource.data.status == "published"
+                || resource.data.isHosted == true
+                || resource.data.hosted == true
+                || resource.data.published == true
+                || resource.data.visibility == "hosted";
+      allow write: if request.auth != null && request.auth.token.admin == true;
+    }
+  }
+}
+```
+
 `NEXT_PUBLIC_API_BASE_URL` powers all `/api/events`, `/api/bookings`, and `/api/payments/verify` calls. Local mock: run `npx json-server ./scripts/mock-server.js` (see below) and point the base URL to `http://localhost:4000`.
 
 ### Mock API (demo)
