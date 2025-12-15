@@ -14,7 +14,7 @@ export default function EventsPage() {
           Curated happenings with glass filters, parallax posters, and real-time availability.
         </p>
       </div>
-      {/* Client component that loads only hosted events from Firestore */}
+      {/* Client component that loads real published events from Firestore */}
       <HostedEventListClient />
     </div>
   );

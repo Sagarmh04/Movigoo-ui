@@ -1,4 +1,4 @@
-// hooks/useFirebaseEvents.ts
+// hooks/usePublishedEvents.ts
 "use client";
 
 import { useEffect, useState } from "react";
@@ -15,17 +15,17 @@ import { Event } from "@/types/event";
 import { mapEventDoc } from "@/lib/mapEventDoc";
 
 /**
- * Hook to fetch published events from Firestore in realtime
- * Only shows events with status: "published"
+ * Hook to fetch only published events from Firestore
+ * Uses status === "published" and maps using the backend structure
  */
-export function useFirebaseEvents() {
+export function usePublishedEvents() {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!db) {
-      setError("Firebase not configured. Please set NEXT_PUBLIC_FIREBASE_PROJECT_ID in your .env.local file.");
+      setError("Firebase not initialized. Please check your environment variables.");
       setLoading(false);
       return;
     }
@@ -45,12 +45,14 @@ export function useFirebaseEvents() {
         (snap: QuerySnapshot<DocumentData>) => {
           try {
             const mappedEvents = snap.docs.map((doc) => mapEventDoc(doc));
-            // Sort by dateStart if available
+            
+            // Sort by dateStart (ascending)
             mappedEvents.sort((a, b) => {
-              const dateA = a.dateStart ? new Date(a.dateStart).getTime() : 0;
-              const dateB = b.dateStart ? new Date(b.dateStart).getTime() : 0;
+              const dateA = new Date(a.dateStart).getTime();
+              const dateB = new Date(b.dateStart).getTime();
               return dateA - dateB;
             });
+
             setEvents(mappedEvents);
             setLoading(false);
           } catch (mapError: any) {
@@ -60,7 +62,7 @@ export function useFirebaseEvents() {
           }
         },
         (err) => {
-          console.error("useFirebaseEvents onSnapshot error", err);
+          console.error("usePublishedEvents onSnapshot error", err);
           setError(err.message || "Failed to load events from Firestore");
           setLoading(false);
         }
@@ -68,7 +70,7 @@ export function useFirebaseEvents() {
 
       return () => unsub();
     } catch (err: any) {
-      console.error("useFirebaseEvents setup error", err);
+      console.error("usePublishedEvents setup error", err);
       setError(err.message || "Failed to set up Firestore listener");
       setLoading(false);
     }
@@ -76,3 +78,4 @@ export function useFirebaseEvents() {
 
   return { events, loading, error };
 }
+

@@ -7,10 +7,9 @@ import { Event } from "@/types/event";
 import { Button } from "@/components/ui/button";
 import EventCard from "@/components/EventCard";
 import { ArrowRight, PlayCircle } from "lucide-react";
-import { useHostedEvents } from "@/hooks/useHostedEvents";
 
 type HomeLandingProps = {
-  featuredEvents: Event[]; // Deprecated - now using useHostedEvents hook
+  featuredEvents: Event[]; // Real events from Firebase
 };
 
 const heroPosters = [
@@ -19,12 +18,9 @@ const heroPosters = [
   "/posters/chroma-night.svg"
 ];
 
-const HomeLanding = ({ featuredEvents: _deprecated }: HomeLandingProps) => {
-  // Use hosted events from Firestore instead of static/mock data
-  const { events: hostedEvents, loading } = useHostedEvents();
-  
-  // Show only hosted events (first 5 for featured section)
-  const featuredEvents = hostedEvents.slice(0, 5);
+const HomeLanding = ({ featuredEvents }: HomeLandingProps) => {
+  // Show first 5 events for featured section
+  const featured = featuredEvents.slice(0, 5);
 
   return (
     <div className="space-y-16">
@@ -89,16 +85,14 @@ const HomeLanding = ({ featuredEvents: _deprecated }: HomeLandingProps) => {
           className="flex gap-5 overflow-x-auto pb-4"
           whileTap={{ cursor: "grabbing" }}
         >
-          {loading ? (
-            <div className="text-slate-400">Loading hosted events...</div>
-          ) : featuredEvents.length > 0 ? (
-            featuredEvents.map((event) => (
+          {featured.length > 0 ? (
+            featured.map((event) => (
               <motion.div key={event.id} className="min-w-[280px] max-w-[320px] flex-1">
                 <EventCard event={event} />
               </motion.div>
             ))
           ) : (
-            <div className="text-slate-400">No hosted events available yet.</div>
+            <div className="text-slate-400">No events available yet. Add events with status: &quot;published&quot; to see them here.</div>
           )}
         </motion.div>
       </section>

@@ -1,11 +1,23 @@
+"use client";
+
 import HomeLanding from "@/components/home/HomeLanding";
+import { usePublishedEvents } from "@/hooks/usePublishedEvents";
 
-// Static/mock events removed - now using only hosted events from Firestore
-// See components/HostedEventListClient.tsx for the client component that loads hosted events
+export default function HomePage() {
+  // Fetch real published events from Firebase - no static/mock data
+  // Only events with status === "published" are shown
+  const { events, loading, error } = usePublishedEvents();
 
-export default async function HomePage() {
-  // Home page now uses client component that loads hosted events from Firestore
-  // This ensures only hosted events are displayed
-  return <HomeLanding featuredEvents={[]} />;
+  if (error) {
+    return (
+      <div className="rounded-3xl border border-rose-500/30 bg-rose-500/5 p-8 text-center">
+        <p className="text-lg font-semibold text-rose-200 mb-2">Failed to load events</p>
+        <p className="text-sm text-rose-300/80">{error}</p>
+      </div>
+    );
+  }
+
+  // Pass real events to HomeLanding (it will show first 5 as featured)
+  return <HomeLanding featuredEvents={loading ? [] : events} />;
 }
 

@@ -50,8 +50,11 @@ const EventList = ({
 
   if (isError) {
     return (
-      <div className="rounded-3xl border border-rose-500/30 bg-rose-500/5 p-6 text-center">
-        <p className="text-sm text-rose-200">We couldn’t load events. Please retry.</p>
+      <div className="rounded-3xl border border-rose-500/30 bg-rose-500/5 p-8 text-center">
+        <p className="text-lg font-semibold text-rose-200 mb-2">Failed to load events from Firebase</p>
+        <p className="text-sm text-rose-300/80 mb-6">
+          Make sure your Firebase is configured and events collection has documents with status: &quot;published&quot;
+        </p>
         {onRetry && (
           <Button className="mt-4 rounded-2xl" variant="outline" onClick={onRetry}>
             Retry

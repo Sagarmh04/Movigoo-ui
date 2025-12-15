@@ -1,12 +1,8 @@
 "use client";
 
 import { useMemo } from "react";
-import { useInfiniteQuery } from "@tanstack/react-query";
-import api from "@/lib/api";
 import { Event } from "@/types/event";
-// Static seed data commented out - now using only hosted events from Firestore
-// import seedData from "@/scripts/seed-data.json";
-import { useFirebaseEvents } from "./useFirebaseEvents";
+import { usePublishedEvents } from "./usePublishedEvents";
 
 export type EventFilters = {
   page?: number;
@@ -24,20 +20,6 @@ type EventsResponse = {
   page: number;
   pageSize: number;
 };
-
-// Static seed events removed - only hosted events from Firestore are shown
-// const seedEvents = (seedData.events ?? []) as Event[];
-const seedEvents: Event[] = []; // Empty array - no static/mock events
-
-/**
- * Check if Firebase is configured
- */
-function isFirebaseConfigured(): boolean {
-  return !!(
-    process.env.NEXT_PUBLIC_FIREBASE_API_KEY &&
-    process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
-  );
-}
 
 /**
  * Filter events based on filters
@@ -80,106 +62,56 @@ function filterEvents(events: Event[], filters: EventFilters): Event[] {
 }
 
 export function useEvents(filters: EventFilters = {}) {
-  const isFirebase = isFirebaseConfigured();
-  // Always call hooks, but Firebase hook will handle the case when not configured
-  const firebaseEvents = useFirebaseEvents();
-  const apiQuery = useInfiniteQuery<EventsResponse, Error, { pages: EventsResponse[]; pageParams: number[] }, readonly unknown[], number>({
-    queryKey: ["events", filters],
-    queryFn: async ({ pageParam }) => {
-      if (!process.env.NEXT_PUBLIC_API_BASE_URL) {
-        const pageSize = 6;
-        const allEvents = filterEvents(seedEvents, filters);
-        const start = (pageParam - 1) * pageSize;
-        const events = allEvents.slice(start, start + pageSize);
-        return {
-          events,
-          total: allEvents.length,
-          page: pageParam,
-          pageSize
-        };
-      }
-      const params = new URLSearchParams({
-        ...filters,
-        page: String(pageParam)
-      } as Record<string, string>);
-      try {
-        const { data } = await api.get<EventsResponse>(`/api/events?${params.toString()}`);
-        return data;
-      } catch (error) {
-        const pageSize = 6;
-        const allEvents = filterEvents(seedEvents, filters);
-        const start = (pageParam - 1) * pageSize;
-        const events = allEvents.slice(start, start + pageSize);
-        return {
-          events,
-          total: allEvents.length,
-          page: pageParam,
-          pageSize
-        };
-      }
+  // Always use Firebase - fetch only published events, no fallback to seed data
+  const publishedEvents = usePublishedEvents();
+
+  const filteredEvents = useMemo(() => {
+    if (publishedEvents.loading || publishedEvents.error) {
+      return [];
+    }
+    return filterEvents(publishedEvents.events, filters);
+  }, [publishedEvents.events, publishedEvents.loading, publishedEvents.error, filters]);
+
+  // Simulate pagination for Firebase events to maintain compatibility with existing components
+  const pageSize = 6;
+  const pages = useMemo(() => {
+    const result: EventsResponse[] = [];
+    for (let i = 0; i < filteredEvents.length; i += pageSize) {
+      result.push({
+        events: filteredEvents.slice(i, i + pageSize),
+        total: filteredEvents.length,
+        page: Math.floor(i / pageSize) + 1,
+        pageSize,
+      });
+    }
+    if (result.length === 0) {
+      result.push({
+        events: [],
+        total: 0,
+        page: 1,
+        pageSize,
+      });
+    }
+    return result;
+  }, [filteredEvents]);
+
+  // Return a React Query-like interface for compatibility
+  return {
+    data: {
+      pages,
+      pageParams: pages.map((_, i) => i + 1),
     },
-    initialPageParam: 1,
-    getNextPageParam: (lastPage) => {
-      const next = lastPage.page * lastPage.pageSize < lastPage.total ? lastPage.page + 1 : undefined;
-      return next;
+    isLoading: publishedEvents.loading,
+    isError: !!publishedEvents.error,
+    error: publishedEvents.error ? new Error(publishedEvents.error) : null,
+    fetchNextPage: () => {
+      // Firebase already loads all events, so this is a no-op
     },
-    enabled: !isFirebase, // Only run API query if Firebase is not configured
-  });
-
-  // If Firebase is configured, use Firebase events
-  if (isFirebase) {
-    const filteredEvents = useMemo(() => {
-      if (firebaseEvents.loading || firebaseEvents.error) {
-        return [];
-      }
-      return filterEvents(firebaseEvents.events, filters);
-    }, [firebaseEvents.events, firebaseEvents.loading, firebaseEvents.error, filters]);
-
-    // Simulate pagination for Firebase events to maintain compatibility
-    const pageSize = 6;
-    const pages = useMemo(() => {
-      const result: EventsResponse[] = [];
-      for (let i = 0; i < filteredEvents.length; i += pageSize) {
-        result.push({
-          events: filteredEvents.slice(i, i + pageSize),
-          total: filteredEvents.length,
-          page: Math.floor(i / pageSize) + 1,
-          pageSize,
-        });
-      }
-      if (result.length === 0) {
-        result.push({
-          events: [],
-          total: 0,
-          page: 1,
-          pageSize,
-        });
-      }
-      return result;
-    }, [filteredEvents]);
-
-    // Return a React Query-like interface for compatibility
-    return {
-      data: {
-        pages,
-        pageParams: pages.map((_, i) => i + 1),
-      },
-      isLoading: firebaseEvents.loading,
-      isError: !!firebaseEvents.error,
-      error: firebaseEvents.error ? new Error(firebaseEvents.error) : null,
-      fetchNextPage: () => {
-        // Firebase already loads all events, so this is a no-op
-        // But we maintain the interface for compatibility
-      },
-      hasNextPage: false, // Firebase loads all at once
-      isFetchingNextPage: false,
-      refetch: () => {
-        // Firebase updates in real-time, so this is a no-op
-      },
-    };
-  }
-
-  // Fallback to API/seed data if Firebase is not configured
-  return apiQuery;
+    hasNextPage: false, // Firebase loads all at once
+    isFetchingNextPage: false,
+    refetch: () => {
+      // Firebase updates in real-time, so this is a no-op
+    },
+  };
 }
 
