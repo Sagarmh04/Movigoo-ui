@@ -31,6 +31,12 @@ export function useEvent(slug?: string) {
     }
 
     async function fetchEvent() {
+      if (!db) {
+        setError("Firebase not configured. Please set NEXT_PUBLIC_FIREBASE_PROJECT_ID in your .env.local file.");
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
         setError(null);
