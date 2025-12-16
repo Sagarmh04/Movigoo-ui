@@ -381,7 +381,7 @@ export default function PaymentPage({ params }: { params: { eventId: string } })
           {/* Pay Button */}
           <Button
             onClick={processPayment}
-            disabled={paymentStatus === "processing"}
+            disabled={paymentStatus !== "idle"}
             className="w-full rounded-2xl bg-gradient-to-r from-[#0B62FF] to-indigo-600 py-6 text-base font-semibold hover:from-[#0A5AE6] hover:to-indigo-700 shadow-lg"
           >
             Pay {currencyFormatter.format(finalBookingData.totalAmount)}
