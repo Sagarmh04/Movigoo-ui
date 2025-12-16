@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Event, TicketType } from "@/types/event";
 import type { Booking } from "@/types/booking";
@@ -15,7 +16,7 @@ import ProcessingLoader from "@/components/ProcessingLoader";
 import PaymentSuccessAnimation from "@/components/PaymentSuccessAnimation";
 import PaymentFailureAnimation from "@/components/PaymentFailureAnimation";
 import { useToast } from "@/components/Toast";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { fakeGetUser } from "@/lib/fakeAuth";
 
 type BookingSidebarProps = {
   event: Event;
@@ -23,13 +24,18 @@ type BookingSidebarProps = {
 };
 
 const BookingSidebar = ({ event, ticketTypes }: BookingSidebarProps) => {
+  const router = useRouter();
   const [selection, setSelection] = useState<Record<string, number>>({});
   const [coupon, setCoupon] = useState("");
   const [status, setStatus] = useState<"idle" | "processing" | "success" | "failure">("idle");
   const [confirmedBooking, setConfirmedBooking] = useState<Booking | null>(null);
   const mutation = useCreateBooking();
   const { pushToast } = useToast();
-  const { user } = useCurrentUser();
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    setUser(fakeGetUser());
+  }, []);
 
   const totals = useMemo(() => {
     const subtotal = ticketTypes.reduce(
@@ -43,6 +49,12 @@ const BookingSidebar = ({ event, ticketTypes }: BookingSidebarProps) => {
   }, [selection, ticketTypes, coupon]);
 
   const handleBooking = async () => {
+    // Check if user is logged in - redirect to login if not
+    if (!user || !user.id) {
+      router.push(`/auth/login?redirect=/events/${event.id}/checkout`);
+      return;
+    }
+
     const { errors, payload } = validateTicketSelection(selection, ticketTypes);
     if (errors.length) {
       errors.forEach((error) =>
@@ -51,34 +63,20 @@ const BookingSidebar = ({ event, ticketTypes }: BookingSidebarProps) => {
       return;
     }
 
-    setStatus("processing");
-    try {
-      const response = await mutation.mutateAsync({
+    // Save booking state and redirect to checkout
+    // Store selection in sessionStorage for checkout page
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("bookingSelection", JSON.stringify({
         eventId: event.id,
         items: payload.map((item) => ({
           ...item,
           price: ticketTypes.find((ticket) => ticket.id === item.ticketTypeId)?.price ?? 0
         })),
         promoCode: coupon || undefined,
-        userId: user.id
-      });
-
-      if (response.status === "requires_payment" && response.paymentUrl) {
-        window.location.href = response.paymentUrl;
-        return;
-      }
-
-      setConfirmedBooking(response.booking);
-      setStatus("success");
-      pushToast({
-        title: "Booking locked in",
-        description: "We emailed your premium ticket.",
-        variant: "success"
-      });
-    } catch (error) {
-      console.error(error);
-      setStatus("failure");
+      }));
     }
+
+    router.push(`/events/${event.id}/checkout`);
   };
 
   const resetFlow = () => {

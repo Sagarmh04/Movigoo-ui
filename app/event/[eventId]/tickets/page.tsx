@@ -7,13 +7,15 @@ import { useEventById } from "@/hooks/useEventById";
 import StepIndicator from "@/components/booking/StepIndicator";
 import TicketSelectionCard, { type TicketType as TicketTypeCard } from "@/components/booking/TicketSelectionCard";
 import { Button } from "@/components/ui/button";
-import { saveBookingState, calculateTotals } from "@/lib/bookingState";
+import { saveBookingState } from "@/lib/bookingState";
 import { currencyFormatter } from "@/lib/utils";
+import { calculateBookingTotals, type TicketSelection } from "@/lib/bookingService";
 
 export default function TicketSelectionPage({ params }: { params: { eventId: string } }) {
   const router = useRouter();
   const { data, isLoading, isError } = useEventById(params.eventId);
   const [selectedTickets, setSelectedTickets] = useState<Record<string, number>>({});
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const handleQuantityChange = (ticketId: string, quantity: number) => {
     setSelectedTickets((prev) => ({
@@ -46,7 +48,13 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
   }, [tickets, selectedTickets]);
 
   const { subtotal, bookingFee, total } = useMemo(() => {
-    return calculateTotals(selectedTicketsArray);
+    const ticketSelections: TicketSelection[] = selectedTicketsArray.map((t) => ({
+      ticketTypeId: t.ticketId,
+      ticketName: t.typeName,
+      quantity: t.quantity,
+      price: t.price,
+    }));
+    return calculateBookingTotals(ticketSelections);
   }, [selectedTicketsArray]);
 
   const handleProceed = () => {
@@ -55,15 +63,21 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
     }
 
     if (data) {
+      // Save booking state for review page
       saveBookingState({
         eventId: data.event.id,
         eventName: data.event.title,
-        eventImage: data.event.coverWide,
+        eventImage: data.event.coverWide || "",
         dateStart: data.event.dateStart,
         dateEnd: data.event.dateEnd,
         venue: data.event.venue,
         city: data.event.city,
-        tickets: selectedTicketsArray,
+        tickets: selectedTicketsArray.map((t) => ({
+          ticketId: t.ticketId,
+          typeName: t.typeName,
+          quantity: t.quantity,
+          price: t.price,
+        })),
         bookingFee,
         totalAmount: total,
       });

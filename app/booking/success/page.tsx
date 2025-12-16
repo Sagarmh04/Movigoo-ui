@@ -1,0 +1,409 @@
+// app/booking/success/page.tsx
+// Booking Success Page with Premium QR Code Card
+
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "@/lib/firebaseClient";
+import { QRCodeSVG } from "qrcode.react";
+import Image from "next/image";
+import { Button } from "@/components/ui/button";
+import { Download, Calendar, MapPin, Ticket, X, Clock, Share2 } from "lucide-react";
+import { currencyFormatter } from "@/lib/utils";
+import { motion } from "framer-motion";
+import { fakeGetUser } from "@/lib/fakeAuth";
+
+export default function BookingSuccessPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [user, setUser] = useState<any>(null);
+  const [booking, setBooking] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+    setUser(fakeGetUser());
+    
+    const bookingId = searchParams?.get("bookingId");
+    
+    // Try to get booking data from multiple sources
+    async function loadBooking() {
+      try {
+        let bookingData: any = null;
+
+        // 1. Try to fetch from Firestore
+        if (bookingId && db) {
+          try {
+            // Try global bookings collection
+            const globalBookingRef = doc(db, "bookings", bookingId);
+            const globalBookingDoc = await getDoc(globalBookingRef);
+
+            if (globalBookingDoc.exists()) {
+              const data = globalBookingDoc.data();
+              bookingData = {
+                bookingId,
+                eventTitle: data.eventTitle || "Event",
+                coverUrl: data.coverUrl || "/placeholder-event.jpg",
+                venueName: data.venueName || "TBA",
+                date: data.date || new Date().toLocaleDateString(),
+                time: data.time || "00:00",
+                ticketType: data.ticketType || "General",
+                quantity: data.quantity || 1,
+                totalAmount: data.totalAmount || 0,
+                qrCodeData: data.qrCodeData || bookingId,
+              };
+            } else if (user?.id) {
+              // Try user bookings collection
+              const userBookingRef = doc(db, "users", user.id, "bookings", bookingId);
+              const userBookingDoc = await getDoc(userBookingRef);
+
+              if (userBookingDoc.exists()) {
+                const data = userBookingDoc.data();
+                bookingData = {
+                  bookingId,
+                  eventTitle: data.eventTitle || "Event",
+                  coverUrl: data.coverUrl || "/placeholder-event.jpg",
+                  venueName: data.venueName || "TBA",
+                  date: data.date || new Date().toLocaleDateString(),
+                  time: data.time || "00:00",
+                  ticketType: data.ticketType || "General",
+                  quantity: data.quantity || 1,
+                  totalAmount: data.totalAmount || 0,
+                  qrCodeData: data.qrCodeData || bookingId,
+                };
+              }
+            }
+          } catch (err) {
+            console.error("Error fetching from Firestore:", err);
+          }
+        }
+
+        // 2. If not found in Firestore, try sessionStorage
+        if (!bookingData && typeof window !== "undefined") {
+          const finalBookingData = sessionStorage.getItem("finalBookingData");
+          if (finalBookingData) {
+            try {
+              const parsed = JSON.parse(finalBookingData);
+              const firstItem = parsed.items?.[0] || {};
+              
+              bookingData = {
+                bookingId: bookingId || `booking-${Date.now()}`,
+                eventTitle: parsed.eventTitle || "Event",
+                coverUrl: parsed.eventImage || parsed.coverUrl || "/placeholder-event.jpg",
+                venueName: parsed.venueName || "TBA",
+                date: parsed.eventDate || new Date().toLocaleDateString(),
+                time: parsed.eventTime || "00:00",
+                ticketType: firstItem.ticketTypeName || firstItem.ticketType || "General",
+                quantity: parsed.totalTickets || firstItem.quantity || 1,
+                totalAmount: parsed.totalAmount || 0,
+                qrCodeData: bookingId || `qr-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              };
+            } catch (err) {
+              console.error("Error parsing sessionStorage data:", err);
+            }
+          }
+        }
+
+        // 3. If still not found, create a fallback booking card
+        if (!bookingData) {
+          bookingData = {
+            bookingId: bookingId || `booking-${Date.now()}`,
+            eventTitle: "Your Event",
+            coverUrl: "/placeholder-event.jpg",
+            venueName: "TBA",
+            date: new Date().toLocaleDateString(),
+            time: new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
+            ticketType: "General",
+            quantity: 1,
+            totalAmount: 0,
+            qrCodeData: bookingId || `qr-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          };
+        }
+
+        setBooking(bookingData);
+      } catch (err: any) {
+        console.error("Error loading booking:", err);
+        // Still create a fallback booking
+        setBooking({
+          bookingId: bookingId || `booking-${Date.now()}`,
+          eventTitle: "Your Event",
+          coverUrl: "/placeholder-event.jpg",
+          venueName: "TBA",
+          date: new Date().toLocaleDateString(),
+          time: new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
+          ticketType: "General",
+          quantity: 1,
+          totalAmount: 0,
+          qrCodeData: bookingId || `qr-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        });
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadBooking();
+  }, [mounted, searchParams, user]);
+
+  const handleDownload = () => {
+    // TODO: Implement PDF download
+    console.log("Download ticket");
+    // For now, just show a message
+    if (typeof window !== "undefined") {
+      alert("Download feature coming soon!");
+    }
+  };
+
+  const handleShare = async () => {
+    const shareData = {
+      title: `My ${booking?.eventTitle || "Event"} Ticket`,
+      text: `Check out my ticket for ${booking?.eventTitle || "this event"}!`,
+      url: typeof window !== "undefined" ? window.location.href : "",
+    };
+
+    try {
+      if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+        await navigator.share(shareData);
+      } else {
+        // Fallback: Copy to clipboard
+        if (typeof window !== "undefined") {
+          await navigator.clipboard.writeText(window.location.href);
+          alert("Booking link copied to clipboard!");
+        }
+      }
+    } catch (err) {
+      // User cancelled or error occurred
+      if (err instanceof Error && err.name !== "AbortError") {
+        // Fallback: Copy to clipboard
+        if (typeof window !== "undefined") {
+          try {
+            await navigator.clipboard.writeText(window.location.href);
+            alert("Booking link copied to clipboard!");
+          } catch (clipboardErr) {
+            console.error("Failed to copy to clipboard:", clipboardErr);
+          }
+        }
+      }
+    }
+  };
+
+  if (!mounted || loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-4 bg-gradient-to-b from-[#050016] via-[#0b0220] to-[#05010a]">
+        <div className="text-center">
+          <div className="mb-4 h-8 w-8 animate-spin rounded-full border-4 border-[#0B62FF] border-t-transparent mx-auto" />
+          <p className="text-slate-400">Loading your ticket...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!booking) {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-4 bg-gradient-to-b from-[#050016] via-[#0b0220] to-[#05010a]">
+        <div className="text-center">
+          <p className="text-lg font-semibold text-white">Unable to load booking</p>
+          <Button
+            onClick={() => router.push("/events")}
+            className="mt-4 rounded-2xl bg-[#0B62FF] px-6 py-2"
+          >
+            Browse Events
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-[#050016] via-[#0b0220] to-[#05010a] text-white">
+      <div className="mx-auto flex min-h-screen w-full max-w-md flex-col px-4 pb-6 pt-8 sm:px-6 lg:px-8">
+        {/* Premium Booking Card */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: "easeOut" }}
+          className="relative overflow-hidden rounded-3xl border border-white/20 bg-gradient-to-br from-slate-900/95 via-slate-800/95 to-slate-900/95 shadow-2xl backdrop-blur-2xl"
+        >
+          {/* Animated Background Gradient */}
+          <div className="absolute inset-0 bg-gradient-to-br from-[#0B62FF]/20 via-purple-500/10 to-pink-500/10" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(11,98,255,0.15),_transparent_50%)]" />
+          
+          {/* Header with Close and Action Buttons */}
+          <div className="relative z-20 flex items-center justify-between border-b border-white/10 bg-white/5 px-4 py-3 backdrop-blur-sm">
+            <div className="flex items-center gap-2">
+              <div className="rounded-full bg-emerald-500 p-1.5">
+                <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-white">Confirmed</h2>
+                <p className="text-xs text-emerald-300">Ticket Ready</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleShare}
+                className="rounded-full bg-white/10 p-2 text-white transition hover:bg-white/20 backdrop-blur-sm"
+                aria-label="Share"
+                title="Share ticket"
+              >
+                <Share2 size={18} />
+              </button>
+              <button
+                onClick={handleDownload}
+                className="rounded-full bg-white/10 p-2 text-white transition hover:bg-white/20 backdrop-blur-sm"
+                aria-label="Download"
+                title="Download ticket"
+              >
+                <Download size={18} />
+              </button>
+              <button
+                onClick={() => router.push("/events")}
+                className="rounded-full bg-white/10 p-2 text-white transition hover:bg-white/20 backdrop-blur-sm"
+                aria-label="Close"
+                title="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          </div>
+
+          <div className="relative z-10 p-6 space-y-5">
+            {/* Event Image - Premium Design */}
+            <div className="relative h-40 w-full overflow-hidden rounded-2xl border-2 border-white/20 shadow-xl">
+              <Image 
+                src={booking.coverUrl || "/placeholder-event.jpg"} 
+                alt={booking.eventTitle || "Event"} 
+                fill 
+                sizes="(max-width: 768px) 100vw, 400px"
+                className="object-cover" 
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/50 to-transparent" />
+              <div className="absolute bottom-0 left-0 right-0 p-4">
+                <h3 className="text-xl font-bold text-white drop-shadow-lg line-clamp-2">{booking.eventTitle}</h3>
+              </div>
+              {/* Decorative corner accent */}
+              <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-[#0B62FF]/30 to-transparent rounded-bl-full" />
+            </div>
+
+            {/* Event Details - Enhanced Card */}
+            <div className="space-y-3 rounded-2xl border border-white/10 bg-gradient-to-br from-white/10 to-white/5 p-5 backdrop-blur-sm shadow-lg">
+              <div className="flex items-center gap-3 text-sm">
+                <div className="rounded-lg bg-[#0B62FF]/20 p-2">
+                  <Calendar size={18} className="text-[#0B62FF]" />
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400 uppercase tracking-wide">Date</p>
+                  <p className="text-white font-semibold">{booking.date}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 text-sm">
+                <div className="rounded-lg bg-[#0B62FF]/20 p-2">
+                  <Clock size={18} className="text-[#0B62FF]" />
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400 uppercase tracking-wide">Time</p>
+                  <p className="text-white font-semibold">{booking.time}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 text-sm">
+                <div className="rounded-lg bg-[#0B62FF]/20 p-2">
+                  <MapPin size={18} className="text-[#0B62FF]" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs text-slate-400 uppercase tracking-wide">Venue</p>
+                  <p className="text-white font-semibold">{booking.venueName}</p>
+                </div>
+              </div>
+              <div className="pt-3 border-t border-white/10">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-lg bg-[#0B62FF]/20 p-2">
+                      <Ticket size={18} className="text-[#0B62FF]" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-400 uppercase tracking-wide">Ticket</p>
+                      <p className="text-white font-semibold">{booking.ticketType}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-slate-400 uppercase tracking-wide">Quantity</p>
+                    <p className="text-white font-semibold text-lg">× {booking.quantity}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* QR Code - Premium Design */}
+            <div className="flex flex-col items-center space-y-4 rounded-2xl border-2 border-white/20 bg-gradient-to-br from-white/10 to-white/5 p-6 backdrop-blur-sm shadow-xl">
+              <div className="text-center">
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-400 font-bold mb-1">Entry Pass</p>
+                <p className="text-[10px] text-slate-500">Scan at venue</p>
+              </div>
+              <div className="rounded-2xl bg-white p-4 shadow-2xl ring-4 ring-[#0B62FF]/20">
+                <QRCodeSVG
+                  value={booking.qrCodeData || booking.bookingId}
+                  size={180}
+                  level="H"
+                  includeMargin={false}
+                  fgColor="#0B62FF"
+                />
+              </div>
+              <div className="text-center space-y-2">
+                <p className="text-xs text-slate-400 font-mono tracking-wider">
+                  ID: {booking.bookingId?.slice(0, 12).toUpperCase() || "N/A"}
+                </p>
+                <div className="inline-flex items-center gap-2 rounded-full bg-emerald-500/20 border border-emerald-500/40 px-4 py-1.5">
+                  <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <p className="text-xs font-semibold text-emerald-300">Show at Venue</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Total Paid - Enhanced */}
+            {booking.totalAmount > 0 && (
+              <div className="flex items-center justify-between rounded-xl border-2 border-[#0B62FF]/40 bg-gradient-to-r from-[#0B62FF]/20 to-[#0B62FF]/10 p-4 backdrop-blur-sm shadow-lg">
+                <span className="text-sm font-semibold text-slate-300">Total Paid</span>
+                <span className="text-2xl font-bold text-[#0B62FF]">
+                  {currencyFormatter.format(booking.totalAmount)}
+                </span>
+              </div>
+            )}
+
+            {/* Action Buttons - Enhanced */}
+            <div className="flex flex-col gap-3 pt-2">
+              <Button
+                onClick={handleDownload}
+                variant="outline"
+                className="w-full rounded-xl border-white/20 bg-white/10 py-3.5 text-white hover:bg-white/20 hover:border-white/30 transition-all shadow-lg"
+              >
+                <Download size={18} className="mr-2" />
+                Download Ticket
+              </Button>
+              <Button
+                onClick={() => router.push("/my-bookings")}
+                className="w-full rounded-xl bg-gradient-to-r from-[#0B62FF] to-[#0A5AE6] py-3.5 text-white hover:from-[#0A5AE6] hover:to-[#0947CC] transition-all shadow-lg font-semibold"
+              >
+                View My Bookings
+              </Button>
+            </div>
+
+            {/* Powered by Movigoo Footer */}
+            <div className="pt-4 border-t border-white/10 text-center">
+              <p className="text-xs text-slate-500">
+                Powered by <span className="font-bold text-[#0B62FF]">Movigoo</span>
+              </p>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    </div>
+  );
+}

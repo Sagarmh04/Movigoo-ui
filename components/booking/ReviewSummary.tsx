@@ -19,7 +19,7 @@ export default function ReviewSummary({ booking }: ReviewSummaryProps) {
       {/* Event Summary */}
       <div className="space-y-4 rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-6">
         <div className="relative h-40 overflow-hidden rounded-xl border border-white/10 sm:h-48">
-          <Image src={booking.eventImage} alt={booking.eventName} fill className="object-cover" />
+          <Image src={booking.eventImage} alt={booking.eventName} fill sizes="(max-width: 768px) 100vw, 400px" className="object-cover" />
         </div>
         <div>
           <h2 className="text-xl font-semibold text-white sm:text-2xl">{booking.eventName}</h2>

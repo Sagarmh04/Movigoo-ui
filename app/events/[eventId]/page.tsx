@@ -1,11 +1,16 @@
 "use client";
 
-import { useEvent } from "@/hooks/useEvent";
+import { useEventById } from "@/hooks/useEventById";
 import EventDetailView from "@/components/events/EventDetailView";
 import { notFound } from "next/navigation";
 
-export default function EventDetailPage({ params }: { params: { slug: string } }) {
-  const { data, isLoading, isError } = useEvent(params.slug);
+export default function EventDetailPage({ params }: { params: { eventId: string } }) {
+  // Handle params - could be Promise in Next.js 14
+  const eventId = typeof params === "object" && "eventId" in params 
+    ? (typeof params.eventId === "string" ? params.eventId : "") 
+    : "";
+
+  const { data, isLoading, isError } = useEventById(eventId);
 
   if (isLoading) {
     return (

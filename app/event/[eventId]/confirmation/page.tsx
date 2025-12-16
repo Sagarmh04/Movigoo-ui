@@ -3,57 +3,57 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEventById } from "@/hooks/useEventById";
+import { getBookingById } from "@/lib/bookingService";
 import BookingConfirmationCard from "@/components/booking/BookingConfirmationCard";
-import { getBookingState } from "@/lib/bookingState";
 
 export default function ConfirmationPage({ params }: { params: { eventId: string } }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { data: eventData, isLoading } = useEventById(params.eventId);
   const [booking, setBooking] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const bookingId = searchParams.get("bookingId");
-    const qrToken = searchParams.get("qrToken");
+    const qrCode = searchParams.get("qrCode");
 
-    if (!bookingId || !qrToken) {
+    if (!bookingId || !qrCode) {
       // Redirect if missing params
       router.push(`/event/${params.eventId}`);
       return;
     }
 
-    // Get booking state (or fetch from Firestore in production)
-    const state = getBookingState();
-    if (state && eventData && state.tickets && state.tickets.length > 0) {
-      setBooking({
-        bookingId,
-        eventName: state.eventName,
-        eventImage: state.eventImage,
-        dateStart: state.dateStart,
-        dateEnd: state.dateEnd,
-        venue: state.venue,
-        ticketType: state.tickets[0]?.typeName || "Ticket",
-        quantity: state.tickets.reduce((sum, t) => sum + t.quantity, 0),
-        totalPaid: state.totalAmount,
-        qrToken,
-      });
-    } else if (eventData) {
-      // Fallback if state is cleared
-      setBooking({
-        bookingId,
-        eventName: eventData.event.title,
-        eventImage: eventData.event.coverWide,
-        dateStart: eventData.event.dateStart,
-        dateEnd: eventData.event.dateEnd,
-        venue: eventData.event.venue,
-        ticketType: "Ticket",
-        quantity: 1,
-        totalPaid: 0,
-        qrToken,
-      });
+    // Fetch booking from Firestore
+    async function fetchBooking() {
+      try {
+        if (!bookingId) return;
+        const bookingData = await getBookingById(bookingId);
+        if (bookingData) {
+          setBooking({
+            bookingId: bookingId,
+            eventName: bookingData.eventTitle,
+            eventImage: bookingData.coverUrl || "/placeholder-event.jpg",
+            date: bookingData.date,
+            time: bookingData.time,
+            venue: bookingData.venueName,
+            ticketType: bookingData.ticketType,
+            quantity: bookingData.quantity,
+            totalPaid: bookingData.totalAmount,
+            qrToken: bookingData.qrCodeData,
+          });
+        } else {
+          // Booking not found, redirect
+          router.push(`/event/${params.eventId}`);
+        }
+      } catch (error) {
+        console.error("Error fetching booking:", error);
+        router.push(`/event/${params.eventId}`);
+      } finally {
+        setIsLoading(false);
+      }
     }
-  }, [searchParams, params.eventId, router, eventData]);
+
+    fetchBooking();
+  }, [searchParams, params.eventId, router]);
 
   if (isLoading || !booking) {
     return (

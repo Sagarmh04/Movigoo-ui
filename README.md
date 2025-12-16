@@ -24,7 +24,7 @@ pnpm dev       # http://localhost:3000
 Create `.env.local` (copy from `.env.local.example`):
 
 ```
-NEXT_PUBLIC_API_BASE_URL=https://api.movigoo.dev
+# NEXT_PUBLIC_API_BASE_URL is no longer used - all APIs are local
 NEXT_PUBLIC_MAP_KEY=pk.xxxxxx
 NEXT_PUBLIC_PAYMENT_PROVIDER=stripe
 

@@ -1,6 +1,6 @@
 # Movigoo API Contract
 
-All requests share the base url `${NEXT_PUBLIC_API_BASE_URL}`.
+All requests use local Next.js API routes (no external URLs).
 
 ## GET /api/events
 

@@ -1,5 +1,6 @@
 "use client";
 
+import LayoutWrapper from "@/components/LayoutWrapper";
 import HomeLanding from "@/components/home/HomeLanding";
 import { usePublishedEvents } from "@/hooks/usePublishedEvents";
 
@@ -10,14 +11,20 @@ export default function HomePage() {
 
   if (error) {
     return (
-      <div className="rounded-3xl border border-rose-500/30 bg-rose-500/5 p-8 text-center">
-        <p className="text-lg font-semibold text-rose-200 mb-2">Failed to load events</p>
-        <p className="text-sm text-rose-300/80">{error}</p>
-      </div>
+      <LayoutWrapper>
+        <div className="rounded-3xl border border-rose-500/30 bg-rose-500/5 p-8 text-center">
+          <p className="text-lg font-semibold text-rose-200 mb-2">Failed to load events</p>
+          <p className="text-sm text-rose-300/80">{error}</p>
+        </div>
+      </LayoutWrapper>
     );
   }
 
   // Pass real events to HomeLanding (it will show first 5 as featured)
-  return <HomeLanding featuredEvents={loading ? [] : events} />;
+  return (
+    <LayoutWrapper>
+      <HomeLanding featuredEvents={loading ? [] : events} />
+    </LayoutWrapper>
+  );
 }
 

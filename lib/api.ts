@@ -1,7 +1,8 @@
 import axios from "axios";
 
+// Use local Next.js API routes only - no external URLs
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL ?? "https://api.movigoo.dev",
+  baseURL: "", // Empty baseURL means relative to current domain
   timeout: 12000,
   headers: {
     "Content-Type": "application/json"
@@ -14,7 +15,7 @@ api.interceptors.response.use(
     const message =
       error.response?.data?.message ||
       error.message ||
-      "We couldn’t complete your request. Please try again.";
+      "We couldn't complete your request. Please try again.";
     return Promise.reject(new Error(message));
   }
 );

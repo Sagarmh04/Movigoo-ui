@@ -1,22 +1,33 @@
 "use client";
 
-import { useMemo } from "react";
+import { useState, useEffect } from "react";
+import { getAuth, onAuthStateChanged, User as FirebaseUser } from "firebase/auth";
 import type { User } from "@/types/user";
 
-const MOCK_USER: User = {
-  id: "organizer-abc",
-  name: "Aarav Kapoor",
-  role: "organizer",
-  email: "aarav@movigoo.com"
-};
-
-/**
- * Temporary client-side auth mock.
- * Replace with real auth provider (Clerk/Auth0/custom) once backend is connected.
- */
 export function useCurrentUser() {
-  const user = useMemo(() => MOCK_USER, []);
-  const isOrganizer = user.role === "organizer";
-  return { user, isOrganizer };
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const auth = getAuth();
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser: FirebaseUser | null) => {
+      if (firebaseUser) {
+        setUser({
+          id: firebaseUser.uid,
+          name: firebaseUser.displayName || "",
+          email: firebaseUser.email || "",
+          role: "user", // Default role
+        });
+      } else {
+        setUser(null);
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const isOrganizer = user?.role === "organizer";
+  return { user: user || { id: "", role: "user" }, isOrganizer, loading };
 }
 

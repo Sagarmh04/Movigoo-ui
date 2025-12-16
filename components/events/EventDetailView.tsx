@@ -27,7 +27,7 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
         className="overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-card-glass sm:rounded-[40px]"
       >
         <div className="relative h-[280px] sm:h-[440px]">
-          <Image src={event.coverWide} alt={event.title} fill className="object-cover" priority />
+          <Image src={event.coverWide} alt={event.title} fill sizes="(max-width: 768px) 100vw, 1200px" className="object-cover" priority />
           <div className="absolute inset-0 bg-gradient-to-r from-slate-950/80 via-slate-950/50 to-transparent" />
           <div className="relative z-10 flex h-full flex-col justify-center gap-3 p-6 text-white sm:gap-4 sm:p-10">
             {isHosted && <HostedBadge />}
@@ -74,7 +74,7 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
           <div className="grid gap-3 grid-cols-2">
             {event.coverPortrait.map((image, index) => (
               <motion.div key={image + index} whileHover={{ y: -6 }} className="relative h-40 overflow-hidden rounded-2xl border border-white/5">
-                <Image src={image} alt={`${event.title} photo ${index + 1}`} fill className="object-cover" />
+                <Image src={image} alt={`${event.title} photo ${index + 1}`} fill sizes="(max-width: 768px) 50vw, 300px" className="object-cover" />
               </motion.div>
             ))}
           </div>
@@ -125,7 +125,7 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
             <div className="grid gap-4 grid-cols-2">
               {event.coverPortrait.map((image, index) => (
                 <motion.div key={image + index} whileHover={{ y: -6 }} className="relative h-60 overflow-hidden rounded-3xl border border-white/5">
-                  <Image src={image} alt={`${event.title} photo ${index + 1}`} fill className="object-cover" />
+                  <Image src={image} alt={`${event.title} photo ${index + 1}`} fill sizes="(max-width: 1024px) 50vw, 400px" className="object-cover" />
                 </motion.div>
               ))}
             </div>

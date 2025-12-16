@@ -17,6 +17,7 @@ export type BookingState = {
   }[];
   bookingFee: number;
   totalAmount: number;
+  paymentSessionId?: string; // Server-generated payment session ID
 };
 
 const BOOKING_STATE_KEY = "movigoo_booking_state";
@@ -30,11 +31,18 @@ export function saveBookingState(state: Partial<BookingState>): void {
 
 export function getBookingState(): Partial<BookingState> | null {
   if (typeof window === "undefined") return null;
-  const stored = localStorage.getItem(BOOKING_STATE_KEY);
-  if (!stored) return null;
   try {
+    const stored = localStorage.getItem(BOOKING_STATE_KEY);
+    if (!stored) return null;
     return JSON.parse(stored);
-  } catch {
+  } catch (error) {
+    console.error("Error parsing booking state:", error);
+    // Clear corrupted state
+    try {
+      localStorage.removeItem(BOOKING_STATE_KEY);
+    } catch {
+      // Ignore
+    }
     return null;
   }
 }

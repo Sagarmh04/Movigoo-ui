@@ -1,8 +1,6 @@
 // components/booking/BookingConfirmationCard.tsx
 "use client";
 
-"use client";
-
 import Image from "next/image";
 import { Download, Share2 } from "lucide-react";
 import { motion } from "framer-motion";
@@ -15,8 +13,8 @@ type BookingConfirmationCardProps = {
     bookingId: string;
     eventName: string;
     eventImage: string;
-    dateStart: string;
-    dateEnd?: string;
+    date: string;
+    time: string;
     venue: string;
     ticketType: string;
     quantity: number;
@@ -72,14 +70,14 @@ export default function BookingConfirmationCard({ booking }: BookingConfirmation
 
           {/* Event Image */}
           <div className="relative h-48 overflow-hidden rounded-2xl border border-white/10">
-            <Image src={booking.eventImage} alt={booking.eventName} fill className="object-cover" />
+            <Image src={booking.eventImage} alt={booking.eventName} fill sizes="(max-width: 768px) 100vw, 400px" className="object-cover" />
           </div>
 
           {/* Event Details */}
           <div className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
             <h3 className="text-lg font-semibold text-white">{booking.eventName}</h3>
             <div className="space-y-2 text-sm text-slate-300">
-              <p>{formatDateRange(booking.dateStart, booking.dateEnd)}</p>
+              <p>{booking.date} at {booking.time}</p>
               <p>{booking.venue}</p>
               <div className="pt-2 border-t border-white/10">
                 <p className="text-xs text-slate-400">Ticket Type</p>
@@ -113,22 +111,20 @@ export default function BookingConfirmationCard({ booking }: BookingConfirmation
           </div>
 
           {/* Action Buttons */}
-          <div className="flex gap-3">
+          <div className="flex flex-col gap-3">
             <Button
               onClick={handleDownload}
               variant="outline"
-              className="flex-1 rounded-2xl border-white/10 bg-white/5 py-6 text-white hover:bg-white/10"
+              className="w-full rounded-2xl border-white/10 bg-white/5 py-6 text-white hover:bg-white/10"
             >
               <Download size={18} className="mr-2" />
-              Download
+              Download Ticket
             </Button>
             <Button
-              onClick={handleShare}
-              variant="outline"
-              className="flex-1 rounded-2xl border-white/10 bg-white/5 py-6 text-white hover:bg-white/10"
+              onClick={() => window.location.href = "/my-bookings"}
+              className="w-full rounded-2xl bg-[#0B62FF] py-6 text-white hover:bg-[#0A5AE6]"
             >
-              <Share2 size={18} className="mr-2" />
-              Share
+              View My Bookings
             </Button>
           </div>
         </div>

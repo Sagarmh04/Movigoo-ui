@@ -65,7 +65,7 @@ const HomeLanding = ({ featuredEvents }: HomeLandingProps) => {
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.8, delay: index * 0.15 }}
             >
-              <Image src={poster} alt="Hero poster" fill className="object-cover" />
+              <Image src={poster} alt="Hero poster" fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover" />
             </motion.div>
           ))}
         </div>

@@ -29,7 +29,14 @@ export default function EventDetailsSection({ event, isHosted = false }: EventDe
     <div className="space-y-4">
       {/* Cover Image */}
       <div className="relative h-64 overflow-hidden rounded-2xl border border-white/10 bg-white/5 sm:h-80">
-        <Image src={event.coverWide} alt={event.title} fill className="object-cover" priority />
+        <Image 
+          src={event.coverWide || event.coverPortrait?.[0] || "/placeholder-event.jpg"} 
+          alt={event.title || "Event"} 
+          fill 
+          sizes="(max-width: 768px) 100vw, 800px"
+          className="object-cover" 
+          priority 
+        />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/50 to-transparent" />
         {isHosted && (
           <div className="absolute top-4 left-4 z-10">

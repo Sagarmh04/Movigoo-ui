@@ -1,36 +1,88 @@
 "use client";
 
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Download, Share2 } from "lucide-react";
-import { useBookings } from "@/hooks/useBookings";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { Download, Share2, Chrome, Mail, Phone } from "lucide-react";
+import { useUserBookings } from "@/hooks/useUserBookings";
+import { fakeGetUser, fakeLogin } from "@/lib/fakeAuth";
 import TicketCard from "@/components/TicketCard";
 import { Button } from "@/components/ui/button";
 
 const BookingsPanel = () => {
-  const { user } = useCurrentUser();
-  const { data, isLoading, isError, refetch } = useBookings(user.id);
+  const router = useRouter();
+  const [user, setUser] = useState<any>(null);
+  const [mounted, setMounted] = useState(false);
+  const { bookings, loading, error } = useUserBookings(user?.id || null);
 
-  if (isLoading) {
+  useEffect(() => {
+    setMounted(true);
+    setUser(fakeGetUser());
+  }, []);
+
+  const handleLogin = () => {
+    fakeLogin();
+    setUser(fakeGetUser());
+  };
+
+  if (!mounted) {
     return <div className="h-40 animate-pulse rounded-3xl border border-white/10 bg-white/5" />;
   }
 
-  if (isError) {
+  // Show login prompt if no user
+  if (!user || !user.id) {
+    return (
+      <div className="rounded-3xl border border-white/10 bg-white/5 p-8 text-center">
+        <h2 className="text-xl font-semibold text-white mb-2">Login to see your bookings</h2>
+        <p className="text-sm text-slate-400 mb-6">Please login to view your premium passes</p>
+        <div className="space-y-3 max-w-md mx-auto">
+          <Button
+            onClick={handleLogin}
+            className="w-full justify-start gap-3 rounded-2xl border border-white/10 bg-white/5 py-6 text-base font-medium text-white transition hover:bg-white/10"
+          >
+            <Chrome size={20} className="text-[#0B62FF]" />
+            Continue with Google
+          </Button>
+          <Button
+            onClick={handleLogin}
+            className="w-full justify-start gap-3 rounded-2xl border border-white/10 bg-white/5 py-6 text-base font-medium text-white transition hover:bg-white/10"
+          >
+            <Mail size={20} className="text-[#0B62FF]" />
+            Continue with Email
+          </Button>
+          <Button
+            onClick={handleLogin}
+            className="w-full justify-start gap-3 rounded-2xl border border-white/10 bg-white/5 py-6 text-base font-medium text-white transition hover:bg-white/10"
+          >
+            <Phone size={20} className="text-[#0B62FF]" />
+            Continue with Mobile
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return <div className="h-40 animate-pulse rounded-3xl border border-white/10 bg-white/5" />;
+  }
+
+  if (error) {
     return (
       <div className="rounded-3xl border border-rose-500/30 bg-rose-500/10 p-6 text-center">
-        <p className="text-sm text-rose-100">Couldn’t load bookings.</p>
-        <Button variant="outline" className="mt-4 rounded-2xl" onClick={() => refetch()}>
+        <p className="text-sm text-rose-100">Couldn't load bookings.</p>
+        <Button variant="outline" className="mt-4 rounded-2xl" onClick={() => window.location.reload()}>
           Retry
         </Button>
       </div>
     );
   }
 
-  const bookings = data?.bookings ?? [];
+  // Filter bookings to only show current user's bookings
+  const userBookings = bookings.filter((booking) => booking.userId === user.id);
 
   return (
     <div className="space-y-6">
-      {bookings.map((booking) => (
+      {userBookings.map((booking) => (
         <motion.div
           key={booking.bookingId}
           initial={{ opacity: 0, y: 20 }}
@@ -38,7 +90,7 @@ const BookingsPanel = () => {
           className="space-y-4 rounded-3xl border border-white/10 bg-white/5 p-6"
         >
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-slate-300">Booking #{booking.bookingId}</p>
+            <p className="text-sm text-slate-300">Booking #{booking.bookingId?.slice(0, 8).toUpperCase() || "N/A"}</p>
             <div className="flex gap-2">
               <Button variant="ghost" size="sm" className="rounded-full border border-white/10">
                 <Download size={16} />
@@ -53,7 +105,7 @@ const BookingsPanel = () => {
           <TicketCard booking={booking} />
         </motion.div>
       ))}
-      {bookings.length === 0 && (
+      {userBookings.length === 0 && (
         <div className="rounded-3xl border border-white/10 bg-white/5 p-6 text-center text-slate-300">
           No bookings yet. Discover an experience on the home page.
         </div>
@@ -63,4 +115,3 @@ const BookingsPanel = () => {
 };
 
 export default BookingsPanel;
-

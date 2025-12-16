@@ -8,10 +8,11 @@ import { motion } from "framer-motion";
 
 type PaymentSimulatorProps = {
   totalAmount: number;
-  onPaymentSuccess: () => void;
+  onPaymentSuccess: () => Promise<void>;
+  isProcessing?: boolean;
 };
 
-export default function PaymentSimulator({ totalAmount, onPaymentSuccess }: PaymentSimulatorProps) {
+export default function PaymentSimulator({ totalAmount, onPaymentSuccess, isProcessing: externalProcessing }: PaymentSimulatorProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
@@ -21,10 +22,14 @@ export default function PaymentSimulator({ totalAmount, onPaymentSuccess }: Paym
     await new Promise((resolve) => setTimeout(resolve, 1200));
     setIsProcessing(false);
     setIsSuccess(true);
-    // Call success handler after a brief delay
-    setTimeout(() => {
-      onPaymentSuccess();
-    }, 800);
+    // Call success handler (which will verify payment on server)
+    try {
+      await onPaymentSuccess();
+    } catch (error) {
+      console.error("Payment verification error:", error);
+      setIsSuccess(false);
+      setIsProcessing(false);
+    }
   };
 
   if (isSuccess) {
@@ -81,10 +86,10 @@ export default function PaymentSimulator({ totalAmount, onPaymentSuccess }: Paym
       {/* Simulate Payment Button */}
       <Button
         onClick={simulatePayUSuccess}
-        disabled={isProcessing}
+        disabled={isProcessing || externalProcessing}
         className="w-full rounded-2xl bg-[#0B62FF] py-6 text-base font-semibold text-white shadow-lg transition hover:bg-[#0A5AE6] disabled:opacity-50"
       >
-        {isProcessing ? (
+        {(isProcessing || externalProcessing) ? (
           <span className="flex items-center gap-2">
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
             Processing Payment...

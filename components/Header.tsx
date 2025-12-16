@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useFakeUser } from "@/hooks/useFakeUser";
 
 const navItems = [
 	{ label: "Home", href: "/" },
@@ -48,7 +48,7 @@ function DesktopNav() {
 
 const Header = () => {
 	const pathname = usePathname();
-	const { user } = useCurrentUser();
+	const { user } = useFakeUser();
 	const [isScrolled, setIsScrolled] = useState(false);
 
 	useEffect(() => {
@@ -89,7 +89,7 @@ const Header = () => {
 					</Button>
 					<Button variant="amber" size="sm" className="flex items-center gap-2 rounded-full px-4">
 						<UserRound size={16} />
-						<span>{user.name}</span>
+						<span>{("name" in user ? user.name : "") || ("email" in user ? user.email : "") || "User"}</span>
 					</Button>
 				</div>
 

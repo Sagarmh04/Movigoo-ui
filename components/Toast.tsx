@@ -44,7 +44,7 @@ export const ToastProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const pushToast = useCallback((payload: ToastPayload) => {
-    const id = payload.id ?? crypto.randomUUID();
+    const id = payload.id ?? `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     setToasts((prev) => [...prev, { ...payload, id }]);
     setTimeout(() => removeToast(id), 4000);
   }, [removeToast]);
@@ -73,13 +73,13 @@ export const ToastViewport = ({
   onDismiss?: (id: string) => void;
 }) => (
   <div className="pointer-events-none fixed inset-x-0 top-4 z-50 flex flex-col items-center gap-2 px-2">
-    <AnimatePresence>
+    <AnimatePresence mode="sync">
       {toasts?.map((toast) => {
         const variant = toast.variant ?? "info";
         const map = variantMap[variant];
         return (
           <motion.div
-            key={toast.id}
+            key={toast.id || `${toast.title}-${Date.now()}`}
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}

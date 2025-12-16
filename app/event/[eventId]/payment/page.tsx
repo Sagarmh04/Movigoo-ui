@@ -6,14 +6,14 @@ import { useRouter } from "next/navigation";
 import StepIndicator from "@/components/booking/StepIndicator";
 import PaymentSimulator from "@/components/booking/PaymentSimulator";
 import { getBookingState, type BookingState, clearBookingState } from "@/lib/bookingState";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
-import { db } from "@/lib/firebaseClient";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import api from "@/lib/api";
 
 export default function PaymentPage({ params }: { params: { eventId: string } }) {
   const router = useRouter();
   const { user } = useCurrentUser();
   const [booking, setBooking] = useState<BookingState | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     const state = getBookingState();
@@ -26,41 +26,64 @@ export default function PaymentPage({ params }: { params: { eventId: string } })
   }, [params.eventId, router]);
 
   const handlePaymentSuccess = async () => {
-    if (!booking || !db) return;
+    if (!booking) {
+      console.error("Missing booking data");
+      return;
+    }
+
+    if (!user || !user.id) {
+      alert("Please login to complete booking");
+      router.push(`/event/${params.eventId}/review`);
+      return;
+    }
 
     try {
-      // Generate QR token
-      const qrToken = `MOV-${Date.now()}-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+      setIsProcessing(true);
 
-      // Create booking document in Firestore
-      const bookingData = {
-        eventId: booking.eventId,
-        eventName: booking.eventName,
+      // Extract date and time from event
+      const eventDate = new Date(booking.dateStart).toLocaleDateString();
+      const eventTime = new Date(booking.dateStart).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      // Prepare booking payload for API
+      const userDisplayName = (user as any).name || (user as any).email || (user as any).displayName || null;
+      const bookingPayload = {
         userId: user.id,
-        tickets: booking.tickets,
+        userName: userDisplayName,
+        eventId: booking.eventId,
+        eventTitle: booking.eventName,
+        coverUrl: booking.eventImage,
+        venueName: booking.venue,
+        date: eventDate,
+        time: eventTime,
+        ticketType: booking.tickets.map((t) => `${t.typeName} (${t.quantity})`).join(", "),
+        quantity: booking.tickets.reduce((sum, t) => sum + t.quantity, 0),
+        price: booking.tickets.reduce((sum, t) => sum + t.price * t.quantity, 0),
         bookingFee: booking.bookingFee,
-        totalPaid: booking.totalAmount,
-        qrToken,
-        status: "confirmed",
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+        totalAmount: booking.totalAmount,
       };
 
-      // Save to /users/{uid}/bookings/{bookingId}
-      const bookingsRef = collection(db, "users", user.id, "bookings");
-      const docRef = await addDoc(bookingsRef, bookingData);
+      console.log("Booking payload:", bookingPayload);
+      console.log("Calling /api/bookings");
+
+      // Call API route
+      const response = await api.post("/api/bookings", bookingPayload);
+
+      console.log("Booking API response:", response.data);
+
+      if (!response.data.ok) {
+        throw new Error(response.data.error || "Booking failed");
+      }
 
       // Clear booking state
       clearBookingState();
 
-      // Navigate to confirmation page with booking ID
-      router.push(`/event/${params.eventId}/confirmation?bookingId=${docRef.id}&qrToken=${qrToken}`);
-    } catch (error) {
+      // Navigate to success page
+      router.push(`/booking/success?bookingId=${response.data.bookingId}`);
+    } catch (error: any) {
       console.error("Error creating booking:", error);
-      // Still navigate to confirmation (for demo purposes)
-      const qrToken = `MOV-${Date.now()}-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
-      clearBookingState();
-      router.push(`/event/${params.eventId}/confirmation?bookingId=demo-${Date.now()}&qrToken=${qrToken}`);
+      const errorMessage = error.response?.data?.error || error.message || "Failed to create booking. Please try again.";
+      alert(errorMessage);
+      setIsProcessing(false);
     }
   };
 
@@ -86,7 +109,11 @@ export default function PaymentPage({ params }: { params: { eventId: string } })
         {/* Payment Simulator */}
         <div className="flex-1 space-y-6 overflow-y-auto pb-4">
           <h2 className="text-2xl font-semibold text-white">Complete Payment</h2>
-          <PaymentSimulator totalAmount={booking.totalAmount} onPaymentSuccess={handlePaymentSuccess} />
+          <PaymentSimulator 
+            totalAmount={booking.totalAmount} 
+            onPaymentSuccess={handlePaymentSuccess}
+            isProcessing={isProcessing}
+          />
         </div>
       </div>
     </div>

@@ -8,14 +8,14 @@ import { Event } from "@/types/event";
 import HostedBadge from "@/components/HostedBadge";
 import { Button } from "@/components/ui/button";
 import { cn, currencyFormatter, formatDateRange, truncate } from "@/lib/utils";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useFakeUser } from "@/hooks/useFakeUser";
 
 type EventCardProps = {
   event: Event;
 };
 
 const EventCard = ({ event }: EventCardProps) => {
-  const { user } = useCurrentUser();
+  const { user } = useFakeUser();
   const isHosted = event.organizerId === user.id;
 
   return (
@@ -26,7 +26,7 @@ const EventCard = ({ event }: EventCardProps) => {
         isHosted ? "border-amber-400/40 shadow-[0_25px_65px_rgba(251,176,69,0.25)]" : ""
       )}
     >
-      <Link href={`/events/${event.slug}`} className="relative block h-56 overflow-hidden">
+      <Link href={`/events/${event.id}`} className="relative block h-56 overflow-hidden">
         <Image
           src={event.coverWide}
           alt={event.title}
@@ -73,11 +73,11 @@ const EventCard = ({ event }: EventCardProps) => {
             className="flex-1 rounded-2xl border-amber-200/50 text-amber-100"
             asChild
           >
-            <Link href={`/events/${event.slug}/manage`}>Manage Event</Link>
+            <Link href={`/events/${event.id}/manage`}>Manage Event</Link>
           </Button>
         )}
         <Button variant="default" size="sm" className="flex-1 rounded-2xl" asChild>
-          <Link href={`/events/${event.slug}`}>Book Now</Link>
+          <Link href={`/events/${event.id}`}>Book Now</Link>
         </Button>
       </div>
     </motion.article>
