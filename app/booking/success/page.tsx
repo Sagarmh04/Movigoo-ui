@@ -3,7 +3,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebaseClient";
@@ -15,7 +15,7 @@ import { currencyFormatter } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { fakeGetUser } from "@/lib/fakeAuth";
 
-export default function BookingSuccessPage() {
+function BookingSuccessPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [user, setUser] = useState<any>(null);
@@ -518,5 +518,20 @@ export default function BookingSuccessPage() {
         </motion.div>
       </div>
     </div>
+  );
+}
+
+export default function BookingSuccessPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center px-4 bg-gradient-to-b from-[#050016] via-[#0b0220] to-[#05010a]">
+        <div className="text-center">
+          <div className="mb-4 h-8 w-8 animate-spin rounded-full border-4 border-[#0B62FF] border-t-transparent mx-auto" />
+          <p className="text-slate-400">Loading your ticket...</p>
+        </div>
+      </div>
+    }>
+      <BookingSuccessPageContent />
+    </Suspense>
   );
 }

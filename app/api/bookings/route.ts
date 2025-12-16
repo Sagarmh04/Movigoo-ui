@@ -4,7 +4,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { doc, setDoc, serverTimestamp, getDoc } from "firebase/firestore";
-import { db } from "@/lib/firebaseClient";
+import { db } from "@/lib/firebaseServer";
 import { v4 as uuidv4 } from "uuid";
 
 const BOOKING_FEE_PER_TICKET = 7; // ₹7 per ticket

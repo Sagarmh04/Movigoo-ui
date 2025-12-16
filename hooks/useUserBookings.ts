@@ -21,8 +21,17 @@ export function useUserBookings(userId: string | null) {
         setLoading(true);
         setError(null);
 
+        if (!db) {
+          console.error("❌ Firestore is not initialized");
+          setError("Firestore not initialized");
+          setBookings([]);
+          setLoading(false);
+          return;
+        }
+
         // Fetch from /users/{userId}/bookings
-        const userBookingsRef = collection(db, "users", userId, "bookings");
+        // TypeScript: db is guaranteed to be non-null here due to the check above
+        const userBookingsRef = collection(db, "users", userId!, "bookings");
         const q = query(userBookingsRef, orderBy("createdAt", "desc"));
         const snapshot = await getDocs(q);
 
@@ -33,37 +42,42 @@ export function useUserBookings(userId: string | null) {
         }));
 
         // Also check global bookings collection and filter by userId
-        const globalBookingsRef = collection(db, "bookings");
-        const globalQ = query(
-          globalBookingsRef,
-          where("userId", "==", userId),
-          orderBy("createdAt", "desc")
-        );
-        const globalSnapshot = await getDocs(globalQ);
+        if (db) {
+          const globalBookingsRef = collection(db, "bookings");
+          const globalQ = query(
+            globalBookingsRef,
+            where("userId", "==", userId),
+            orderBy("createdAt", "desc")
+          );
+          const globalSnapshot = await getDocs(globalQ);
 
-        const globalBookings = globalSnapshot.docs.map((doc) => ({
-          bookingId: doc.id,
-          ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
-        }));
+          const globalBookings = globalSnapshot.docs.map((doc) => ({
+            bookingId: doc.id,
+            ...doc.data(),
+            createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+          }));
 
-        // Merge and deduplicate by bookingId
-        const allBookings = [...userBookings, ...globalBookings];
-        const uniqueBookings = allBookings.reduce((acc, booking) => {
-          if (!acc.find((b) => b.bookingId === booking.bookingId)) {
-            acc.push(booking);
-          }
-          return acc;
-        }, [] as any[]);
+          // Merge and deduplicate by bookingId
+          const allBookings = [...userBookings, ...globalBookings];
+          const uniqueBookings = allBookings.reduce((acc, booking) => {
+            if (!acc.find((b) => b.bookingId === booking.bookingId)) {
+              acc.push(booking);
+            }
+            return acc;
+          }, [] as any[]);
 
-        // Sort by createdAt desc
-        uniqueBookings.sort((a, b) => {
-          const dateA = new Date(a.createdAt).getTime();
-          const dateB = new Date(b.createdAt).getTime();
-          return dateB - dateA;
-        });
+          // Sort by createdAt desc
+          uniqueBookings.sort((a, b) => {
+            const dateA = new Date(a.createdAt).getTime();
+            const dateB = new Date(b.createdAt).getTime();
+            return dateB - dateA;
+          });
 
-        setBookings(uniqueBookings);
+          setBookings(uniqueBookings);
+        } else {
+          // If db is null, just use userBookings
+          setBookings(userBookings);
+        }
       } catch (err: any) {
         console.error("Error fetching user bookings:", err);
         setError(err.message || "Failed to load bookings");
