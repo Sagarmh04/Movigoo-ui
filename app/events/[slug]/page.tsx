@@ -23,12 +23,15 @@ export default function EventDetailPage({ params }: { params: { slug: string } }
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 pb-24 sm:px-6 lg:px-10">
-      <EventDetailView
-        event={data.event}
-        ticketTypes={data.ticketTypes}
-        organizer={data.organizer}
-      />
+    <div className="mx-auto w-full max-w-6xl px-0 pb-0 sm:px-6 lg:px-10">
+      {/* Add top padding to account for fixed navbar (pt-16 = 4rem = 64px) */}
+      <div className="pt-16 sm:pt-20">
+        <EventDetailView
+          event={data.event}
+          ticketTypes={data.ticketTypes}
+          organizer={data.organizer}
+        />
+      </div>
     </div>
   );
 }

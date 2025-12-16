@@ -92,7 +92,7 @@ const BookingSidebar = ({ event, ticketTypes }: BookingSidebarProps) => {
         initial={{ opacity: 0, x: 40 }}
         animate={{ opacity: 1, x: 0 }}
         className={cn(
-          "space-y-6 rounded-2xl border border-white/10 bg-white/5 p-4 shadow-card-glass backdrop-blur-xl sm:p-6 sm:rounded-3xl",
+          "space-y-4 rounded-2xl border border-white/10 bg-white/5 p-4 shadow-card-glass backdrop-blur-xl sm:space-y-6 sm:p-6 sm:rounded-3xl mb-20 sm:mb-0",
           "lg:sticky lg:top-24",
           status === "failure" ? "border-rose-500/40" : ""
         )}
@@ -154,22 +154,25 @@ const BookingSidebar = ({ event, ticketTypes }: BookingSidebarProps) => {
         )}
       </motion.aside>
 
-      {/* Mobile: Sticky bottom bar with total and CTA */}
+      {/* Mobile: Sticky bottom bar with total and CTA - Above navbar (z-50) */}
       {status === "idle" && (
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-white/10 bg-black/70 px-4 py-3 backdrop-blur-xl sm:hidden">
-          <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3">
-            <div className="text-xs text-slate-300">
+        <div 
+          className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-black/90 px-4 py-3 backdrop-blur-xl sm:hidden"
+          style={{ paddingBottom: `calc(0.75rem + env(safe-area-inset-bottom))` }}
+        >
+          <div className="mx-auto flex w-full max-w-md items-center justify-between gap-3">
+            <div className="text-xs">
               <div className="font-medium text-white">Total</div>
-              <div className="text-sm font-semibold text-emerald-300">
+              <div className="text-base font-semibold text-emerald-300">
                 {currencyFormatter.format(totals.total)}
               </div>
             </div>
             <Button
               onClick={handleBooking}
-              className="flex-1 rounded-full bg-[#0B62FF] py-2 text-sm font-semibold shadow-lg sm:flex-none sm:px-6"
+              className="flex-1 rounded-full bg-[#0B62FF] py-2.5 text-sm font-semibold shadow-lg transition hover:bg-[#0A5AE6] sm:flex-none sm:px-6"
               disabled={mutation.isPending}
             >
-              {mutation.isPending ? "Reserving..." : "Continue"}
+              {mutation.isPending ? "Reserving..." : "BOOK WITH MOVIGOO"}
             </Button>
           </div>
         </div>
