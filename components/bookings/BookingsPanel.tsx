@@ -70,7 +70,7 @@ const BookingsPanel = () => {
   if (error) {
     return (
       <div className="rounded-3xl border border-rose-500/30 bg-rose-500/10 p-6 text-center">
-        <p className="text-sm text-rose-100">Couldn't load bookings.</p>
+        <p className="text-sm text-rose-100">Couldn&apos;t load bookings.</p>
         <Button variant="outline" className="mt-4 rounded-2xl" onClick={() => window.location.reload()}>
           Retry
         </Button>
