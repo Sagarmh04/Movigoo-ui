@@ -8,6 +8,7 @@ import { useUserBookings } from "@/hooks/useUserBookings";
 import { fakeGetUser, fakeLogin } from "@/lib/fakeAuth";
 import TicketCard from "@/components/TicketCard";
 import { Button } from "@/components/ui/button";
+import { Booking } from "@/types/booking";
 
 const BookingsPanel = () => {
   const router = useRouter();
@@ -82,29 +83,52 @@ const BookingsPanel = () => {
 
   return (
     <div className="space-y-6">
-      {userBookings.map((booking) => (
-        <motion.div
-          key={booking.bookingId}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="space-y-4 rounded-3xl border border-white/10 bg-white/5 p-6"
-        >
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-slate-300">Booking #{booking.bookingId?.slice(0, 8).toUpperCase() || "N/A"}</p>
-            <div className="flex gap-2">
-              <Button variant="ghost" size="sm" className="rounded-full border border-white/10">
-                <Download size={16} />
-                Download
-              </Button>
-              <Button variant="ghost" size="sm" className="rounded-full border border-white/10">
-                <Share2 size={16} />
-                Share
-              </Button>
+      {userBookings.map((booking: any) => {
+        // Transform booking data to match TicketCard's expected Booking type
+        const transformedBooking: Booking = {
+          bookingId: booking.bookingId || booking.id || "",
+          userId: booking.userId || user.id || "",
+          eventId: booking.eventId || "",
+          status: (booking.status || "confirmed") as "pending" | "confirmed" | "requires_payment" | "failed",
+          totalAmount: booking.totalAmount || 0,
+          createdAt: booking.createdAt || new Date().toISOString(),
+          event: {
+            title: booking.eventTitle || "Event",
+            dateStart: booking.date || booking.createdAt || new Date().toISOString(),
+            venue: booking.venueName || "TBA",
+            city: booking.city || "",
+          },
+          items: booking.items || (booking.ticketTypeId ? [{
+            ticketTypeId: booking.ticketTypeId || "",
+            quantity: booking.quantity || 1,
+            price: booking.pricePerTicket || (booking.totalAmount || 0) / (booking.quantity || 1),
+          }] : []),
+        };
+
+        return (
+          <motion.div
+            key={booking.bookingId || booking.id || Math.random()}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-4 rounded-3xl border border-white/10 bg-white/5 p-6"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-slate-300">Booking #{(booking.bookingId || booking.id || "N/A")?.slice(0, 8).toUpperCase()}</p>
+              <div className="flex gap-2">
+                <Button variant="ghost" size="sm" className="rounded-full border border-white/10">
+                  <Download size={16} />
+                  Download
+                </Button>
+                <Button variant="ghost" size="sm" className="rounded-full border border-white/10">
+                  <Share2 size={16} />
+                  Share
+                </Button>
+              </div>
             </div>
-          </div>
-          <TicketCard booking={booking} />
-        </motion.div>
-      ))}
+            <TicketCard booking={transformedBooking} />
+          </motion.div>
+        );
+      })}
       {userBookings.length === 0 && (
         <div className="rounded-3xl border border-white/10 bg-white/5 p-6 text-center text-slate-300">
           No bookings yet. Discover an experience on the home page.

@@ -41,42 +41,91 @@ export default function BookingSuccessPage() {
         // 1. Try to fetch from Firestore
         if (bookingId && db) {
           try {
-            // Try global bookings collection
+            let bookingDocData: any = null;
+            let eventId: string | null = null;
+
+            // Try global bookings collection first
             const globalBookingRef = doc(db, "bookings", bookingId);
             const globalBookingDoc = await getDoc(globalBookingRef);
 
             if (globalBookingDoc.exists()) {
-              const data = globalBookingDoc.data();
-              bookingData = {
-                bookingId,
-                eventTitle: data.eventTitle || "Event",
-                coverUrl: data.coverUrl || "/placeholder-event.jpg",
-                venueName: data.venueName || "TBA",
-                date: data.date || new Date().toLocaleDateString(),
-                time: data.time || "00:00",
-                ticketType: data.ticketType || "General",
-                quantity: data.quantity || 1,
-                totalAmount: data.totalAmount || 0,
-                qrCodeData: data.qrCodeData || bookingId,
-              };
+              bookingDocData = globalBookingDoc.data();
+              eventId = bookingDocData.eventId;
             } else if (user?.id) {
               // Try user bookings collection
               const userBookingRef = doc(db, "users", user.id, "bookings", bookingId);
               const userBookingDoc = await getDoc(userBookingRef);
 
               if (userBookingDoc.exists()) {
-                const data = userBookingDoc.data();
+                bookingDocData = userBookingDoc.data();
+                eventId = bookingDocData.eventId;
+              }
+            }
+
+            // If we found booking data, fetch the actual event details
+            if (bookingDocData && eventId) {
+              const eventRef = doc(db, "events", eventId);
+              const eventDoc = await getDoc(eventRef);
+
+              if (eventDoc.exists()) {
+                const eventData = eventDoc.data();
+                const basic = eventData.basicDetails || {};
+                const schedule = eventData.schedule || {};
+                const tickets = eventData.tickets || {};
+
+                // Extract date/time/venue from schedule
+                const locations = Array.isArray(schedule.locations) ? schedule.locations : [];
+                const firstLocation = locations[0] || {};
+                const venues = Array.isArray(firstLocation.venues) ? firstLocation.venues : [];
+                const firstVenue = venues[0] || {};
+                const dates = Array.isArray(firstVenue.dates) ? firstVenue.dates : [];
+                const firstDate = dates[0] || {};
+                const shows = Array.isArray(firstDate.shows) ? firstDate.shows : [];
+                const firstShow = shows[0] || {};
+
+                // Extract ticket type names from event data
+                const venueConfigs = Array.isArray(tickets.venueConfigs) ? tickets.venueConfigs : [];
+                const allTicketTypes: any[] = [];
+                venueConfigs.forEach((vc: any) => {
+                  if (Array.isArray(vc.ticketTypes)) {
+                    allTicketTypes.push(...vc.ticketTypes);
+                  }
+                });
+
+                // Get the actual ticket type name that was booked
+                let ticketTypeName = bookingDocData.ticketType || "General";
+                if (bookingDocData.ticketTypeId) {
+                  const bookedTicketType = allTicketTypes.find((t: any) => t.id === bookingDocData.ticketTypeId);
+                  if (bookedTicketType) {
+                    ticketTypeName = bookedTicketType.typeName || ticketTypeName;
+                  }
+                }
+
                 bookingData = {
                   bookingId,
-                  eventTitle: data.eventTitle || "Event",
-                  coverUrl: data.coverUrl || "/placeholder-event.jpg",
-                  venueName: data.venueName || "TBA",
-                  date: data.date || new Date().toLocaleDateString(),
-                  time: data.time || "00:00",
-                  ticketType: data.ticketType || "General",
-                  quantity: data.quantity || 1,
-                  totalAmount: data.totalAmount || 0,
-                  qrCodeData: data.qrCodeData || bookingId,
+                  eventTitle: basic.title || bookingDocData.eventTitle || "Event",
+                  coverUrl: basic.coverPortraitUrl || basic.coverWideUrl || bookingDocData.coverUrl || "/placeholder-event.jpg",
+                  venueName: firstVenue.name || bookingDocData.venueName || "TBA",
+                  date: firstDate.date || bookingDocData.date || new Date().toLocaleDateString(),
+                  time: firstShow.startTime || bookingDocData.time || "00:00",
+                  ticketType: ticketTypeName,
+                  quantity: bookingDocData.quantity || 1,
+                  totalAmount: bookingDocData.totalAmount || 0,
+                  qrCodeData: bookingDocData.qrCodeData || bookingId,
+                };
+              } else {
+                // Event not found, use booking data as fallback
+                bookingData = {
+                  bookingId,
+                  eventTitle: bookingDocData.eventTitle || "Event",
+                  coverUrl: bookingDocData.coverUrl || "/placeholder-event.jpg",
+                  venueName: bookingDocData.venueName || "TBA",
+                  date: bookingDocData.date || new Date().toLocaleDateString(),
+                  time: bookingDocData.time || "00:00",
+                  ticketType: bookingDocData.ticketType || "General",
+                  quantity: bookingDocData.quantity || 1,
+                  totalAmount: bookingDocData.totalAmount || 0,
+                  qrCodeData: bookingDocData.qrCodeData || bookingId,
                 };
               }
             }
@@ -85,26 +134,90 @@ export default function BookingSuccessPage() {
           }
         }
 
-        // 2. If not found in Firestore, try sessionStorage
+        // 2. If not found in Firestore, try sessionStorage and fetch event details
         if (!bookingData && typeof window !== "undefined") {
           const finalBookingData = sessionStorage.getItem("finalBookingData");
+          const bookingSelection = sessionStorage.getItem("bookingSelection");
+          
           if (finalBookingData) {
             try {
               const parsed = JSON.parse(finalBookingData);
               const firstItem = parsed.items?.[0] || {};
-              
-              bookingData = {
-                bookingId: bookingId || `booking-${Date.now()}`,
-                eventTitle: parsed.eventTitle || "Event",
-                coverUrl: parsed.eventImage || parsed.coverUrl || "/placeholder-event.jpg",
-                venueName: parsed.venueName || "TBA",
-                date: parsed.eventDate || new Date().toLocaleDateString(),
-                time: parsed.eventTime || "00:00",
-                ticketType: firstItem.ticketTypeName || firstItem.ticketType || "General",
-                quantity: parsed.totalTickets || firstItem.quantity || 1,
-                totalAmount: parsed.totalAmount || 0,
-                qrCodeData: bookingId || `qr-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              };
+              const eventIdFromStorage = parsed.eventId || (bookingSelection ? JSON.parse(bookingSelection).eventId : null);
+
+              // Try to fetch event details if we have eventId
+              if (eventIdFromStorage && db) {
+                try {
+                  const eventRef = doc(db, "events", eventIdFromStorage);
+                  const eventDoc = await getDoc(eventRef);
+
+                  if (eventDoc.exists()) {
+                    const eventData = eventDoc.data();
+                    const basic = eventData.basicDetails || {};
+                    const schedule = eventData.schedule || {};
+                    const tickets = eventData.tickets || {};
+
+                    // Extract date/time/venue from schedule
+                    const locations = Array.isArray(schedule.locations) ? schedule.locations : [];
+                    const firstLocation = locations[0] || {};
+                    const venues = Array.isArray(firstLocation.venues) ? firstLocation.venues : [];
+                    const firstVenue = venues[0] || {};
+                    const dates = Array.isArray(firstVenue.dates) ? firstVenue.dates : [];
+                    const firstDate = dates[0] || {};
+                    const shows = Array.isArray(firstDate.shows) ? firstDate.shows : [];
+                    const firstShow = shows[0] || {};
+
+                    // Extract ticket type names from event data
+                    const venueConfigs = Array.isArray(tickets.venueConfigs) ? tickets.venueConfigs : [];
+                    const allTicketTypes: any[] = [];
+                    venueConfigs.forEach((vc: any) => {
+                      if (Array.isArray(vc.ticketTypes)) {
+                        allTicketTypes.push(...vc.ticketTypes);
+                      }
+                    });
+
+                    // Get the actual ticket type name that was booked
+                    let ticketTypeName = firstItem.ticketTypeName || firstItem.ticketType || "General";
+                    if (firstItem.ticketTypeId) {
+                      const bookedTicketType = allTicketTypes.find((t: any) => t.id === firstItem.ticketTypeId);
+                      if (bookedTicketType) {
+                        ticketTypeName = bookedTicketType.typeName || ticketTypeName;
+                      }
+                    }
+
+                    bookingData = {
+                      bookingId: bookingId || `booking-${Date.now()}`,
+                      eventTitle: basic.title || parsed.eventTitle || "Event",
+                      coverUrl: basic.coverPortraitUrl || basic.coverWideUrl || parsed.eventImage || parsed.coverUrl || "/placeholder-event.jpg",
+                      venueName: firstVenue.name || parsed.venueName || "TBA",
+                      date: firstDate.date || parsed.eventDate || new Date().toLocaleDateString(),
+                      time: firstShow.startTime || parsed.eventTime || "00:00",
+                      ticketType: ticketTypeName,
+                      quantity: parsed.totalTickets || firstItem.quantity || 1,
+                      totalAmount: parsed.totalAmount || 0,
+                      qrCodeData: bookingId || `qr-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                    };
+                  }
+                } catch (err) {
+                  console.error("Error fetching event from sessionStorage eventId:", err);
+                }
+              }
+
+              // If event fetch failed, use sessionStorage data as fallback
+              if (!bookingData) {
+                bookingData = {
+                  bookingId: bookingId || `booking-${Date.now()}`,
+                  eventTitle: parsed.eventTitle || "Event",
+                  coverUrl: parsed.eventImage || parsed.coverUrl || "/placeholder-event.jpg",
+                  venueName: parsed.venueName || "TBA",
+                  date: parsed.eventDate || new Date().toLocaleDateString(),
+                  time: parsed.eventTime || "00:00",
+                  ticketType: firstItem.ticketTypeName || firstItem.ticketType || "General",
+                  quantity: parsed.totalTickets || firstItem.quantity || 1,
+                  totalAmount: parsed.totalAmount || 0,
+                  qrCodeData: bookingId || `qr-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                };
+              }
             } catch (err) {
               console.error("Error parsing sessionStorage data:", err);
             }
