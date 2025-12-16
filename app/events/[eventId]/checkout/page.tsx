@@ -117,6 +117,23 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
     );
   }
 
+  // Ensure data exists before proceeding
+  if (!data || !data.event) {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-4 bg-gradient-to-b from-[#050016] via-[#0b0220] to-[#05010a]">
+        <div className="text-center">
+          <p className="text-lg font-semibold text-white">Event not found</p>
+          <Button
+            onClick={() => router.push("/events")}
+            className="mt-4 rounded-2xl bg-[#0B62FF] px-6 py-2"
+          >
+            Browse Events
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   // Calculate totals
   const subtotal = bookingData.items.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
   const totalTickets = bookingData.items.reduce((sum: number, item: any) => sum + item.quantity, 0);
