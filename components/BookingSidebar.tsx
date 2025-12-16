@@ -87,65 +87,94 @@ const BookingSidebar = ({ event, ticketTypes }: BookingSidebarProps) => {
   };
 
   return (
-    <motion.aside
-      initial={{ opacity: 0, x: 40 }}
-      animate={{ opacity: 1, x: 0 }}
-      className={cn(
-        "sticky top-24 space-y-6 rounded-3xl border border-white/10 bg-white/5 p-6 shadow-card-glass backdrop-blur-3xl",
-        status === "failure" ? "border-rose-500/40" : ""
-      )}
-    >
-      <p className="text-sm uppercase tracking-[0.3em] text-slate-500">Booking</p>
-      {status === "processing" && <ProcessingLoader label="Locking seats" />}
-      {status === "success" && confirmedBooking ? (
-        <PaymentSuccessAnimation booking={confirmedBooking} onDone={resetFlow} />
-      ) : status === "failure" ? (
-        <PaymentFailureAnimation onRetry={handleBooking} />
-      ) : (
-        <>
-          <TicketSelector tickets={ticketTypes} value={selection} onChange={setSelection} />
-          <div className="space-y-3">
-            <p className="text-sm font-medium text-white">Promo or gift code</p>
-            <Input
-              placeholder="MAGICGOLD"
-              value={coupon}
-              onChange={(event) => setCoupon(event.target.value.toUpperCase())}
-            />
-          </div>
-          <div className="space-y-3 rounded-3xl border border-white/10 bg-white/5 p-4 text-sm">
-            <div className="flex justify-between text-slate-300">
-              <span>Subtotal</span>
-              <span>{currencyFormatter.format(totals.subtotal)}</span>
+    <>
+      <motion.aside
+        initial={{ opacity: 0, x: 40 }}
+        animate={{ opacity: 1, x: 0 }}
+        className={cn(
+          "space-y-6 rounded-2xl border border-white/10 bg-white/5 p-4 shadow-card-glass backdrop-blur-xl sm:p-6 sm:rounded-3xl",
+          "lg:sticky lg:top-24",
+          status === "failure" ? "border-rose-500/40" : ""
+        )}
+      >
+        <p className="text-sm uppercase tracking-[0.3em] text-slate-500">Booking</p>
+        {status === "processing" && <ProcessingLoader label="Locking seats" />}
+        {status === "success" && confirmedBooking ? (
+          <PaymentSuccessAnimation booking={confirmedBooking} onDone={resetFlow} />
+        ) : status === "failure" ? (
+          <PaymentFailureAnimation onRetry={handleBooking} />
+        ) : (
+          <>
+            <TicketSelector tickets={ticketTypes} value={selection} onChange={setSelection} />
+            <div className="space-y-3">
+              <p className="text-sm font-medium text-white">Promo or gift code</p>
+              <Input
+                placeholder="MAGICGOLD"
+                value={coupon}
+                onChange={(event) => setCoupon(event.target.value.toUpperCase())}
+                className="rounded-2xl"
+              />
             </div>
-            <div className="flex justify-between text-slate-300">
-              <span>Tax & fees</span>
-              <span>{currencyFormatter.format(totals.taxed)}</span>
-            </div>
-            {coupon && (
-              <div className="flex justify-between text-emerald-300">
-                <span>Discount</span>
-                <span>-{currencyFormatter.format(totals.discount)}</span>
+            {/* Desktop: Show full breakdown */}
+            <div className="hidden space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm sm:block">
+              <div className="flex justify-between text-slate-300">
+                <span>Subtotal</span>
+                <span>{currencyFormatter.format(totals.subtotal)}</span>
               </div>
-            )}
-            <Separator />
-            <div className="flex items-center justify-between text-white">
-              <span>Total</span>
-              <span className="text-xl font-semibold">{currencyFormatter.format(totals.total)}</span>
+              <div className="flex justify-between text-slate-300">
+                <span>Tax & fees</span>
+                <span>{currencyFormatter.format(totals.taxed)}</span>
+              </div>
+              {coupon && (
+                <div className="flex justify-between text-emerald-300">
+                  <span>Discount</span>
+                  <span>-{currencyFormatter.format(totals.discount)}</span>
+                </div>
+              )}
+              <Separator />
+              <div className="flex items-center justify-between text-white">
+                <span>Total</span>
+                <span className="text-xl font-semibold">{currencyFormatter.format(totals.total)}</span>
+              </div>
             </div>
+            {/* Desktop: Show button */}
+            <div className="hidden sm:block">
+              <Button
+                onClick={handleBooking}
+                className="w-full rounded-2xl py-3 text-base"
+                disabled={mutation.isPending}
+              >
+                {mutation.isPending ? "Reserving seats..." : "Book with Movigoo"}
+              </Button>
+              <p className="mt-2 text-xs text-slate-400">
+                Next step: secure payment via trusted partners. Instant refunds for failed payments.
+              </p>
+            </div>
+          </>
+        )}
+      </motion.aside>
+
+      {/* Mobile: Sticky bottom bar with total and CTA */}
+      {status === "idle" && (
+        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-white/10 bg-black/70 px-4 py-3 backdrop-blur-xl sm:hidden">
+          <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3">
+            <div className="text-xs text-slate-300">
+              <div className="font-medium text-white">Total</div>
+              <div className="text-sm font-semibold text-emerald-300">
+                {currencyFormatter.format(totals.total)}
+              </div>
+            </div>
+            <Button
+              onClick={handleBooking}
+              className="flex-1 rounded-full bg-[#0B62FF] py-2 text-sm font-semibold shadow-lg sm:flex-none sm:px-6"
+              disabled={mutation.isPending}
+            >
+              {mutation.isPending ? "Reserving..." : "Continue"}
+            </Button>
           </div>
-          <Button
-            onClick={handleBooking}
-            className="w-full rounded-2xl py-3 text-base"
-            disabled={mutation.isPending}
-          >
-            {mutation.isPending ? "Reserving seats..." : "Book with Movigoo"}
-          </Button>
-          <p className="text-xs text-slate-400">
-            Next step: secure payment via trusted partners. Instant refunds for failed payments.
-          </p>
-        </>
+        </div>
       )}
-    </motion.aside>
+    </>
   );
 };
 

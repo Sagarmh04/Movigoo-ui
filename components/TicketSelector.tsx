@@ -49,40 +49,40 @@ const TicketSelector = ({ tickets, value, onChange }: TicketSelectorProps) => {
             <motion.div
               key={ticket.id}
               layout
-              className="rounded-3xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300"
+              className="rounded-2xl border border-white/10 bg-white/5 p-3 text-xs text-slate-300 sm:rounded-3xl sm:p-4 sm:text-sm"
               initial={{ opacity: 0.8 }}
               animate={{ opacity: 1 }}
             >
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
                 <div className="flex-1">
-                  <p className="text-base font-semibold text-white">{ticket.name}</p>
-                  <p className="text-xs uppercase tracking-[0.3em] text-slate-500">{ticket.perks}</p>
+                  <p className="text-sm font-semibold text-white sm:text-base">{ticket.name}</p>
+                  <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500 sm:text-xs">{ticket.perks}</p>
                 </div>
-                <div className="text-right">
-                  <p className="text-lg font-semibold text-white">
+                <div className="text-left sm:text-right">
+                  <p className="text-base font-semibold text-white sm:text-lg">
                     {currencyFormatter.format(ticket.price)}
                   </p>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-[10px] text-slate-400 sm:text-xs">
                     {ticket.available} left • max {ticket.maxPerOrder}
                   </p>
                 </div>
               </div>
-              <div className="mt-3 flex items-center justify-between rounded-2xl bg-white/5 p-2">
+              <div className="mt-2 flex items-center justify-between rounded-xl bg-white/5 p-1.5 sm:mt-3 sm:rounded-2xl sm:p-2">
                 <button
                   aria-label={`Decrease ${ticket.name}`}
                   className={cn(
-                    "flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 text-white transition hover:bg-white/10",
+                    "flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 text-white transition hover:bg-white/10 sm:h-10 sm:w-10 sm:rounded-2xl",
                     qty === 0 ? "opacity-50" : undefined
                   )}
                   disabled={qty === 0}
                   onClick={() => handleChange(ticket.id, -1)}
                 >
-                  <Minus size={16} />
+                  <Minus size={14} className="sm:w-4 sm:h-4" />
                 </button>
                 <motion.span
                   layout
                   transition={spring}
-                  className="text-xl font-semibold text-white"
+                  className="text-lg font-semibold text-white sm:text-xl"
                   aria-live="polite"
                 >
                   {qty}
@@ -90,13 +90,13 @@ const TicketSelector = ({ tickets, value, onChange }: TicketSelectorProps) => {
                 <button
                   aria-label={`Increase ${ticket.name}`}
                   className={cn(
-                    "flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 text-white transition hover:bg-white/10",
+                    "flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 text-white transition hover:bg-white/10 sm:h-10 sm:w-10 sm:rounded-2xl",
                     disabled ? "opacity-50" : undefined
                   )}
                   disabled={disabled}
                   onClick={() => handleChange(ticket.id, 1)}
                 >
-                  <Plus size={16} />
+                  <Plus size={14} className="sm:w-4 sm:h-4" />
                 </button>
               </div>
             </motion.div>
