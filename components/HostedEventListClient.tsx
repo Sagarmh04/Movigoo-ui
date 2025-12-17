@@ -1,9 +1,12 @@
 // components/HostedEventListClient.tsx
 "use client";
 
+import { useMemo } from "react";
 import { motion } from "framer-motion";
 import EventCard from "@/components/EventCard";
 import { usePublishedEvents } from "@/hooks/usePublishedEvents";
+import { useSearchEvents } from "@/hooks/useSearchEvents";
+import { useSearchContext } from "@/context/SearchContext";
 import { Button } from "@/components/ui/button";
 
 const EventSkeleton = () => (
@@ -13,10 +16,21 @@ const EventSkeleton = () => (
 export default function HostedEventListClient() {
   // Fetch real published events from Firebase (status === "published")
   const { events, loading, error } = usePublishedEvents();
+  const { searchQuery } = useSearchContext();
+  
+  // Use search hook when there's a search query
+  const { results: searchResults, loading: searchLoading } = useSearchEvents({
+    searchQuery,
+    localEvents: events,
+  });
 
-  if (loading) {
+  // Determine which events to display
+  const displayEvents = searchQuery.trim().length > 0 ? searchResults : events;
+  const isLoading = searchQuery.trim().length > 0 ? searchLoading : loading;
+
+  if (isLoading) {
     return (
-      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3 px-4">
         {Array.from({ length: 6 }).map((_, index) => (
           <EventSkeleton key={index} />
         ))}
@@ -26,7 +40,7 @@ export default function HostedEventListClient() {
 
   if (error) {
     return (
-      <div className="rounded-3xl border border-rose-500/30 bg-rose-500/5 p-8 text-center">
+      <div className="rounded-3xl border border-rose-500/30 bg-rose-500/5 p-8 text-center mx-4">
         <p className="text-lg font-semibold text-rose-200 mb-2">Failed to load events from Firebase</p>
         <p className="text-sm text-rose-300/80 mb-6">{error}</p>
         <Button
@@ -40,21 +54,25 @@ export default function HostedEventListClient() {
     );
   }
 
-  if (!events.length) {
+  if (!displayEvents.length) {
     return (
-      <div className="rounded-3xl border border-white/10 bg-white/5 p-12 text-center">
-        <p className="text-lg font-semibold text-white">No events found.</p>
+      <div className="rounded-3xl border border-white/10 bg-white/5 p-12 text-center mx-4">
+        <p className="text-lg font-semibold text-white">
+          {searchQuery ? `No events found for "${searchQuery}"` : "No events found."}
+        </p>
         <p className="mt-2 text-sm text-slate-400">
-          Add events with status: &quot;published&quot; to your Firestore events collection to see them here.
+          {searchQuery 
+            ? "Try a different search term or browse all events."
+            : 'Add events with status: "published" to your Firestore events collection to see them here.'}
         </p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-12">
+    <div className="space-y-12 px-4">
       <motion.div layout className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-        {events.map((event) => (
+        {displayEvents.map((event) => (
           <EventCard key={event.id} event={event} />
         ))}
       </motion.div>

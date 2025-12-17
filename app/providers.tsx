@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { AnimatePresence } from "framer-motion";
 import { ToastProvider } from "@/components/Toast";
+import { SearchProvider } from "@/context/SearchContext";
 
 type ProvidersProps = {
   children: ReactNode;
@@ -27,9 +28,11 @@ export function Providers({ children }: ProvidersProps) {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
-        <ToastProvider>
-          {children}
-        </ToastProvider>
+        <SearchProvider>
+          <ToastProvider>
+            {children}
+          </ToastProvider>
+        </SearchProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

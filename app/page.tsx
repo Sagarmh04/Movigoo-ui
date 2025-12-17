@@ -3,11 +3,24 @@
 import LayoutWrapper from "@/components/LayoutWrapper";
 import HomeLanding from "@/components/home/HomeLanding";
 import { usePublishedEvents } from "@/hooks/usePublishedEvents";
+import { useSearchContext } from "@/context/SearchContext";
+import { useSearchEvents } from "@/hooks/useSearchEvents";
 
 export default function HomePage() {
   // Fetch real published events from Firebase - no static/mock data
   // Only events with status === "published" are shown
   const { events, loading, error } = usePublishedEvents();
+  const { searchQuery } = useSearchContext();
+  
+  // Use search hook when there's a search query
+  const { results: searchResults, loading: searchLoading } = useSearchEvents({
+    searchQuery,
+    localEvents: events,
+  });
+
+  // Determine which events to show
+  const displayEvents = searchQuery.trim().length > 0 ? searchResults : events;
+  const isLoading = searchQuery.trim().length > 0 ? searchLoading : loading;
 
   if (error) {
     return (
@@ -20,10 +33,14 @@ export default function HomePage() {
     );
   }
 
-  // Pass real events to HomeLanding (it will show first 5 as featured)
+  // Pass events to HomeLanding (will show search results if searching, otherwise all events)
   return (
     <LayoutWrapper>
-      <HomeLanding featuredEvents={loading ? [] : events} />
+      <HomeLanding 
+        featuredEvents={isLoading ? [] : displayEvents}
+        searchQuery={searchQuery}
+        isSearching={searchQuery.trim().length > 0}
+      />
     </LayoutWrapper>
   );
 }

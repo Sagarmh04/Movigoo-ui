@@ -77,7 +77,7 @@ export function mapEventDoc(
   }
 
   // Map to Event type
-  return {
+  const event: Event = {
     id: doc.id,
     slug,
     title,
@@ -94,6 +94,11 @@ export function mapEventDoc(
     organizerId: d.hostUid || "",
     hosted: false, // Will be set based on current user comparison
   };
+
+  // Add searchTitle for Firestore indexing (optional, for future use)
+  // This helps with Firestore queries but we'll do client-side filtering for now
+  
+  return event;
 }
 
 /**

@@ -7,9 +7,12 @@ import { Event } from "@/types/event";
 import { Button } from "@/components/ui/button";
 import EventCard from "@/components/EventCard";
 import { ArrowRight, PlayCircle } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 type HomeLandingProps = {
   featuredEvents: Event[]; // Real events from Firebase
+  searchQuery?: string;
+  isSearching?: boolean;
 };
 
 const heroPosters = [
@@ -18,9 +21,9 @@ const heroPosters = [
   "/posters/chroma-night.svg"
 ];
 
-const HomeLanding = ({ featuredEvents }: HomeLandingProps) => {
-  // Show first 5 events for featured section
-  const featured = featuredEvents.slice(0, 5);
+const HomeLanding = ({ featuredEvents, searchQuery = "", isSearching = false }: HomeLandingProps) => {
+  // Show first 5 events for featured section (or all search results if searching)
+  const featured = isSearching ? featuredEvents : featuredEvents.slice(0, 5);
 
   return (
     <div className="space-y-16">
@@ -73,25 +76,46 @@ const HomeLanding = ({ featuredEvents }: HomeLandingProps) => {
       <section className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.5em] text-slate-500">Trending now</p>
-            <h2 className="text-2xl font-semibold text-white">Explore Events</h2>
+            <p className="text-xs uppercase tracking-[0.5em] text-slate-500">
+              {isSearching ? "Search Results" : "Trending now"}
+            </p>
+            <h2 className="text-2xl font-semibold text-white">
+              {isSearching ? `Results for "${searchQuery}"` : "Explore Events"}
+            </h2>
           </div>
-          <Button variant="ghost" className="rounded-full border border-white/10" asChild>
-            <Link href="/events">See all</Link>
-          </Button>
+          {!isSearching && (
+            <Button variant="ghost" className="rounded-full border border-white/10" asChild>
+              <Link href="/events">See all</Link>
+            </Button>
+          )}
         </div>
         <motion.div
-          className="flex gap-5 overflow-x-auto pb-4"
+          className={cn(
+            "flex gap-5 overflow-x-auto pb-4",
+            isSearching ? "flex-wrap" : ""
+          )}
           whileTap={{ cursor: "grabbing" }}
         >
           {featured.length > 0 ? (
             featured.map((event) => (
-              <motion.div key={event.id} className="min-w-[280px] max-w-[320px] flex-1">
+              <motion.div 
+                key={event.id} 
+                className={cn(
+                  "min-w-[280px] max-w-[320px] flex-1",
+                  isSearching ? "w-full sm:w-auto" : ""
+                )}
+              >
                 <EventCard event={event} />
               </motion.div>
             ))
           ) : (
-            <div className="text-slate-400">No events available yet. Add events with status: &quot;published&quot; to see them here.</div>
+            <div className="w-full rounded-3xl border border-white/10 bg-white/5 p-8 text-center">
+              <p className="text-slate-400">
+                {isSearching 
+                  ? `No events found for "${searchQuery}". Try a different search term.`
+                  : "No events available yet. Add events with status: \"published\" to see them here."}
+              </p>
+            </div>
           )}
         </motion.div>
       </section>

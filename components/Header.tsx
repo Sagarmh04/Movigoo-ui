@@ -1,15 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState, useCallback } from "react";
 import { motion } from "framer-motion";
-import { MapPin, Menu, Search, UserRound, Bell } from "lucide-react";
+import { MapPin, Menu, Search, UserRound, Bell, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { useFakeUser } from "@/hooks/useFakeUser";
+import { useSearchContext } from "@/context/SearchContext";
 
 const navItems = [
 	{ label: "Home", href: "/" },
@@ -48,14 +49,36 @@ function DesktopNav() {
 
 const Header = () => {
 	const pathname = usePathname();
+	const router = useRouter();
 	const { user } = useFakeUser();
+	const { searchQuery, setSearchQuery } = useSearchContext();
 	const [isScrolled, setIsScrolled] = useState(false);
+	const [isSearchOpen, setIsSearchOpen] = useState(false);
+	const [localSearchValue, setLocalSearchValue] = useState("");
 
 	useEffect(() => {
 		const onScroll = () => setIsScrolled(window.scrollY > 16);
 		window.addEventListener("scroll", onScroll, { passive: true });
 		return () => window.removeEventListener("scroll", onScroll);
 	}, []);
+
+	// Debounced search update
+	useEffect(() => {
+		const timeoutId = setTimeout(() => {
+			setSearchQuery(localSearchValue);
+		}, 300);
+
+		return () => clearTimeout(timeoutId);
+	}, [localSearchValue, setSearchQuery]);
+
+	const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+		setLocalSearchValue(e.target.value);
+	}, []);
+
+	const handleClearSearch = useCallback(() => {
+		setLocalSearchValue("");
+		setSearchQuery("");
+	}, [setSearchQuery]);
 
 	return (
 		<motion.header
@@ -76,9 +99,24 @@ const Header = () => {
 					Mumbai, India
 				</div>
 
+				{/* Desktop Search */}
 				<div className="hidden flex-1 items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-1.5 md:flex">
 					<Search size={16} className="text-slate-400" />
-					<Input className="border-none bg-transparent p-0 text-sm" placeholder="Search concerts, sports, arts..." />
+					<Input
+						value={localSearchValue}
+						onChange={handleSearchChange}
+						className="border-none bg-transparent p-0 text-sm text-white placeholder:text-slate-400"
+						placeholder="Search concerts, sports, arts..."
+					/>
+					{localSearchValue && (
+						<button
+							onClick={handleClearSearch}
+							className="rounded-full p-1 text-slate-400 hover:text-white transition"
+							aria-label="Clear search"
+						>
+							<X size={14} />
+						</button>
+					)}
 				</div>
 
 				<DesktopNav />
@@ -93,10 +131,36 @@ const Header = () => {
 					</Button>
 				</div>
 
+				{/* Mobile Search & Menu */}
 				<div className="flex flex-1 items-center justify-end gap-2 lg:hidden">
-					<Button variant="ghost" size="sm" className="rounded-full">
-						<Search size={18} />
-					</Button>
+					<Sheet open={isSearchOpen} onOpenChange={setIsSearchOpen}>
+						<SheetTrigger asChild>
+							<Button variant="ghost" size="sm" className="rounded-full">
+								<Search size={18} />
+							</Button>
+						</SheetTrigger>
+						<SheetContent side="top" className="border-white/10 bg-slate-900/95 p-4">
+							<div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+								<Search size={16} className="text-slate-400" />
+								<Input
+									value={localSearchValue}
+									onChange={handleSearchChange}
+									placeholder="Search concerts, sports, arts..."
+									className="border-none bg-transparent p-0 text-white placeholder:text-slate-400"
+									autoFocus
+								/>
+								{localSearchValue && (
+									<button
+										onClick={handleClearSearch}
+										className="rounded-full p-1 text-slate-400 hover:text-white transition"
+										aria-label="Clear search"
+									>
+										<X size={14} />
+									</button>
+								)}
+							</div>
+						</SheetContent>
+					</Sheet>
 					<Sheet>
 						<SheetTrigger asChild>
 							<Button variant="outline" size="sm" className="rounded-full px-3">
@@ -127,7 +191,21 @@ const Header = () => {
 									<p className="text-xs text-slate-400">Quick Search</p>
 									<div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
 										<Search size={16} className="text-slate-400" />
-										<Input placeholder="Artist, city, genre..." className="border-none bg-transparent p-0" />
+										<Input
+											value={localSearchValue}
+											onChange={handleSearchChange}
+											placeholder="Artist, city, genre..."
+											className="border-none bg-transparent p-0 text-white placeholder:text-slate-400"
+										/>
+										{localSearchValue && (
+											<button
+												onClick={handleClearSearch}
+												className="rounded-full p-1 text-slate-400 hover:text-white transition"
+												aria-label="Clear search"
+											>
+												<X size={14} />
+											</button>
+										)}
 									</div>
 								</div>
 							</div>
@@ -140,4 +218,3 @@ const Header = () => {
 };
 
 export default Header;
-
