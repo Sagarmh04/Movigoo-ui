@@ -33,6 +33,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // CRITICAL: Reject bookings without userId - user MUST be logged in
+    if (!body.userId) {
+      console.error("Missing userId in booking request");
+      return NextResponse.json(
+        { error: "Missing userId. User must be logged in." },
+        { status: 400 }
+      );
+    }
+
     // Support multiple payload formats:
     // 1. New format: { eventId, userId, ticketTypeId, ticketTypeName, quantity, pricePerTicket, totalAmount, bookingFee, finalAmount, showDate, showTime, venueName }
     // 2. Items format: { userId, eventId, items: [{ ticketTypeId, quantity, price }], promoCode? }
@@ -271,23 +280,23 @@ export async function POST(request: NextRequest) {
     await new Promise((resolve) => setTimeout(resolve, 500));
     console.log("Payment simulation complete");
 
-    // Save to 3 locations in Firestore (BookMyShow style)
+    // Save to ALL 3 locations in Firestore (BookMyShow style)
     try {
-      // 1. Save under user: /users/{userId}/bookings/{bookingId}
-      const userBookingRef = doc(db, "users", userId, "bookings", bookingId);
-      await setDoc(userBookingRef, finalBookingData);
+      const bookingRef = doc(db, "bookings", bookingId);
+      
+      // Use Promise.all to save to all 3 paths simultaneously
+      await Promise.all([
+        // 1. Save under user: /users/{userId}/bookings/{bookingId}
+        setDoc(doc(db, "users", userId, "bookings", bookingId), finalBookingData),
+        // 2. Save under event: /events/{eventId}/bookings/{bookingId}
+        setDoc(doc(db, "events", eventId, "bookings", bookingId), finalBookingData),
+        // 3. Save in global bookings: /bookings/{bookingId} (for admin)
+        setDoc(bookingRef, finalBookingData),
+      ]);
+
       console.log("✓ Saved to /users/{userId}/bookings/{bookingId}");
-
-      // 2. Save under event: /events/{eventId}/bookings/{bookingId}
-      const eventBookingRef = doc(db, "events", eventId, "bookings", bookingId);
-      await setDoc(eventBookingRef, finalBookingData);
       console.log("✓ Saved to /events/{eventId}/bookings/{bookingId}");
-
-      // 3. Save in global bookings: /bookings/{bookingId} (for admin)
-      const globalBookingRef = doc(db, "bookings", bookingId);
-      await setDoc(globalBookingRef, finalBookingData);
       console.log("✓ Saved to /bookings/{bookingId}");
-
       console.log("All 3 Firestore writes completed successfully");
     } catch (firestoreError: any) {
       console.error("Firestore write error:", firestoreError);

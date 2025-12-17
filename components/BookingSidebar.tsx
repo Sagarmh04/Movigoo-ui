@@ -46,12 +46,36 @@ const BookingSidebar = ({ event, ticketTypes }: BookingSidebarProps) => {
     return { subtotal, discount, taxed, total };
   }, [selection, ticketTypes, coupon]);
 
+  // Continue booking after login
+  useEffect(() => {
+    const action = sessionStorage.getItem("postLoginAction");
+    if (action === "continueBooking" && user && user.uid) {
+      sessionStorage.removeItem("postLoginAction");
+      // Continue with booking flow
+      const { errors, payload } = validateTicketSelection(selection, ticketTypes);
+      if (errors.length === 0) {
+        // Save booking state and redirect to checkout
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem("bookingSelection", JSON.stringify({
+            eventId: event.id,
+            items: payload.map((item) => ({
+              ...item,
+              price: ticketTypes.find((ticket) => ticket.id === item.ticketTypeId)?.price ?? 0
+            })),
+            promoCode: coupon || undefined,
+          }));
+        }
+        router.push(`/events/${event.id}/checkout`);
+      }
+    }
+  }, [user, selection, ticketTypes, coupon, event.id, router]);
+
   const handleBooking = async () => {
     // Check if user is logged in - show login modal if not
     if (!user || !user.uid) {
-      // Store the intended destination for after login
+      // Store the intended action for after login
       if (typeof window !== "undefined") {
-        sessionStorage.setItem("bookingRedirect", `/events/${event.id}/checkout`);
+        sessionStorage.setItem("postLoginAction", "continueBooking");
       }
       setShowLoginModal(true);
       return;
@@ -179,14 +203,17 @@ const BookingSidebar = ({ event, ticketTypes }: BookingSidebarProps) => {
       )}
 
       {/* Login Modal */}
-      <LoginModal
-        isOpen={showLoginModal}
-        onClose={() => setShowLoginModal(false)}
-        onSuccess={() => {
-          setShowLoginModal(false);
-          router.refresh();
-        }}
-      />
+      {showLoginModal && (
+        <LoginModal
+          isOpen={showLoginModal}
+          onClose={() => setShowLoginModal(false)}
+          onSuccess={() => {
+            setShowLoginModal(false);
+            // The useEffect will handle continuing the booking
+            router.refresh();
+          }}
+        />
+      )}
     </>
   );
 };

@@ -4,6 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { Booking } from "@/types/booking";
 import { useToast } from "@/components/Toast";
+import { useAuth } from "@/hooks/useAuth";
 
 type CreateBookingPayload = {
   eventId: string;
@@ -22,14 +23,26 @@ type CreateBookingResponse = {
 
 export function useCreateBooking() {
   const { pushToast } = useToast();
+  const { user } = useAuth();
 
   return useMutation<CreateBookingResponse, Error, CreateBookingPayload>({
     mutationFn: async (payload) => {
-      console.log("Booking payload:", payload);
+      // ALWAYS use real Firebase user.uid - reject if not logged in
+      if (!user || !user.uid) {
+        throw new Error("User must be logged in to create a booking");
+      }
+
+      // Ensure userId is always set to real Firebase user.uid
+      const finalPayload = {
+        ...payload,
+        userId: user.uid, // REAL Firebase ID - override any provided userId
+      };
+
+      console.log("Booking payload:", finalPayload);
       console.log("Calling /api/bookings");
       
       try {
-        const { data } = await api.post<{ ok: boolean; bookingId: string; qrCodeData: string }>("/api/bookings", payload);
+        const { data } = await api.post<{ ok: boolean; bookingId: string; qrCodeData: string }>("/api/bookings", finalPayload);
         console.log("Booking response:", data);
         
         if (!data.ok || !data.bookingId) {
@@ -43,11 +56,11 @@ export function useCreateBooking() {
           paymentUrl: null,
           booking: {
             bookingId: data.bookingId,
-            userId: payload.userId || "",
-            eventId: payload.eventId,
-            items: payload.items,
+            userId: user.uid, // REAL Firebase ID
+            eventId: finalPayload.eventId,
+            items: finalPayload.items,
             status: "confirmed" as const,
-            totalAmount: payload.items.reduce((sum, item) => sum + (item.price * item.quantity), 0),
+            totalAmount: finalPayload.items.reduce((sum, item) => sum + (item.price * item.quantity), 0),
             createdAt: new Date().toISOString(),
           },
         };

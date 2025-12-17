@@ -27,10 +27,32 @@ function MyBookingsPageContent() {
   );
   const [showLoginModal, setShowLoginModal] = useState(false);
 
-  // Redirect to profile with login prompt if not logged in
+  // Show login modal if not logged in (instead of redirect)
   if (!loading && !user) {
-    router.push("/profile?login=true");
-    return null;
+    return (
+      <LayoutWrapper>
+        <div className="mx-auto w-full max-w-4xl space-y-8 pb-24 px-4">
+          <div className="space-y-3 pt-4">
+            <p className="text-xs uppercase tracking-[0.5em] text-slate-500">Wallet</p>
+            <h1 className="text-3xl font-semibold text-white sm:text-4xl">My premium passes</h1>
+          </div>
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-12 text-center backdrop-blur-xl">
+            <p className="text-lg font-semibold text-white mb-2">Please login to view your bookings</p>
+            <p className="text-sm text-slate-400 mb-6">
+              You need to be logged in to see your booking history.
+            </p>
+            <LoginModal
+              isOpen={true}
+              onClose={() => router.push("/")}
+              onSuccess={() => {
+                setShowLoginModal(false);
+                router.refresh();
+              }}
+            />
+          </div>
+        </div>
+      </LayoutWrapper>
+    );
   }
 
   if (loading || bookingsLoading) {

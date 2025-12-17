@@ -11,21 +11,23 @@ import { Separator } from "@/components/ui/separator";
 import { currencyFormatter } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { Calendar, MapPin, Ticket, ArrowRight, Clock, Users } from "lucide-react";
-import { fakeGetUser } from "@/lib/fakeAuth";
+import { useAuth } from "@/hooks/useAuth";
 import Image from "next/image";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebaseClient";
+import LoginModal from "@/components/auth/LoginModal";
 
 const BOOKING_FEE_PER_TICKET = 7;
 
 export default function CheckoutPage({ params }: { params: { eventId: string } }) {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
+  const { user, loading: authLoading } = useAuth();
   const [eventId, setEventId] = useState<string>("");
   const { data, isLoading, isError } = useEventById(eventId);
   const [bookingData, setBookingData] = useState<any>(null);
   const [eventDetails, setEventDetails] = useState<any>(null);
   const [mounted, setMounted] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -46,12 +48,10 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
 
   useEffect(() => {
     if (!mounted || !eventId) return;
-    const currentUser = fakeGetUser();
-    setUser(currentUser);
 
-    // Check if user is logged in
-    if (!currentUser || !currentUser.id) {
-      router.push(`/auth/login?redirect=/events/${eventId}/checkout`);
+    // Check if user is logged in (Firebase Auth)
+    if (!authLoading && (!user || !user.uid)) {
+      setShowLoginModal(true);
       return;
     }
 
@@ -85,10 +85,10 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
     if (eventId) {
       fetchEventDetails();
     }
-  }, [mounted, eventId, router]);
+  }, [mounted, eventId, authLoading, user]);
 
   // Show loading if not mounted, eventId not set, still loading, or booking data not ready
-  if (!mounted || !eventId || isLoading || !bookingData) {
+  if (!mounted || !eventId || isLoading || authLoading || !bookingData) {
     return (
       <div className="flex min-h-screen items-center justify-center px-4 bg-gradient-to-b from-[#050016] via-[#0b0220] to-[#05010a]">
         <div className="text-center">
@@ -327,6 +327,21 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
           </motion.div>
         </div>
       </div>
+
+      {/* Login Modal */}
+      {showLoginModal && (
+        <LoginModal
+          isOpen={showLoginModal}
+          onClose={() => {
+            setShowLoginModal(false);
+            router.push(`/events/${eventId}`);
+          }}
+          onSuccess={() => {
+            setShowLoginModal(false);
+            router.refresh();
+          }}
+        />
+      )}
     </div>
   );
 }

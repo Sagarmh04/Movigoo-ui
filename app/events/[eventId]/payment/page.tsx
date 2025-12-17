@@ -9,13 +9,14 @@ import { useEventById } from "@/hooks/useEventById";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { CheckCircle, Loader2, CreditCard, Smartphone, Building2, Lock } from "lucide-react";
-import { fakeGetUser } from "@/lib/fakeAuth";
+import { useAuth } from "@/hooks/useAuth";
 import api from "@/lib/api";
 import { currencyFormatter } from "@/lib/utils";
+import LoginModal from "@/components/auth/LoginModal";
 
 export default function PaymentPage({ params }: { params: { eventId: string } }) {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
+  const { user, loading: authLoading } = useAuth();
   const [eventId, setEventId] = useState<string>("");
   const { data, isLoading: eventLoading } = useEventById(eventId);
   const [paymentStatus, setPaymentStatus] = useState<"idle" | "processing" | "success" | "error">("idle");
@@ -23,6 +24,7 @@ export default function PaymentPage({ params }: { params: { eventId: string } })
   const [finalBookingData, setFinalBookingData] = useState<any>(null);
   const [mounted, setMounted] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -37,14 +39,10 @@ export default function PaymentPage({ params }: { params: { eventId: string } })
 
   useEffect(() => {
     if (!mounted || !eventId) return;
-    
-    const currentUser = fakeGetUser();
-    setUser(currentUser);
 
-    // Check if user is logged in
-    if (!currentUser || !currentUser.id) {
-      setRedirecting(true);
-      router.push(`/auth/login?redirect=/events/${eventId}/payment`);
+    // Check if user is logged in (Firebase Auth)
+    if (!authLoading && (!user || !user.uid)) {
+      setShowLoginModal(true);
       return;
     }
 
@@ -65,7 +63,38 @@ export default function PaymentPage({ params }: { params: { eventId: string } })
         router.push(`/events/${eventId}/checkout`);
       }
     }
-  }, [mounted, eventId, router]);
+  }, [mounted, eventId, authLoading, user, router]);
+
+  // Show loading if not mounted, eventId not set, still loading, or booking data not ready
+  if (!mounted || !eventId || eventLoading || authLoading || !finalBookingData) {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-4 bg-gradient-to-b from-[#050016] via-[#0b0220] to-[#05010a] text-white">
+        <div className="text-center">
+          <div className="mb-4 h-8 w-8 animate-spin rounded-full border-4 border-[#0B62FF] border-t-transparent mx-auto" />
+          <p className="text-slate-400">Loading payment...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show login modal if not logged in
+  if (!user || !user.uid) {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-4 bg-gradient-to-b from-[#050016] via-[#0b0220] to-[#05010a] text-white">
+        <div className="text-center">
+          <p className="text-lg font-semibold text-white mb-4">Please login to complete payment</p>
+          <LoginModal
+            isOpen={true}
+            onClose={() => router.push(`/events/${eventId}/checkout`)}
+            onSuccess={() => {
+              setShowLoginModal(false);
+              router.refresh();
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
 
   const processPayment = async () => {
     if (!finalBookingData || !data) return;
@@ -77,9 +106,16 @@ export default function PaymentPage({ params }: { params: { eventId: string } })
       const firstItem = finalBookingData.items[0];
       const ticketType = data.ticketTypes.find((t: any) => t.id === firstItem.ticketTypeId);
 
+      // Ensure user is logged in
+      if (!user || !user.uid) {
+        setPaymentStatus("error");
+        setShowLoginModal(true);
+        return;
+      }
+
       const bookingPayload = {
         eventId: eventId,
-        userId: user?.id || "",
+        userId: user.uid, // REAL Firebase ID
         ticketTypeId: firstItem.ticketTypeId,
         ticketTypeName: ticketType?.name || firstItem.ticketTypeId,
         quantity: finalBookingData.totalTickets,
@@ -155,18 +191,6 @@ export default function PaymentPage({ params }: { params: { eventId: string } })
   };
 
   // Always render something - never return null
-  if (!mounted) {
-    return (
-      <div className="flex min-h-screen items-center justify-center px-4 bg-gradient-to-b from-[#050016] via-[#0b0220] to-[#05010a] text-white">
-        <div className="text-center">
-          <div className="mb-4 h-8 w-8 animate-spin rounded-full border-4 border-[#0B62FF] border-t-transparent mx-auto" />
-          <p className="text-slate-400">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (redirecting) {
     return (
       <div className="flex min-h-screen items-center justify-center px-4 bg-gradient-to-b from-[#050016] via-[#0b0220] to-[#05010a] text-white">
         <div className="text-center">
@@ -401,6 +425,21 @@ export default function PaymentPage({ params }: { params: { eventId: string } })
           )}
         </motion.div>
       </div>
+
+      {/* Login Modal */}
+      {showLoginModal && (
+        <LoginModal
+          isOpen={showLoginModal}
+          onClose={() => {
+            setShowLoginModal(false);
+            router.push(`/events/${eventId}/checkout`);
+          }}
+          onSuccess={() => {
+            setShowLoginModal(false);
+            router.refresh();
+          }}
+        />
+      )}
     </div>
   );
 }
