@@ -3,9 +3,11 @@
 
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import { getFirestore, Firestore } from "firebase/firestore";
+import { getAuth, Auth } from "firebase/auth";
 
 let app: FirebaseApp | null = null;
 let db: Firestore | null = null;
+let auth: Auth | null = null;
 
 if (typeof window !== "undefined") {
   const firebaseConfig = {
@@ -24,11 +26,12 @@ if (typeof window !== "undefined") {
       app = getApp();
     }
     db = getFirestore(app);
+    auth = getAuth(app);
   } catch (err) {
     console.error("Firebase client initialization error:", err);
-    // db remains null if initialization fails
+    // db and auth remain null if initialization fails
   }
 }
 
-export { db };
+export { db, auth };
 export default app;

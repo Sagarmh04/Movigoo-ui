@@ -1,38 +1,28 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Download, Share2, Chrome, Mail, Phone } from "lucide-react";
 import { useUserBookings } from "@/hooks/useUserBookings";
-import { fakeGetUser, loginWithGoogle } from "@/lib/fakeAuth";
+import { useAuth } from "@/hooks/useAuth";
 import TicketCard from "@/components/TicketCard";
 import { Button } from "@/components/ui/button";
 import { Booking } from "@/types/booking";
+import LoginModal from "@/components/auth/LoginModal";
+import { useState } from "react";
 
 const BookingsPanel = () => {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
-  const [mounted, setMounted] = useState(false);
-  const { bookings, loading, error } = useUserBookings(user?.id || null);
-
-  useEffect(() => {
-    setMounted(true);
-    setUser(fakeGetUser());
-  }, []);
+  const { user, loading: authLoading } = useAuth();
+  const { bookings, loading, error } = useUserBookings(user?.uid || null);
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   const handleLogin = () => {
-    // Use explicit login function - no auto-login
-    loginWithGoogle();
-    setUser(fakeGetUser());
+    setShowLoginModal(true);
   };
 
-  if (!mounted) {
-    return <div className="h-40 animate-pulse rounded-3xl border border-white/10 bg-white/5" />;
-  }
-
   // Show login prompt if no user
-  if (!user || !user.id) {
+  if (!user || !user.uid) {
     return (
       <div className="rounded-3xl border border-white/10 bg-white/5 p-8 text-center">
         <h2 className="text-xl font-semibold text-white mb-2">Login to see your bookings</h2>
@@ -80,7 +70,7 @@ const BookingsPanel = () => {
   }
 
   // Filter bookings to only show current user's bookings
-  const userBookings = bookings.filter((booking) => booking.userId === user.id);
+          const userBookings = bookings.filter((booking) => booking.userId === user.uid);
 
   return (
     <div className="space-y-6">
@@ -88,7 +78,7 @@ const BookingsPanel = () => {
         // Transform booking data to match TicketCard's expected Booking type
         const transformedBooking: Booking = {
           bookingId: booking.bookingId || booking.id || "",
-          userId: booking.userId || user.id || "",
+          userId: booking.userId || user.uid || "",
           eventId: booking.eventId || "",
           status: (booking.status || "confirmed") as "pending" | "confirmed" | "requires_payment" | "failed",
           totalAmount: booking.totalAmount || 0,

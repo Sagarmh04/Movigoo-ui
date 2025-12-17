@@ -38,6 +38,8 @@ function BookingSuccessPageContent() {
       return;
     }
     
+    if (!user) return;
+    
     const bookingId = searchParams?.get("bookingId");
     
     // Try to get booking data from multiple sources
@@ -60,7 +62,7 @@ function BookingSuccessPageContent() {
               eventId = bookingDocData.eventId;
             } else if (user?.id) {
               // Try user bookings collection
-              const userBookingRef = doc(db, "users", user.id, "bookings", bookingId);
+              const userBookingRef = doc(db, "users", user.uid, "bookings", bookingId);
               const userBookingDoc = await getDoc(userBookingRef);
 
               if (userBookingDoc.exists()) {

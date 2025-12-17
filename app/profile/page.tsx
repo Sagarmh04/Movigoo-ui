@@ -1,6 +1,5 @@
 // app/profile/page.tsx
-// Profile page with BookMyShow-style UI
-// Shows Login button if not logged in
+// Profile page with real Firebase Authentication
 
 "use client";
 
@@ -11,37 +10,34 @@ import { User, Ticket, HelpCircle, LogOut, ChevronRight, Chrome, Mail, Phone } f
 import { Button } from "@/components/ui/button";
 import LayoutWrapper from "@/components/LayoutWrapper";
 import LoginModal from "@/components/auth/LoginModal";
-import { getFakeUser, logoutFakeUser } from "@/lib/fakeAuth";
+import { useAuth } from "@/hooks/useAuth";
+import { auth } from "@/lib/firebaseClient";
+import { signOut } from "firebase/auth";
 
 function ProfilePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [user, setUser] = useState<any>(null);
-  const [mounted, setMounted] = useState(false);
+  const { user, loading } = useAuth();
   const [showLoginModal, setShowLoginModal] = useState(false);
 
+  // Check if login modal should be shown
   useEffect(() => {
-    setMounted(true);
-    // Get user - will be null if not logged in (NO AUTO-LOGIN)
-    const currentUser = getFakeUser();
-    setUser(currentUser);
-    
-    // Check if login modal should be shown
     if (searchParams?.get("login") === "true") {
       setShowLoginModal(true);
     }
   }, [searchParams]);
 
-  const handleLogout = () => {
-    logoutFakeUser();
-    setUser(null);
-    router.refresh();
+  const handleLogout = async () => {
+    if (!auth) return;
+    try {
+      await signOut(auth);
+      router.refresh();
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
   };
 
   const handleLoginSuccess = () => {
-    const currentUser = getFakeUser();
-    setUser(currentUser);
-    
     // Check if there's a redirect stored (e.g., from booking flow)
     if (typeof window !== "undefined") {
       const redirect = sessionStorage.getItem("bookingRedirect");
@@ -51,11 +47,10 @@ function ProfilePageContent() {
         return;
       }
     }
-    
     router.refresh();
   };
 
-  if (!mounted) {
+  if (loading) {
     return (
       <LayoutWrapper>
         <div className="flex min-h-screen items-center justify-center">
@@ -107,15 +102,25 @@ function ProfilePageContent() {
               <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
                 {/* Avatar */}
                 <div className="relative h-24 w-24 flex-shrink-0 overflow-hidden rounded-full border-2 border-[#0B62FF] bg-gradient-to-br from-[#0B62FF] to-indigo-600">
-                  <div className="flex h-full w-full items-center justify-center">
-                    <User size={40} className="text-white" />
-                  </div>
+                  {user.photoURL ? (
+                    <img
+                      src={user.photoURL}
+                      alt={user.displayName || "User"}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center">
+                      <User size={40} className="text-white" />
+                    </div>
+                  )}
                 </div>
 
                 {/* User Info */}
                 <div className="flex-1 text-center sm:text-left">
-                  <h2 className="text-2xl font-bold text-white">{user.name || "Guest"}</h2>
-                  <p className="mt-1 text-slate-400">{user.email || "Not logged in"}</p>
+                  <h2 className="text-2xl font-bold text-white">
+                    {user.displayName || user.email?.split("@")[0] || "User"}
+                  </h2>
+                  <p className="mt-1 text-slate-400">{user.email || "No email"}</p>
                 </div>
 
                 {/* Logout Button */}

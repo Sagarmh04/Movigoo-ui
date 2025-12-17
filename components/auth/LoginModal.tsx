@@ -1,5 +1,5 @@
 // components/auth/LoginModal.tsx
-// Login modal component for simulated authentication
+// Real Firebase Authentication login modal
 
 "use client";
 
@@ -9,7 +9,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Chrome, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { loginWithGoogle, loginWithEmail } from "@/lib/fakeAuth";
+import { auth } from "@/lib/firebaseClient";
+import {
+  GoogleAuthProvider,
+  signInWithPopup,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+} from "firebase/auth";
 
 type LoginModalProps = {
   isOpen: boolean;
@@ -20,44 +26,84 @@ type LoginModalProps = {
 export default function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
   const router = useRouter();
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showEmailInput, setShowEmailInput] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleGoogleLogin = () => {
+  const handleGoogleLogin = async () => {
+    if (!auth) {
+      setError("Firebase Auth not initialized");
+      return;
+    }
+
     setIsLoading(true);
-    setTimeout(() => {
-      loginWithGoogle();
+    setError(null);
+
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
       setIsLoading(false);
       onSuccess?.();
       onClose();
-      // Redirect to profile after login
       router.push("/profile");
       router.refresh();
-    }, 500);
+    } catch (err: any) {
+      console.error("Google login error:", err);
+      setError(err.message || "Failed to sign in with Google");
+      setIsLoading(false);
+    }
   };
 
-  const handleEmailLogin = (e?: React.FormEvent) => {
+  const handleEmailLogin = async (e?: React.FormEvent) => {
     if (e) {
       e.preventDefault();
     }
-    
-    if (!email || !email.includes("@")) {
-      alert("Please enter a valid email address");
+
+    if (!auth) {
+      setError("Firebase Auth not initialized");
       return;
     }
-    
+
+    if (!email || !email.includes("@")) {
+      setError("Please enter a valid email address");
+      return;
+    }
+
+    if (!password || password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+
     setIsLoading(true);
-    setTimeout(() => {
-      loginWithEmail(email);
+    setError(null);
+
+    try {
+      // Try to sign in first, if user doesn't exist, create account
+      try {
+        await signInWithEmailAndPassword(auth, email, password);
+      } catch (signInError: any) {
+        // If user doesn't exist, create account
+        if (signInError.code === "auth/user-not-found" || signInError.code === "auth/invalid-credential") {
+          await createUserWithEmailAndPassword(auth, email, password);
+        } else {
+          throw signInError;
+        }
+      }
+
       setIsLoading(false);
       onSuccess?.();
       onClose();
       setEmail("");
+      setPassword("");
       setShowEmailInput(false);
-      // Redirect to profile after login
       router.push("/profile");
       router.refresh();
-    }, 500);
+    } catch (err: any) {
+      console.error("Email login error:", err);
+      setError(err.message || "Failed to sign in with email");
+      setIsLoading(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -88,6 +134,13 @@ export default function LoginModal({ isOpen, onClose, onSuccess }: LoginModalPro
             <h2 className="text-2xl font-bold text-white mb-2">Login to continue</h2>
             <p className="text-sm text-slate-400">Choose your preferred login method</p>
           </div>
+
+          {/* Error Message */}
+          {error && (
+            <div className="mb-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 p-3 text-sm text-rose-300">
+              {error}
+            </div>
+          )}
 
           {/* Login Options */}
           <div className="space-y-3">
@@ -129,9 +182,24 @@ export default function LoginModal({ isOpen, onClose, onSuccess }: LoginModalPro
                   type="email"
                   placeholder="Enter your email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    setError(null);
+                  }}
                   className="rounded-2xl border-white/10 bg-white/5 text-white placeholder:text-slate-400 focus:border-[#0B62FF]"
                   required
+                />
+                <Input
+                  type="password"
+                  placeholder="Enter your password (min 6 characters)"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setError(null);
+                  }}
+                  className="rounded-2xl border-white/10 bg-white/5 text-white placeholder:text-slate-400 focus:border-[#0B62FF]"
+                  required
+                  minLength={6}
                 />
                 <div className="flex gap-2">
                   <Button
@@ -139,6 +207,8 @@ export default function LoginModal({ isOpen, onClose, onSuccess }: LoginModalPro
                     onClick={() => {
                       setShowEmailInput(false);
                       setEmail("");
+                      setPassword("");
+                      setError(null);
                     }}
                     variant="outline"
                     className="flex-1 rounded-2xl border-white/10 bg-white/5 text-white hover:bg-white/10"
@@ -147,10 +217,10 @@ export default function LoginModal({ isOpen, onClose, onSuccess }: LoginModalPro
                   </Button>
                   <Button
                     type="submit"
-                    disabled={isLoading || !email}
+                    disabled={isLoading || !email || !password}
                     className="flex-1 rounded-2xl bg-[#0B62FF] text-white hover:bg-[#0A5AE6]"
                   >
-                    {isLoading ? "Logging in..." : "Proceed"}
+                    {isLoading ? "Logging in..." : "Sign In / Sign Up"}
                   </Button>
                 </div>
               </motion.form>

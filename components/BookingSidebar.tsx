@@ -16,7 +16,8 @@ import ProcessingLoader from "@/components/ProcessingLoader";
 import PaymentSuccessAnimation from "@/components/PaymentSuccessAnimation";
 import PaymentFailureAnimation from "@/components/PaymentFailureAnimation";
 import { useToast } from "@/components/Toast";
-import { fakeGetUser } from "@/lib/fakeAuth";
+import { useAuth } from "@/hooks/useAuth";
+import LoginModal from "@/components/auth/LoginModal";
 
 type BookingSidebarProps = {
   event: Event;
@@ -25,17 +26,14 @@ type BookingSidebarProps = {
 
 const BookingSidebar = ({ event, ticketTypes }: BookingSidebarProps) => {
   const router = useRouter();
+  const { user } = useAuth();
   const [selection, setSelection] = useState<Record<string, number>>({});
   const [coupon, setCoupon] = useState("");
   const [status, setStatus] = useState<"idle" | "processing" | "success" | "failure">("idle");
   const [confirmedBooking, setConfirmedBooking] = useState<Booking | null>(null);
+  const [showLoginModal, setShowLoginModal] = useState(false);
   const mutation = useCreateBooking();
   const { pushToast } = useToast();
-  const [user, setUser] = useState<any>(null);
-
-  useEffect(() => {
-    setUser(fakeGetUser());
-  }, []);
 
   const totals = useMemo(() => {
     const subtotal = ticketTypes.reduce(
@@ -49,13 +47,13 @@ const BookingSidebar = ({ event, ticketTypes }: BookingSidebarProps) => {
   }, [selection, ticketTypes, coupon]);
 
   const handleBooking = async () => {
-    // Check if user is logged in - redirect to profile with login modal if not
-    if (!user || !user.id) {
+    // Check if user is logged in - show login modal if not
+    if (!user || !user.uid) {
       // Store the intended destination for after login
       if (typeof window !== "undefined") {
         sessionStorage.setItem("bookingRedirect", `/events/${event.id}/checkout`);
       }
-      router.push(`/profile?login=true`);
+      setShowLoginModal(true);
       return;
     }
 
@@ -179,6 +177,16 @@ const BookingSidebar = ({ event, ticketTypes }: BookingSidebarProps) => {
           </div>
         </div>
       )}
+
+      {/* Login Modal */}
+      <LoginModal
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+        onSuccess={() => {
+          setShowLoginModal(false);
+          router.refresh();
+        }}
+      />
     </>
   );
 };

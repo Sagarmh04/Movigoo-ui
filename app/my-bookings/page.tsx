@@ -1,31 +1,28 @@
 // app/my-bookings/page.tsx
-// My Bookings page with BookMyShow-style UI
+// My Bookings page with real Firebase Authentication
 
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { Suspense } from "react";
 import { useRouter } from "next/navigation";
 import LayoutWrapper from "@/components/LayoutWrapper";
 import BookingsPanel from "@/components/bookings/BookingsPanel";
-import { getFakeUser } from "@/lib/fakeAuth";
+import { useAuth } from "@/hooks/useAuth";
+import LoginModal from "@/components/auth/LoginModal";
+import { useState } from "react";
 
 function MyBookingsPageContent() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
-  const [mounted, setMounted] = useState(false);
+  const { user, loading } = useAuth();
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
-  useEffect(() => {
-    setMounted(true);
-    const currentUser = getFakeUser();
-    setUser(currentUser);
+  // Redirect to profile with login prompt if not logged in
+  if (!loading && !user) {
+    router.push("/profile?login=true");
+    return null;
+  }
 
-    // Redirect to profile with login prompt if not logged in
-    if (!currentUser) {
-      router.push("/profile?login=true");
-    }
-  }, [router]);
-
-  if (!mounted) {
+  if (loading) {
     return (
       <LayoutWrapper>
         <div className="flex min-h-screen items-center justify-center">
@@ -51,6 +48,14 @@ function MyBookingsPageContent() {
           <p className="text-slate-300">Tap a ticket for QR entry, downloads, or concierge chat.</p>
         </div>
         <BookingsPanel />
+        <LoginModal
+          isOpen={showLoginModal}
+          onClose={() => setShowLoginModal(false)}
+          onSuccess={() => {
+            setShowLoginModal(false);
+            router.refresh();
+          }}
+        />
       </div>
     </LayoutWrapper>
   );
