@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Download, Share2, Chrome, Mail, Phone } from "lucide-react";
 import { useUserBookings } from "@/hooks/useUserBookings";
-import { fakeGetUser, fakeLogin } from "@/lib/fakeAuth";
+import { fakeGetUser, loginWithGoogle } from "@/lib/fakeAuth";
 import TicketCard from "@/components/TicketCard";
 import { Button } from "@/components/ui/button";
 import { Booking } from "@/types/booking";
@@ -22,7 +22,8 @@ const BookingsPanel = () => {
   }, []);
 
   const handleLogin = () => {
-    fakeLogin();
+    // Use explicit login function - no auto-login
+    loginWithGoogle();
     setUser(fakeGetUser());
   };
 

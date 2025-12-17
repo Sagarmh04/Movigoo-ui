@@ -31,8 +31,7 @@ const HomeLanding = ({ featuredEvents }: HomeLandingProps) => {
             Discover cinematic events. Book like a VIP.
           </h1>
           <p className="text-lg text-slate-300">
-            Movigoo blends Apple-level polish with Netflix motion to wrap every concert, gala,
-            and grand premiere into a luxe digital experience.
+            Effortless. Fast. Secure. Your events, booked in seconds
           </p>
           <div className="flex flex-wrap gap-3">
             <Button size="lg" className="rounded-3xl px-8" asChild>
@@ -75,7 +74,7 @@ const HomeLanding = ({ featuredEvents }: HomeLandingProps) => {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.5em] text-slate-500">Trending now</p>
-            <h2 className="text-2xl font-semibold text-white">Cinematic premieres</h2>
+            <h2 className="text-2xl font-semibold text-white">Explore Events</h2>
           </div>
           <Button variant="ghost" className="rounded-full border border-white/10" asChild>
             <Link href="/events">See all</Link>

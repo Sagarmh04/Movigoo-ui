@@ -68,8 +68,8 @@ export function logoutFakeUser(): void {
 }
 
 // Legacy functions - kept for backward compatibility but should not auto-login
-export function fakeLogin(user: FakeUser | null = null): FakeUser {
-  // Only create user if explicitly provided, otherwise return existing or create minimal
+export function fakeLogin(user: FakeUser | null = null): FakeUser | null {
+  // Only create user if explicitly provided
   if (user) {
     if (typeof window !== "undefined") {
       localStorage.setItem("movigoo_user", JSON.stringify(user));
@@ -78,12 +78,8 @@ export function fakeLogin(user: FakeUser | null = null): FakeUser {
     return user;
   }
   
-  // Don't auto-create user - return existing or null
-  return getFakeUser() || {
-    id: "demo-user",
-    name: "Demo User",
-    email: "demo@example.com"
-  };
+  // Don't auto-create user - return existing or null (NO DEMO USER)
+  return getFakeUser();
 }
 
 // Legacy function - kept for backward compatibility

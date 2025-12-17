@@ -22,6 +22,7 @@ function ProfilePageContent() {
 
   useEffect(() => {
     setMounted(true);
+    // Get user - will be null if not logged in (NO AUTO-LOGIN)
     const currentUser = getFakeUser();
     setUser(currentUser);
     

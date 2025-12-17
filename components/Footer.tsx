@@ -14,7 +14,7 @@ const Footer = () => {
         <div className="space-y-3">
           <p className="text-xs uppercase tracking-[0.3em] text-gradient">Movigoo</p>
           <p className="text-sm text-slate-400">
-            Cinematic event discovery and premium booking crafted in Mumbai.
+            Event Discovery and premium booking
           </p>
           <div className="flex gap-2">
             {socials.map((item) => (

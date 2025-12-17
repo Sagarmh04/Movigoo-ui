@@ -7,7 +7,7 @@ import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { fakeLogin, fakeGetUser } from "@/lib/fakeAuth";
+import { loginWithGoogle, fakeGetUser } from "@/lib/fakeAuth";
 import { Chrome, Mail, Phone } from "lucide-react";
 
 function LoginPageContent() {
@@ -32,9 +32,9 @@ function LoginPageContent() {
 
   function handleLogin() {
     setIsLoading(true);
-    // Simulate login delay
+    // Simulate login delay - use loginWithGoogle for explicit login
     setTimeout(() => {
-      fakeLogin();
+      loginWithGoogle();
       setIsLoading(false);
       router.push(redirect);
     }, 500);
