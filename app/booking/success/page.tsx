@@ -5,6 +5,7 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebaseClient";
 import { QRCodeSVG } from "qrcode.react";
@@ -13,32 +14,23 @@ import { Button } from "@/components/ui/button";
 import { Download, Calendar, MapPin, Ticket, X, Clock, Share2 } from "lucide-react";
 import { currencyFormatter } from "@/lib/utils";
 import { motion } from "framer-motion";
-import { fakeGetUser } from "@/lib/fakeAuth";
+import { useAuth } from "@/hooks/useAuth";
 
 function BookingSuccessPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [user, setUser] = useState<any>(null);
+  const { user, loading: authLoading } = useAuth();
   const [booking, setBooking] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!mounted) return;
-    const currentUser = fakeGetUser();
-    setUser(currentUser);
-    
     // Redirect to profile if not logged in
-    if (!currentUser) {
+    if (!authLoading && !user) {
       router.push("/profile?login=true");
       return;
     }
     
-    if (!user) return;
+    if (!user || authLoading) return;
     
     const bookingId = searchParams?.get("bookingId");
     
@@ -60,7 +52,7 @@ function BookingSuccessPageContent() {
             if (globalBookingDoc.exists()) {
               bookingDocData = globalBookingDoc.data();
               eventId = bookingDocData.eventId;
-            } else if (user?.id) {
+            } else if (user?.uid) {
               // Try user bookings collection
               const userBookingRef = doc(db, "users", user.uid, "bookings", bookingId);
               const userBookingDoc = await getDoc(userBookingRef);
@@ -271,7 +263,7 @@ function BookingSuccessPageContent() {
     }
 
     loadBooking();
-  }, [mounted, searchParams, user]);
+  }, [user, authLoading, searchParams, router]);
 
   const handleDownload = () => {
     // TODO: Implement PDF download
@@ -315,7 +307,7 @@ function BookingSuccessPageContent() {
     }
   };
 
-  if (!mounted || loading) {
+  if (authLoading || loading) {
     return (
       <div className="flex min-h-screen items-center justify-center px-4 bg-gradient-to-b from-[#050016] via-[#0b0220] to-[#05010a]">
         <div className="text-center">
@@ -387,7 +379,7 @@ function BookingSuccessPageContent() {
                 <Download size={18} />
               </button>
               <button
-                onClick={() => router.push("/events")}
+                onClick={() => router.push("/")}
                 className="rounded-full bg-white/10 p-2 text-white transition hover:bg-white/20 backdrop-blur-sm"
                 aria-label="Close"
                 title="Close"
@@ -510,10 +502,12 @@ function BookingSuccessPageContent() {
                 Download Ticket
               </Button>
               <Button
-                onClick={() => router.push("/my-bookings")}
+                asChild
                 className="w-full rounded-xl bg-gradient-to-r from-[#0B62FF] to-[#0A5AE6] py-3.5 text-white hover:from-[#0A5AE6] hover:to-[#0947CC] transition-all shadow-lg font-semibold"
               >
-                View My Bookings
+                <Link href="/my-bookings">
+                  View My Bookings
+                </Link>
               </Button>
             </div>
 
