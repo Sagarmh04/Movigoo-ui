@@ -190,45 +190,6 @@ export default function PaymentPage({ params }: { params: { eventId: string } })
     }
   };
 
-  // Always render something - never return null
-    return (
-      <div className="flex min-h-screen items-center justify-center px-4 bg-gradient-to-b from-[#050016] via-[#0b0220] to-[#05010a] text-white">
-        <div className="text-center">
-          <div className="mb-4 h-8 w-8 animate-spin rounded-full border-4 border-[#0B62FF] border-t-transparent mx-auto" />
-          <p className="text-slate-400">Redirecting...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!eventId) {
-    return (
-      <div className="flex min-h-screen items-center justify-center px-4 bg-gradient-to-b from-[#050016] via-[#0b0220] to-[#05010a] text-white">
-        <div className="text-center">
-          <p className="text-lg font-semibold text-white mb-2">Invalid Event</p>
-          <p className="text-sm text-slate-400">Event ID is missing</p>
-          <Button
-            onClick={() => router.push("/events")}
-            className="mt-4 rounded-2xl bg-[#0B62FF] px-6 py-2"
-          >
-            Browse Events
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  if (eventLoading || !data || !finalBookingData) {
-    return (
-      <div className="flex min-h-screen items-center justify-center px-4 bg-gradient-to-b from-[#050016] via-[#0b0220] to-[#05010a]">
-        <div className="text-center">
-          <div className="mb-4 h-8 w-8 animate-spin rounded-full border-4 border-[#0B62FF] border-t-transparent mx-auto" />
-          <p className="text-slate-400">Loading payment...</p>
-        </div>
-      </div>
-    );
-  }
-
   if (paymentStatus === "processing") {
     return (
       <div className="min-h-screen bg-gradient-to-b from-[#050016] via-[#0b0220] to-[#05010a] text-white flex items-center justify-center px-4">
