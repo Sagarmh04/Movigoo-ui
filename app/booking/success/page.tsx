@@ -29,7 +29,14 @@ function BookingSuccessPageContent() {
 
   useEffect(() => {
     if (!mounted) return;
-    setUser(fakeGetUser());
+    const currentUser = fakeGetUser();
+    setUser(currentUser);
+    
+    // Redirect to profile if not logged in
+    if (!currentUser) {
+      router.push("/profile?login=true");
+      return;
+    }
     
     const bookingId = searchParams?.get("bookingId");
     

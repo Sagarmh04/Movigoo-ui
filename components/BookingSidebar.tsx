@@ -49,9 +49,13 @@ const BookingSidebar = ({ event, ticketTypes }: BookingSidebarProps) => {
   }, [selection, ticketTypes, coupon]);
 
   const handleBooking = async () => {
-    // Check if user is logged in - redirect to login if not
+    // Check if user is logged in - redirect to profile with login modal if not
     if (!user || !user.id) {
-      router.push(`/auth/login?redirect=/events/${event.id}/checkout`);
+      // Store the intended destination for after login
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("bookingRedirect", `/events/${event.id}/checkout`);
+      }
+      router.push(`/profile?login=true`);
       return;
     }
 
