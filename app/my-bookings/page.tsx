@@ -16,6 +16,15 @@ function MyBookingsPageContent() {
   const router = useRouter();
   const { user, loading } = useAuth();
   const { bookings, loading: bookingsLoading, error } = useUserBookings(user?.uid || null);
+  
+  // Check if error is related to Firestore index
+  const isIndexError = error && (
+    typeof error === "string" && (
+      error.includes("index") || 
+      error.includes("failed-precondition") ||
+      error.includes("requires an index")
+    )
+  );
   const [showLoginModal, setShowLoginModal] = useState(false);
 
   // Redirect to profile with login prompt if not logged in
@@ -42,12 +51,48 @@ function MyBookingsPageContent() {
   }
 
   if (error) {
+    // Check if it's a Firestore index error
+    const isIndexError = typeof error === "string" && (
+      error.includes("index") || 
+      error.includes("failed-precondition") ||
+      error.includes("requires an index") ||
+      error.includes("Firestore index is being built")
+    );
+    
     return (
       <LayoutWrapper>
         <div className="mx-auto w-full max-w-4xl space-y-8 pb-24 px-4">
-          <div className="rounded-3xl border border-rose-500/30 bg-rose-500/5 p-8 text-center">
-            <p className="text-lg font-semibold text-rose-200 mb-2">Error loading bookings</p>
-            <p className="text-sm text-rose-300/80">{error}</p>
+          <div className="rounded-3xl border border-rose-500/30 bg-rose-500/5 p-8 text-center backdrop-blur-xl">
+            {isIndexError ? (
+              <>
+                <p className="text-lg font-semibold text-rose-200 mb-2">
+                  Building required Firestore index...
+                </p>
+                <p className="text-sm text-rose-300/80 mb-4">
+                  Please wait 1–2 minutes and refresh the page.
+                </p>
+                <p className="text-xs text-slate-400 mb-4">
+                  The index is being created automatically. This is a one-time setup.
+                </p>
+                <button
+                  onClick={() => window.location.reload()}
+                  className="rounded-2xl bg-[#0B62FF] px-6 py-3 text-white font-semibold hover:bg-[#0A5AE6] transition"
+                >
+                  Refresh Page
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="text-lg font-semibold text-rose-200 mb-2">Error loading bookings</p>
+                <p className="text-sm text-rose-300/80 mb-4">{error}</p>
+                <button
+                  onClick={() => window.location.reload()}
+                  className="rounded-2xl bg-[#0B62FF] px-6 py-3 text-white font-semibold hover:bg-[#0A5AE6] transition"
+                >
+                  Retry
+                </button>
+              </>
+            )}
           </div>
         </div>
       </LayoutWrapper>

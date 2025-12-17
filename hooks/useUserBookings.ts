@@ -42,14 +42,57 @@ export function useUserBookings(userId: string | null) {
         }));
 
         // Also check global bookings collection and filter by userId
+        // This query requires a composite index: userId (ASC) + createdAt (DESC)
         if (db) {
           const globalBookingsRef = collection(db, "bookings");
-          const globalQ = query(
-            globalBookingsRef,
-            where("userId", "==", userId),
-            orderBy("createdAt", "desc")
-          );
-          const globalSnapshot = await getDocs(globalQ);
+          let globalSnapshot;
+          
+          try {
+            const globalQ = query(
+              globalBookingsRef,
+              where("userId", "==", userId),
+              orderBy("createdAt", "desc")
+            );
+            globalSnapshot = await getDocs(globalQ);
+          } catch (indexError: any) {
+            // If index is not ready, try without orderBy
+            if (indexError.code === "failed-precondition" || indexError.message?.includes("index")) {
+              console.warn("Firestore index not ready, fetching without orderBy:", indexError);
+              const globalQWithoutOrder = query(
+                globalBookingsRef,
+                where("userId", "==", userId)
+              );
+              globalSnapshot = await getDocs(globalQWithoutOrder);
+              
+              // Sort manually in memory
+              const docs = globalSnapshot.docs.map((doc) => ({
+                bookingId: doc.id,
+                ...doc.data(),
+                createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+              }));
+              
+              docs.sort((a, b) => {
+                const dateA = new Date(a.createdAt).getTime();
+                const dateB = new Date(b.createdAt).getTime();
+                return dateB - dateA; // Descending
+              });
+              
+              // Merge with userBookings
+              const allBookings = [...userBookings, ...docs];
+              const uniqueBookings = allBookings.reduce((acc, booking) => {
+                if (!acc.find((b) => b.bookingId === booking.bookingId)) {
+                  acc.push(booking);
+                }
+                return acc;
+              }, [] as any[]);
+              
+              setBookings(uniqueBookings);
+              setLoading(false);
+              return;
+            } else {
+              throw indexError;
+            }
+          }
 
           const globalBookings = globalSnapshot.docs.map((doc) => ({
             bookingId: doc.id,
