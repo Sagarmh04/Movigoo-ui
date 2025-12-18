@@ -1,30 +1,22 @@
 // app/my-bookings/page.tsx
-// My Bookings page with improved BookingCard UI (BookMyShow Style)
+// My Bookings page with Upcoming/Past tabs (BookMyShow Style)
 
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import { useRouter } from "next/navigation";
 import LayoutWrapper from "@/components/LayoutWrapper";
 import BookingCard from "@/components/bookings/BookingCard";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserBookings } from "@/hooks/useUserBookings";
 import LoginModal from "@/components/auth/LoginModal";
-import { useState } from "react";
+import { Ticket } from "lucide-react";
 
 function MyBookingsPageContent() {
   const router = useRouter();
   const { user, loading } = useAuth();
   const { bookings, loading: bookingsLoading, error } = useUserBookings(user?.uid || null);
-  
-  // Check if error is related to Firestore index
-  const isIndexError = error && (
-    typeof error === "string" && (
-      error.includes("index") || 
-      error.includes("failed-precondition") ||
-      error.includes("requires an index")
-    )
-  );
+  const [activeTab, setActiveTab] = useState<"upcoming" | "past">("upcoming");
   const [showLoginModal, setShowLoginModal] = useState(false);
 
   // Show login modal if not logged in (instead of redirect)
@@ -124,65 +116,143 @@ function MyBookingsPageContent() {
   // Filter bookings for current user
   const userBookings = bookings.filter((booking) => booking.userId === user.uid);
 
+  // Transform booking data helper
+  const transformBooking = (booking: any) => {
+    // Parse event date for comparison
+    const eventDateStr = booking.date || booking.showDate || booking.createdAt;
+    let eventDate: Date;
+    try {
+      eventDate = new Date(eventDateStr);
+      if (isNaN(eventDate.getTime())) {
+        eventDate = new Date();
+      }
+    } catch {
+      eventDate = new Date();
+    }
+
+    return {
+      id: booking.bookingId || booking.id || "",
+      bookingId: booking.bookingId || booking.id || "",
+      eventTitle: booking.eventTitle || "Event",
+      eventDetails: {
+        title: booking.eventTitle || "Event",
+        coverPortraitUrl: booking.coverUrl || booking.eventImage || "/placeholder-event.jpg",
+        coverWideUrl: booking.coverUrl || booking.eventImage || "/placeholder-event.jpg",
+        startDate: eventDate.toISOString(),
+        venueName: booking.venueName || booking.venue || "TBA",
+      },
+      showDate: booking.date || booking.showDate || new Date().toLocaleDateString(),
+      date: booking.date || booking.showDate || new Date().toLocaleDateString(),
+      showTime: booking.time || booking.showTime || "00:00",
+      time: booking.time || booking.showTime || "00:00",
+      venueName: booking.venueName || booking.venue || "TBA",
+      items: booking.items || (booking.ticketTypeId ? [{
+        ticketTypeId: booking.ticketTypeId || "",
+        typeName: booking.ticketType || booking.ticketTypeName || "General",
+        ticketType: booking.ticketType || booking.ticketTypeName || "General",
+        quantity: booking.quantity || 1,
+      }] : []),
+      totalAmount: booking.totalAmount || 0,
+      createdAt: booking.createdAt,
+      _eventDate: eventDate,
+    };
+  };
+
+  // Transform all bookings
+  const transformedBookings = userBookings.map(transformBooking);
+
+  // Filter into upcoming and past
+  const now = new Date();
+  const upcomingBookings = transformedBookings.filter(b => b._eventDate >= now);
+  const pastBookings = transformedBookings.filter(b => b._eventDate < now);
+
+  // Get visible bookings based on active tab
+  const visibleBookings = activeTab === "upcoming" ? upcomingBookings : pastBookings;
+
   return (
     <LayoutWrapper>
-      <div className="mx-auto w-full max-w-4xl space-y-8 pb-24 px-4 sm:px-6">
+      <div className="mx-auto w-full max-w-4xl space-y-6 pb-24 px-4 sm:px-6">
         {/* Page Header */}
-        <div className="space-y-3 pt-4">
-          <p className="text-xs uppercase tracking-[0.5em] text-slate-500">Wallet</p>
-          <h1 className="text-3xl font-semibold text-white sm:text-4xl">My premium passes</h1>
-          <p className="text-slate-300">Tap a ticket for QR entry, downloads, or concierge chat.</p>
+        <div className="space-y-2 pt-4">
+          <h1 className="text-2xl font-bold text-white sm:text-3xl">My Bookings</h1>
+          <p className="text-sm text-slate-400">Your tickets are safe with us</p>
+        </div>
+
+        {/* Tabs - BookMyShow Style */}
+        <div className="flex gap-1 bg-white/5 p-1 rounded-xl border border-white/10">
+          <button
+            onClick={() => setActiveTab("upcoming")}
+            className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all ${
+              activeTab === "upcoming"
+                ? "bg-[#0B62FF] text-white shadow-lg"
+                : "text-slate-400 hover:text-white hover:bg-white/5"
+            }`}
+          >
+            Upcoming
+            {upcomingBookings.length > 0 && (
+              <span className={`ml-1.5 px-1.5 py-0.5 text-xs rounded-full ${
+                activeTab === "upcoming" ? "bg-white/20" : "bg-white/10"
+              }`}>
+                {upcomingBookings.length}
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => setActiveTab("past")}
+            className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all ${
+              activeTab === "past"
+                ? "bg-[#0B62FF] text-white shadow-lg"
+                : "text-slate-400 hover:text-white hover:bg-white/5"
+            }`}
+          >
+            Past
+            {pastBookings.length > 0 && (
+              <span className={`ml-1.5 px-1.5 py-0.5 text-xs rounded-full ${
+                activeTab === "past" ? "bg-white/20" : "bg-white/10"
+              }`}>
+                {pastBookings.length}
+              </span>
+            )}
+          </button>
         </div>
 
         {/* Bookings List */}
-        {userBookings.length === 0 ? (
-          <div className="rounded-3xl border border-white/10 bg-white/5 p-12 text-center backdrop-blur-xl">
-            <p className="text-lg font-semibold text-white mb-2">No bookings yet</p>
-            <p className="text-sm text-slate-400 mb-6">
-              Discover an experience on the home page and book your first ticket.
-            </p>
-            <button
-              onClick={() => router.push("/")}
-              className="rounded-2xl bg-[#0B62FF] px-6 py-3 text-white font-semibold hover:bg-[#0A5AE6] transition"
-            >
-              Browse Events
-            </button>
+        {visibleBookings.length === 0 ? (
+          <div className="text-center py-16 space-y-4">
+            <div className="mx-auto w-16 h-16 rounded-full bg-white/5 flex items-center justify-center">
+              <Ticket size={32} className="text-slate-500" />
+            </div>
+            <div className="space-y-2">
+              <p className="text-base font-medium text-slate-300">
+                {activeTab === "upcoming"
+                  ? "No upcoming bookings"
+                  : "No past bookings"}
+              </p>
+              <p className="text-sm text-slate-500">
+                {activeTab === "upcoming"
+                  ? "Your booked tickets will appear here"
+                  : "Your past events will show here"}
+              </p>
+            </div>
+            {activeTab === "upcoming" && (
+              <button
+                onClick={() => router.push("/")}
+                className="mt-4 rounded-xl bg-[#0B62FF] px-6 py-2.5 text-sm text-white font-medium hover:bg-[#0A5AE6] transition"
+              >
+                Browse Events
+              </button>
+            )}
           </div>
         ) : (
-          <div className="space-y-4">
-            {userBookings.map((booking: any) => {
-              // Transform booking data to match BookingCard props
-              const transformedBooking = {
-                id: booking.bookingId || booking.id || "",
-                bookingId: booking.bookingId || booking.id || "",
-                eventTitle: booking.eventTitle || "Event",
-                eventDetails: {
-                  title: booking.eventTitle || "Event",
-                  coverPortraitUrl: booking.coverUrl || booking.eventImage || "/placeholder-event.jpg",
-                  coverWideUrl: booking.coverUrl || booking.eventImage || "/placeholder-event.jpg",
-                },
-                showDate: booking.date || booking.showDate || new Date().toLocaleDateString(),
-                date: booking.date || booking.showDate || new Date().toLocaleDateString(),
-                showTime: booking.time || booking.showTime || "00:00",
-                time: booking.time || booking.showTime || "00:00",
-                venueName: booking.venueName || booking.venue || "TBA",
-                items: booking.items || (booking.ticketTypeId ? [{
-                  ticketTypeId: booking.ticketTypeId || "",
-                  typeName: booking.ticketType || booking.ticketTypeName || "General",
-                  ticketType: booking.ticketType || booking.ticketTypeName || "General",
-                  quantity: booking.quantity || 1,
-                }] : []),
-                totalAmount: booking.totalAmount || 0,
-              };
-
-              return (
-                <BookingCard
-                  key={booking.bookingId || booking.id || Math.random()}
-                  booking={transformedBooking}
-                  onClick={() => router.push(`/booking/success?bookingId=${booking.bookingId || booking.id}`)}
-                />
-              );
-            })}
+          <div className="space-y-3">
+            {visibleBookings.map((booking) => (
+              <BookingCard
+                key={booking.bookingId || booking.id}
+                booking={booking}
+                onClick={() => router.push(`/booking/success?bookingId=${booking.bookingId || booking.id}`)}
+              />
+            ))}
           </div>
         )}
 
