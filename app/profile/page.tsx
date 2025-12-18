@@ -135,50 +135,6 @@ function ProfilePageContent() {
               </div>
             </motion.div>
 
-            {/* Account Actions */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl sm:p-8"
-            >
-              <h3 className="mb-4 text-lg font-semibold text-white">Account Actions</h3>
-              <div className="space-y-2">
-                <button
-                  onClick={() => setShowLoginModal(true)}
-                  className="flex w-full items-center justify-between rounded-xl bg-white/5 p-4 text-left transition hover:bg-white/10"
-                >
-                  <div className="flex items-center gap-3">
-                    <Chrome size={20} className="text-[#0B62FF]" />
-                    <span className="text-white">Sign in with Google</span>
-                  </div>
-                  <ChevronRight size={20} className="text-slate-400" />
-                </button>
-
-                <button
-                  onClick={() => setShowLoginModal(true)}
-                  className="flex w-full items-center justify-between rounded-xl bg-white/5 p-4 text-left transition hover:bg-white/10"
-                >
-                  <div className="flex items-center gap-3">
-                    <Mail size={20} className="text-[#0B62FF]" />
-                    <span className="text-white">Sign in with Email</span>
-                  </div>
-                  <ChevronRight size={20} className="text-slate-400" />
-                </button>
-
-                <button
-                  onClick={() => setShowLoginModal(true)}
-                  className="flex w-full items-center justify-between rounded-xl bg-white/5 p-4 text-left transition hover:bg-white/10"
-                >
-                  <div className="flex items-center gap-3">
-                    <Phone size={20} className="text-[#0B62FF]" />
-                    <span className="text-white">Sign in with Mobile</span>
-                  </div>
-                  <ChevronRight size={20} className="text-slate-400" />
-                </button>
-              </div>
-            </motion.div>
-
             {/* Menu Items */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
