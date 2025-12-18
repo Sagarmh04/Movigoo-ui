@@ -32,7 +32,7 @@ function EventsPageContent() {
           </h1>
           {!searchQuery && (
             <p className="text-slate-300">
-              Curated happenings with glass filters, parallax posters, and real-time availability.
+              From live concerts to once‑in‑a‑lifetime experiences — book the moments you don't want to miss.
             </p>
           )}
         </div>
