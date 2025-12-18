@@ -4,45 +4,61 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
 import { motion } from "framer-motion";
-import { MapPin, Menu, Search, UserRound, Bell, X } from "lucide-react";
+import { Menu, Search, UserRound, Bell, X, Film } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import { useFakeUser } from "@/hooks/useFakeUser";
+import { useAuth } from "@/hooks/useAuth";
 import { useSearchContext } from "@/context/SearchContext";
 
 const navItems = [
 	{ label: "Home", href: "/" },
 	{ label: "Events", href: "/events" },
-	{ label: "Locations", href: "/locations" },
+	{ label: "Movies", href: "#", isComingSoon: true },
 	{ label: "My Bookings", href: "/my-bookings" },
 	{ label: "Profile", href: "/profile" }
 ];
 
-function DesktopNav() {
+function DesktopNav({ onMoviesClick }: { onMoviesClick: () => void }) {
 	const pathname = usePathname();
 
 	return (
 		<nav className="hidden items-center gap-4 lg:flex">
-			{navItems.map((item) => (
-				<Link key={item.href} href={item.href} className="relative text-sm font-medium">
-					<span
-						className={cn(
-							"rounded-full px-4 py-1.5 text-slate-300 transition hover:text-white",
-							pathname === item.href ? "text-white" : undefined
+			{navItems.map((item) => {
+				if (item.isComingSoon) {
+					return (
+						<button
+							key={item.label}
+							onClick={onMoviesClick}
+							className="relative text-sm font-medium"
+						>
+							<span className="flex items-center gap-1.5 rounded-full px-4 py-1.5 text-slate-300 transition hover:text-white">
+								<Film size={14} />
+								{item.label}
+							</span>
+						</button>
+					);
+				}
+				return (
+					<Link key={item.href} href={item.href} className="relative text-sm font-medium">
+						<span
+							className={cn(
+								"rounded-full px-4 py-1.5 text-slate-300 transition hover:text-white",
+								pathname === item.href ? "text-white" : undefined
+							)}
+						>
+							{item.label}
+						</span>
+						{pathname === item.href && (
+							<motion.span
+								layoutId="nav-pill"
+								className="absolute inset-0 -z-10 rounded-full bg-white/10"
+							/>
 						)}
-					>
-						{item.label}
-					</span>
-					{pathname === item.href && (
-						<motion.span
-							layoutId="nav-pill"
-							className="absolute inset-0 -z-10 rounded-full bg-white/10"
-						/>
-					)}
-				</Link>
-			))}
+					</Link>
+				);
+			})}
 		</nav>
 	);
 }
@@ -50,11 +66,21 @@ function DesktopNav() {
 const Header = () => {
 	const pathname = usePathname();
 	const router = useRouter();
-	const { user } = useFakeUser();
+	const { user } = useAuth();
 	const { searchQuery, setSearchQuery } = useSearchContext();
 	const [isScrolled, setIsScrolled] = useState(false);
 	const [isSearchOpen, setIsSearchOpen] = useState(false);
 	const [localSearchValue, setLocalSearchValue] = useState("");
+	const [showComingSoon, setShowComingSoon] = useState(false);
+	const [animateMovie, setAnimateMovie] = useState(false);
+
+	const handleMoviesClick = () => {
+		setAnimateMovie(true);
+		setTimeout(() => {
+			setShowComingSoon(true);
+			setAnimateMovie(false);
+		}, 500);
+	};
 
 	useEffect(() => {
 		const onScroll = () => setIsScrolled(window.scrollY > 16);
@@ -94,10 +120,6 @@ const Header = () => {
 					</motion.div>
 				</Link>
 
-				<div className="hidden items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-xs text-slate-300 md:flex">
-					<MapPin size={14} className="text-accent-amber" />
-					Mumbai, India
-				</div>
 
 				{/* Desktop Search */}
 				<div className="hidden flex-1 items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-1.5 md:flex">
@@ -119,17 +141,34 @@ const Header = () => {
 					)}
 				</div>
 
-				<DesktopNav />
+				<DesktopNav onMoviesClick={handleMoviesClick} />
 
-				<div className="hidden items-center gap-2 lg:flex">
-					<Button variant="ghost" size="sm" className="h-10 w-10 rounded-full border border-white/10 p-0">
-						<Bell size={18} />
-					</Button>
-					<Button variant="amber" size="sm" className="flex items-center gap-2 rounded-full px-4">
+			<div className="hidden items-center gap-2 lg:flex">
+				<Button variant="ghost" size="sm" className="h-10 w-10 rounded-full border border-white/10 p-0">
+					<Bell size={18} />
+				</Button>
+				{user ? (
+					<Button 
+						variant="amber" 
+						size="sm" 
+						className="flex items-center gap-2 rounded-full px-4"
+						onClick={() => router.push("/profile")}
+					>
 						<UserRound size={16} />
-						<span>{("name" in user ? user.name : "") || ("email" in user ? user.email : "") || "User"}</span>
+						<span>{user.displayName || user.email?.split("@")[0] || "Profile"}</span>
 					</Button>
-				</div>
+				) : (
+					<Button 
+						variant="amber" 
+						size="sm" 
+						className="flex items-center gap-2 rounded-full px-4"
+						onClick={() => router.push("/profile")}
+					>
+						<UserRound size={16} />
+						<span>Sign In</span>
+					</Button>
+				)}
+			</div>
 
 				{/* Mobile Search & Menu */}
 				<div className="flex flex-1 items-center justify-end gap-2 lg:hidden">
@@ -213,6 +252,60 @@ const Header = () => {
 					</Sheet>
 				</div>
 			</div>
+
+			{/* Movies Coming Soon Modal - Reused from MobileDock */}
+			{showComingSoon && (
+				<div 
+					className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center backdrop-blur-sm"
+					onClick={() => setShowComingSoon(false)}
+				>
+					<div 
+						className="bg-slate-900 border border-white/10 rounded-3xl px-6 py-8 w-80 text-center animate-scaleIn shadow-2xl"
+						onClick={(e) => e.stopPropagation()}
+					>
+						<div className="mx-auto mb-5 w-20 h-20 rounded-full bg-gradient-to-br from-red-500 to-pink-600 flex items-center justify-center animate-reelSpin shadow-lg shadow-red-500/30">
+							<span className="text-3xl">🎬</span>
+						</div>
+
+						<h3 className="text-xl font-bold text-white">Movies</h3>
+						<p className="text-sm text-slate-400 mt-2">
+							Coming Soon
+						</p>
+
+						<p className="text-xs text-slate-500 mt-3 leading-relaxed">
+							We&apos;re bringing movie ticket booking & showtimes to Movigoo very soon. Stay tuned!
+						</p>
+
+						<button
+							onClick={() => setShowComingSoon(false)}
+							className="mt-6 px-6 py-2.5 rounded-xl bg-[#0B62FF] text-white text-sm font-semibold hover:bg-[#0A5AE6] transition-colors"
+						>
+							Got it
+						</button>
+					</div>
+				</div>
+			)}
+
+			<style jsx global>{`
+				@keyframes reelSpin {
+					0% { transform: rotate(-10deg) scale(0.8); opacity: 0; }
+					60% { transform: rotate(10deg) scale(1.05); opacity: 1; }
+					100% { transform: rotate(0deg) scale(1); }
+				}
+
+				.animate-reelSpin {
+					animation: reelSpin 0.5s ease-out;
+				}
+
+				@keyframes scaleIn {
+					from { transform: scale(0.9); opacity: 0; }
+					to { transform: scale(1); opacity: 1; }
+				}
+
+				.animate-scaleIn {
+					animation: scaleIn 0.25s ease-out;
+				}
+			`}</style>
 		</motion.header>
 	);
 };
