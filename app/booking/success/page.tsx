@@ -15,7 +15,6 @@ import { Download, Calendar, MapPin, Ticket, X, Clock, Share2 } from "lucide-rea
 import { currencyFormatter } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
-import html2pdf from "html2pdf.js";
 
 function BookingSuccessPageContent() {
   const router = useRouter();
@@ -266,9 +265,12 @@ function BookingSuccessPageContent() {
     loadBooking();
   }, [user, authLoading, searchParams, router]);
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     const element = document.getElementById("ticket-pdf");
     if (!element) return;
+
+    // Dynamically import html2pdf (client-side only)
+    const html2pdf = (await import("html2pdf.js")).default;
 
     const opt = {
       margin: 0.3,
