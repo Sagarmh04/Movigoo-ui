@@ -15,6 +15,7 @@ import { Download, Calendar, MapPin, Ticket, X, Clock, Share2 } from "lucide-rea
 import { currencyFormatter } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
+import html2pdf from "html2pdf.js";
 
 function BookingSuccessPageContent() {
   const router = useRouter();
@@ -266,12 +267,18 @@ function BookingSuccessPageContent() {
   }, [user, authLoading, searchParams, router]);
 
   const handleDownload = () => {
-    // TODO: Implement PDF download
-    console.log("Download ticket");
-    // For now, just show a message
-    if (typeof window !== "undefined") {
-      alert("Download feature coming soon!");
-    }
+    const element = document.getElementById("ticket-pdf");
+    if (!element) return;
+
+    const opt = {
+      margin: 0.3,
+      filename: `Movigoo-Ticket-${booking?.bookingId || "ticket"}.pdf`,
+      image: { type: "jpeg", quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: "in", format: "a4", orientation: "portrait" },
+    };
+
+    html2pdf().set(opt).from(element).save();
   };
 
   const handleShare = async () => {
@@ -337,8 +344,9 @@ function BookingSuccessPageContent() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#050016] via-[#0b0220] to-[#05010a] text-white">
       <div className="mx-auto flex min-h-screen w-full max-w-md flex-col px-4 pb-6 pt-8 sm:px-6 lg:px-8">
-        {/* Premium Booking Card */}
+        {/* Premium Booking Card - Wrapped for PDF */}
         <motion.div
+          id="ticket-pdf"
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={{ duration: 0.4, ease: "easeOut" }}
@@ -392,12 +400,12 @@ function BookingSuccessPageContent() {
           <div className="relative z-10 p-6 space-y-5">
             {/* Event Image - Premium Design */}
             <div className="relative h-40 w-full overflow-hidden rounded-2xl border-2 border-white/20 shadow-xl">
-              <Image 
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img 
                 src={booking.coverUrl || "/placeholder-event.jpg"} 
                 alt={booking.eventTitle || "Event"} 
-                fill 
-                sizes="(max-width: 768px) 100vw, 400px"
-                className="object-cover" 
+                crossOrigin="anonymous"
+                className="absolute inset-0 w-full h-full object-cover" 
               />
               <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/50 to-transparent" />
               <div className="absolute bottom-0 left-0 right-0 p-4">
