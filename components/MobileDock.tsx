@@ -47,17 +47,15 @@ const MobileDock = () => {
                 aria-label={label}
               >
                 <div
-                  className={cn(
-                    "relative flex items-center justify-center",
-                    animateMovie && "animate-moviePulse"
-                  )}
+                  className={`relative flex items-center justify-center ${
+                    animateMovie ? "animate-moviePulse" : ""
+                  }`}
                 >
                   <Icon 
                     size={18} 
-                    className={cn(
-                      "transition-colors duration-200",
-                      animateMovie && "text-red-500"
-                    )} 
+                    className={`transition-colors duration-200 ${
+                      animateMovie ? "text-red-500" : ""
+                    }`} 
                   />
                   {animateMovie && (
                     <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-ping" />
