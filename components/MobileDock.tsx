@@ -109,7 +109,7 @@ const MobileDock = () => {
             </p>
 
             <p className="text-xs text-slate-500 mt-3 leading-relaxed">
-              We&apos;re bringing movies & showtimes to Movigoo very soon. Stay tuned!
+              We&apos;re bringing movie ticket booking & showtimes to Movigoo very soon. Stay tuned!
             </p>
 
             <button
