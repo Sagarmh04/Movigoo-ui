@@ -69,23 +69,23 @@ const Footer = () => {
             <p className="mb-2 text-xs uppercase tracking-[0.3em] text-slate-500">Legal</p>
             <ul className="space-y-2">
               <li>
-                <Link href="/about-us" className="transition hover:text-white">
+                <Link href="/about-us" className="transition-colors duration-200 hover:text-white">
                   About Us
                 </Link>
               </li>
               <li>
-                <Link href="/privacy-policy" className="transition hover:text-white">
+                <Link href="/privacy-policy" className="transition-colors duration-200 hover:text-white">
                   Privacy Policy
                 </Link>
               </li>
               <li>
-                <Link href="/refund-policy" className="transition hover:text-white">
+                <Link href="/refund-policy" className="transition-colors duration-200 hover:text-white">
                   Refund Policy
                 </Link>
               </li>
               <li>
-                <Link href="/shipping-return-policy" className="transition hover:text-white">
-                  Shipping & Return Policy
+                <Link href="/shipping-return-policy" className="transition-colors duration-200 hover:text-white">
+                  Shipping & Return
                 </Link>
               </li>
             </ul>
@@ -93,37 +93,7 @@ const Footer = () => {
         </div>
       </div>
 
-      {/* Legal Links - Mobile-First Grid */}
-      <div className="mx-auto max-w-6xl mt-8 pt-6 border-t border-white/5 px-4 sm:px-6 lg:px-10">
-        <div
-          className="
-            grid 
-            grid-cols-2 
-            gap-y-3 
-            gap-x-4 
-            text-sm 
-            text-slate-400 
-            sm:flex 
-            sm:justify-center 
-            sm:gap-6
-          "
-        >
-          <Link href="/about-us" className="transition-colors duration-200 hover:text-white">
-            About Us
-          </Link>
-          <Link href="/privacy-policy" className="transition-colors duration-200 hover:text-white">
-            Privacy Policy
-          </Link>
-          <Link href="/refund-policy" className="transition-colors duration-200 hover:text-white">
-            Refund Policy
-          </Link>
-          <Link href="/shipping-return-policy" className="transition-colors duration-200 hover:text-white">
-            Shipping & Return
-          </Link>
-        </div>
-      </div>
-
-      <p className="mt-6 text-center text-xs text-slate-500">© {new Date().getFullYear()} Movigoo.</p>
+      <p className="mt-8 text-center text-xs text-slate-500">© {new Date().getFullYear()} Movigoo.</p>
     </footer>
   );
 };
