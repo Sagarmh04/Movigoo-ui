@@ -37,9 +37,9 @@ const Footer = () => {
                 </Link>
               </li>
               <li>
-                <Link href="/coming-soon" className="transition hover:text-white">
+                <span className="cursor-default pointer-events-none">
                   Coming Soon
-                </Link>
+                </span>
               </li>
               <li>
                 <Link href="/locations" className="transition hover:text-white">
