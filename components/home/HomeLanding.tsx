@@ -50,10 +50,16 @@ const HomeLanding = ({ featuredEvents, searchQuery = "", isSearching = false }: 
           </div>
           <div className="flex items-center gap-4 rounded-3xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
             <div>
-              <p className="text-white tracking-[0.2em]">M O V I G O O</p>
-              <p>Mumbai • 12 Aug</p>
+              <p className="tracking-[0.2em]">
+                <span className="text-white">M</span>{" "}
+                <span className="text-accent-amber">O</span>{" "}
+                <span className="text-white">V</span>{" "}
+                <span className="text-accent-amber">I</span>{" "}
+                <span className="text-white">G</span>{" "}
+                <span className="text-accent-amber">O</span>{" "}
+                <span className="text-accent-amber">O</span>
+              </p>
             </div>
-            <span className="rounded-full bg-white/10 px-4 py-1 text-xs text-white/80">New drop</span>
           </div>
         </div>
         <div className="relative h-[420px] overflow-hidden rounded-[40px] border border-white/10 bg-gradient-to-br from-slate-900 to-slate-800">
