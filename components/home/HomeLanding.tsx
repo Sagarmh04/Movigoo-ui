@@ -43,16 +43,14 @@ const HomeLanding = ({ featuredEvents, searchQuery = "", isSearching = false }: 
                 <ArrowRight className="ml-2" size={18} />
               </Link>
             </Button>
-            <Button variant="ghost" size="lg" className="rounded-3xl border border-white/10" asChild>
-              <Link href="/coming-soon">
-                <PlayCircle className="mr-2" size={18} />
-                View trailers
-              </Link>
+            <Button variant="ghost" size="lg" className="rounded-3xl border border-white/10 cursor-default pointer-events-none" disabled>
+              <PlayCircle className="mr-2" size={18} />
+              View trailers
             </Button>
           </div>
           <div className="flex items-center gap-4 rounded-3xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
             <div>
-              <p className="text-white">Indigo Nights Festival</p>
+              <p className="text-white tracking-[0.2em]">M O V I G O O</p>
               <p>Mumbai • 12 Aug</p>
             </div>
             <span className="rounded-full bg-white/10 px-4 py-1 text-xs text-white/80">New drop</span>
