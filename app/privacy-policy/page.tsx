@@ -55,7 +55,7 @@ export default function PrivacyPolicyPage() {
                   <li>Date of birth and age verification details</li>
                   <li>Billing and shipping addresses</li>
                   <li>Payment information (processed securely through third-party payment gateways)</li>
-                  <li>Government-issued identification (when required for event verification)</li>
+                  <li>Government-issued identification (only when required for specific events or venue entry, if applicable)</li>
                   <li>Profile picture and preferences</li>
                 </ul>
               </div>
@@ -248,7 +248,7 @@ export default function PrivacyPolicyPage() {
                 Vidyanagar, Hubli
               </p>
               <p className="mt-3">
-                Email: <a href="mailto:privacy@movigoo.com" className="text-accent-amber hover:underline">privacy@movigoo.com</a>
+                Email: <a href="mailto:privacy@movigoo.in" className="text-accent-amber hover:underline">privacy@movigoo.in</a>
               </p>
             </div>
           </section>
@@ -266,7 +266,7 @@ export default function PrivacyPolicyPage() {
                 Vidyanagar, Hubli
               </p>
               <p className="mt-3">
-                Email: <a href="mailto:privacy@movigoo.com" className="text-accent-amber hover:underline">privacy@movigoo.com</a>
+                Email: <a href="mailto:privacy@movigoo.in" className="text-accent-amber hover:underline">privacy@movigoo.in</a>
               </p>
             </div>
           </section>

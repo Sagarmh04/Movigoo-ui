@@ -43,21 +43,38 @@ export default function RefundPolicyPage() {
           <section>
             <h2 className="text-base font-semibold text-white mb-2">1. General Refund Policy</h2>
             <p>
-          Event tickets purchased through Movigoo are generally considered final sales and are non-refundable unless 
-          otherwise stated in this policy or in the specific event terms. However, refunds may be available under 
-          certain circumstances as outlined below.
-        </p>
+              Refund eligibility for tickets purchased through Movigoo depends on the type of event and the applicable refund policy. 
+              Refunds may be available under certain circumstances as outlined below. Please review the specific refund terms for each 
+              event before completing your purchase.
+            </p>
             <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-5">
               <p className="font-semibold text-white">Important Note:</p>
               <p className="mt-2 text-sm">
-            Refund eligibility and processing are subject to the policies of individual event organizers. Movigoo 
-            acts as an intermediary platform and processes refunds based on organizer policies and our terms of service.
-          </p>
-        </div>
-      </section>
+                Refund policies vary based on event type: For events managed by third-party organizers, refund eligibility and processing 
+                are subject to the policies of the individual event organizers. For Movigoo-hosted pilot events, refunds are processed 
+                according to Movigoo&apos;s refund policy as outlined in this document.
+              </p>
+            </div>
+          </section>
+
+          <section>
+            <h2 className="text-base font-semibold text-white mb-2">1.1 Movigoo-Hosted Pilot Events</h2>
+            <p>
+              For events hosted directly by Movigoo as pilot events, the following refund policy applies:
+            </p>
+            <ul className="mt-3 ml-6 list-disc space-y-2">
+              <li><strong>Event Cancellation:</strong> If a Movigoo-hosted event is cancelled, full refunds (100% of ticket price including processing fees) will be provided to all ticket holders</li>
+              <li><strong>Significant Event Modification:</strong> If a Movigoo-hosted event is significantly modified (such as major venue change, date change, or substantial content alteration), ticket holders will be offered a full refund or the option to attend the modified event</li>
+              <li><strong>Refund Processing:</strong> Refunds for Movigoo-hosted events are processed within 7-14 business days to the original payment method</li>
+              <li><strong>Customer-Requested Cancellations:</strong> For Movigoo-hosted events, cancellation requests made at least 48 hours before the event may be eligible for partial refunds, subject to review</li>
+            </ul>
+          </section>
 
           <section>
             <h2 className="text-base font-semibold text-white mb-2">2. Eligible Refund Scenarios</h2>
+            <p className="mb-3 text-sm text-slate-400">
+              The following scenarios apply primarily to events managed by third-party organizers. For Movigoo-hosted events, refer to section 1.1 above.
+            </p>
             
             <div className="space-y-4">
               <div>
@@ -195,7 +212,7 @@ export default function RefundPolicyPage() {
           <li>
             <strong>Email Method:</strong>
             <ul className="ml-6 mt-2 list-disc space-y-1">
-              <li>Send an email to support@movigoo.com</li>
+              <li>Send an email to support@movigoo.in</li>
               <li>Include your booking reference number</li>
               <li>Mention the reason for refund request</li>
               <li>Provide your contact details</li>
@@ -293,10 +310,10 @@ export default function RefundPolicyPage() {
             Vidyanagar, Hubli
           </p>
           <p className="mt-3 text-slate-300">
-            Email: <a href="mailto:refunds@movigoo.com" className="text-accent-amber hover:underline">refunds@movigoo.com</a>
+            Email: <a href="mailto:refunds@movigoo.in" className="text-accent-amber hover:underline">refunds@movigoo.in</a>
           </p>
           <p className="mt-2 text-slate-300">
-            General Support: <a href="mailto:support@movigoo.com" className="text-accent-amber hover:underline">support@movigoo.com</a>
+            General Support: <a href="mailto:support@movigoo.in" className="text-accent-amber hover:underline">support@movigoo.in</a>
           </p>
           <p className="mt-2 text-slate-300">
             Support Hours: Monday to Saturday, 9:00 AM to 6:00 PM IST

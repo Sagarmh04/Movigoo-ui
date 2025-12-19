@@ -46,9 +46,9 @@ export default function ShippingReturnPolicyPage() {
               <div>
                 <h3 className="text-base font-semibold text-white mb-2">1.1 E-Tickets (Electronic Tickets)</h3>
                 <p className="mt-2">
-              Most tickets are delivered electronically via email immediately after successful payment confirmation. 
-              E-tickets will be sent to the email address associated with your Movigoo account.
-            </p>
+                  Movigoo primarily delivers e-tickets (digital tickets) via email immediately after successful payment confirmation. 
+                  E-tickets will be sent to the email address associated with your Movigoo account.
+                </p>
                 <ul className="mt-3 ml-6 list-disc space-y-2">
               <li>E-tickets are typically delivered within minutes of purchase</li>
               <li>You will receive a confirmation email with your ticket(s)</li>
@@ -58,11 +58,11 @@ export default function ShippingReturnPolicyPage() {
           </div>
 
               <div>
-                <h3 className="text-base font-semibold text-white mb-2">1.2 Physical Tickets (If Applicable)</h3>
+                <h3 className="text-base font-semibold text-white mb-2">1.2 Physical Tickets (Exception Only)</h3>
                 <p className="mt-2">
-              In cases where physical tickets are required, we use reliable courier services for delivery. 
-              Physical tickets are typically shipped within 2-5 business days after booking confirmation.
-            </p>
+                  Physical ticket delivery is an exception and is available only for select events where e-tickets are not applicable. 
+                  In such cases, physical tickets are typically shipped within 2-5 business days after booking confirmation.
+                </p>
                 <ul className="mt-3 ml-6 list-disc space-y-2">
               <li>Shipping charges (if any) will be clearly displayed during checkout</li>
               <li>Delivery times may vary based on your location</li>
@@ -261,7 +261,7 @@ export default function ShippingReturnPolicyPage() {
             Vidyanagar, Hubli
           </p>
           <p className="mt-3 text-slate-300">
-            Email: <a href="mailto:support@movigoo.com" className="text-accent-amber hover:underline">support@movigoo.com</a>
+            Email: <a href="mailto:support@movigoo.in" className="text-accent-amber hover:underline">support@movigoo.in</a>
           </p>
           <p className="mt-2 text-slate-300">
             Support Hours: Monday to Saturday, 9:00 AM to 6:00 PM IST

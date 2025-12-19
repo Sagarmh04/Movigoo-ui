@@ -2,9 +2,9 @@ import Link from "next/link";
 import { Instagram, Linkedin, Twitter } from "lucide-react";
 
 const socials = [
-  { icon: <Instagram size={18} />, href: "https://instagram.com/movigoo" },
-  { icon: <Twitter size={18} />, href: "https://x.com/movigoo" },
-  { icon: <Linkedin size={18} />, href: "https://linkedin.com/company/movigoo" }
+  { icon: <Instagram size={18} /> },
+  { icon: <Twitter size={18} /> },
+  { icon: <Linkedin size={18} /> }
 ];
 
 const Footer = () => {
@@ -17,14 +17,13 @@ const Footer = () => {
             Event Discovery and premium booking
           </p>
           <div className="flex gap-2">
-            {socials.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 text-slate-300 transition hover:border-white/40 hover:text-white"
+            {socials.map((item, index) => (
+              <div
+                key={index}
+                className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 text-slate-300 cursor-default pointer-events-none"
               >
                 {item.icon}
-              </Link>
+              </div>
             ))}
           </div>
         </div>
@@ -58,8 +57,8 @@ const Footer = () => {
                 </Link>
               </li>
               <li>
-                <Link href="/shipping-return-policy" className="transition hover:text-white">
-                  Shipping & Returns
+                <Link href="/terms-policy" className="transition hover:text-white">
+                  Terms & Conditions
                 </Link>
               </li>
               <li>Partner with us</li>

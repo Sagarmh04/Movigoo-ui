@@ -25,6 +25,10 @@ export default function AboutUsPage() {
             Welcome to Movigoo - your premier destination for cinematic event discovery and seamless booking experiences.
           </p>
 
+          <p>
+            Movigoo is currently in a soft-launch phase. During this period, some events are hosted directly by Movigoo as pilot events to ensure a smooth and reliable booking experience. We are gradually onboarding third-party event organizers, and their events will be available on the platform as our network expands.
+          </p>
+
           <section>
             <h2 className="text-base font-semibold text-white mb-2">Legal Business Information</h2>
             <div className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-6">

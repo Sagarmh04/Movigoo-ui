@@ -195,7 +195,7 @@ export default function TermsPolicyPage() {
               For questions or support, contact:
             </p>
             <p className="mt-1">
-              📧 support@movigoo.com
+              📧 support@movigoo.in
             </p>
           </section>
         </div>
