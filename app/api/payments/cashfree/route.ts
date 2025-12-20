@@ -101,9 +101,7 @@ export async function POST(req: NextRequest) {
 
     // CRITICAL: Extract payment_session_id exactly as returned by Cashfree
     // Use data.payment_session_id (snake_case) - NOT data.paymentSessionId
-    const paymentSessionId = data.payment_session_id;
-
-    if (!paymentSessionId) {
+    if (!data.payment_session_id) {
       console.error("Cashfree response missing payment_session_id:", data);
       return NextResponse.json(
         { error: "Cashfree did not return payment_session_id" },
@@ -111,14 +109,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Log raw value for debugging
-    console.log("RAW paymentSessionId:", paymentSessionId);
-    console.log("Opening Cashfree checkout");
+    // ✅ ADD SAFETY LOG (TEMPORARY)
+    // This log must NOT contain payment at the end
+    console.log(
+      "Cashfree RAW session id from API:",
+      data.payment_session_id
+    );
 
     // CRITICAL: Return EXACT payment_session_id without any modification
-    // No concatenation, no template literals, no mutation
+    // Use data.payment_session_id DIRECTLY - no variables, no concatenation, no mutation
     return NextResponse.json({
-      paymentSessionId: paymentSessionId,
+      paymentSessionId: data.payment_session_id,
     });
   } catch (err: any) {
     console.error("Server error:", err);
