@@ -1,20 +1,22 @@
 "use client";
 
 // app/payment/page.tsx
-// Payment page - Initiates Cashfree redirect checkout
+// Payment page - Initiates Cashfree hosted checkout using JS SDK
 
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Script from "next/script";
 import { Loader2, AlertCircle } from "lucide-react";
 
 function PaymentPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [loading, setLoading] = useState(true);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const initiatePayment = async () => {
+    const createSession = async () => {
       try {
         // Get payment parameters from URL
         const bookingId = searchParams.get("bookingId");
@@ -29,6 +31,8 @@ function PaymentPageContent() {
           setLoading(false);
           return;
         }
+
+        console.log("Creating Cashfree payment session...");
 
         // Call backend API to create payment session
         const response = await fetch("/api/payments/cashfree", {
@@ -51,21 +55,9 @@ function PaymentPageContent() {
           throw new Error(data.error || "Failed to create payment session");
         }
 
-        // Redirect to Cashfree checkout
-        // Cashfree Redirect Checkout requires a form submission with payment_session_id
-        const checkoutUrl = data.checkoutUrl;
-        const form = document.createElement("form");
-        form.method = "POST";
-        form.action = checkoutUrl;
-
-        const sessionIdInput = document.createElement("input");
-        sessionIdInput.type = "hidden";
-        sessionIdInput.name = "payment_session_id";
-        sessionIdInput.value = data.paymentSessionId;
-        form.appendChild(sessionIdInput);
-
-        document.body.appendChild(form);
-        form.submit();
+        console.log("Cashfree session created:", data.paymentSessionId);
+        setSessionId(data.paymentSessionId);
+        setLoading(false);
       } catch (err: any) {
         console.error("Payment initiation error:", err);
         setError(err.message || "Failed to initiate payment");
@@ -73,15 +65,61 @@ function PaymentPageContent() {
       }
     };
 
-    initiatePayment();
-  }, [router, searchParams]);
+    createSession();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+
+    // Wait for Cashfree SDK to load
+    const checkSDK = setInterval(() => {
+      if (typeof window !== "undefined" && (window as any).Cashfree) {
+        clearInterval(checkSDK);
+        openCashfreeCheckout();
+      }
+    }, 100);
+
+    // Timeout after 10 seconds
+    const timeout = setTimeout(() => {
+      clearInterval(checkSDK);
+      if (!(window as any).Cashfree) {
+        setError("Cashfree SDK failed to load. Please refresh the page.");
+      }
+    }, 10000);
+
+    return () => {
+      clearInterval(checkSDK);
+      clearTimeout(timeout);
+    };
+  }, [sessionId]);
+
+  const openCashfreeCheckout = () => {
+    if (!sessionId) return;
+
+    try {
+      console.log("Opening Cashfree checkout with session:", sessionId);
+
+      const cashfree = (window as any).Cashfree({
+        mode: process.env.NODE_ENV === "production" ? "production" : "sandbox",
+      });
+
+      cashfree.checkout({
+        paymentSessionId: sessionId,
+        redirectTarget: "_self",
+      });
+    } catch (err: any) {
+      console.error("Error opening Cashfree checkout:", err);
+      setError("Failed to open payment gateway. Please try again.");
+    }
+  };
 
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-[#050016] via-[#0b0220] to-[#05010a]">
         <div className="text-center">
           <Loader2 className="mx-auto h-12 w-12 animate-spin text-[#0B62FF] mb-4" />
-          <p className="text-white text-lg font-medium">Redirecting to payment...</p>
+          <p className="text-white text-lg font-medium">Preparing secure payment...</p>
           <p className="text-slate-400 text-sm mt-2">Please wait</p>
         </div>
       </div>
@@ -106,7 +144,18 @@ function PaymentPageContent() {
     );
   }
 
-  return null;
+  return (
+    <>
+      <Script src="https://sdk.cashfree.com/js/v3/cashfree.js" strategy="beforeInteractive" />
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-[#050016] via-[#0b0220] to-[#05010a]">
+        <div className="text-center">
+          <Loader2 className="mx-auto h-12 w-12 animate-spin text-[#0B62FF] mb-4" />
+          <p className="text-white text-lg font-medium">Redirecting to secure payment...</p>
+          <p className="text-slate-400 text-sm mt-2">Cashfree checkout will open shortly</p>
+        </div>
+      </div>
+    </>
+  );
 }
 
 export default function PaymentPage() {
@@ -122,4 +171,3 @@ export default function PaymentPage() {
     </Suspense>
   );
 }
-

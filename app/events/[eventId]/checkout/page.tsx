@@ -164,21 +164,24 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
   const ageLimit = basic.ageLimit || "All Ages";
 
   const handleProceedToPayment = () => {
-    // Save final booking data for payment page
-    if (typeof window !== "undefined") {
-      sessionStorage.setItem("finalBookingData", JSON.stringify({
-        ...bookingData,
-        subtotal,
-        bookingFee,
-        discount,
-        totalAmount,
-        totalTickets,
-        eventDate,
-        eventTime,
-        venueName: firstVenue.name || data.event.venue,
-      }));
+    if (!user || !user.uid || !user.email) {
+      setShowLoginModal(true);
+      return;
     }
-    router.push(`/events/${eventId}/payment`);
+
+    // Generate a temporary booking ID for tracking
+    const tempBookingId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+    // Redirect to Cashfree payment page with all required parameters
+    const paymentParams = new URLSearchParams({
+      bookingId: tempBookingId,
+      amount: totalAmount.toString(),
+      email: user.email,
+      name: user.displayName || user.email.split("@")[0],
+      phone: user.phoneNumber || "",
+    });
+
+    router.push(`/payment?${paymentParams.toString()}`);
   };
 
   return (
