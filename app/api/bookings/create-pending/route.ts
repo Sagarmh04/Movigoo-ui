@@ -4,7 +4,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseServer";
-import { doc, setDoc, serverTimestamp, collection, addDoc } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { v4 as uuidv4 } from "uuid";
 
 export const runtime = "nodejs";

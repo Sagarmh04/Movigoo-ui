@@ -4,7 +4,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseServer";
-import { doc, getDoc, setDoc, serverTimestamp, collection, addDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 
 // Force Node.js runtime
 export const runtime = "nodejs";
