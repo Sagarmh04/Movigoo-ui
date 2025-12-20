@@ -79,8 +79,8 @@ export function useUserBookings(userId: string | null) {
               
               // Merge with userBookings
               const allBookings = [...userBookings, ...docs];
-              const uniqueBookings = allBookings.reduce((acc, booking) => {
-                if (!acc.find((b) => b.bookingId === booking.bookingId)) {
+              const uniqueBookings = allBookings.reduce((acc: any[], booking: any) => {
+                if (!acc.find((b: any) => b.bookingId === booking.bookingId)) {
                   acc.push(booking);
                 }
                 return acc;
@@ -115,8 +115,8 @@ export function useUserBookings(userId: string | null) {
 
           // Merge and deduplicate by bookingId
           const allBookings = [...userBookings, ...globalBookings];
-          const uniqueBookings = allBookings.reduce((acc, booking) => {
-            if (!acc.find((b) => b.bookingId === booking.bookingId)) {
+          const uniqueBookings = allBookings.reduce((acc: any[], booking: any) => {
+            if (!acc.find((b: any) => b.bookingId === booking.bookingId)) {
               acc.push(booking);
             }
             return acc;
