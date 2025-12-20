@@ -1,8 +1,6 @@
 // lib/sendTicketEmail.ts
-// Production-grade transactional email utility using MSG91
+// MSG91 Email API integration for ticket confirmations
 // Server-side only - never expose keys to client
-
-import axios from "axios";
 
 type TicketEmailPayload = {
   to: string;
@@ -15,38 +13,27 @@ type TicketEmailPayload = {
   ticketLink: string;
 };
 
-/**
- * Send ticket confirmation email via MSG91
- * Errors are logged but never thrown to prevent booking failures
- */
 export async function sendTicketEmail(payload: TicketEmailPayload): Promise<void> {
-  try {
-    // Validate required environment variables
-    const apiKey = process.env.MSG91_EMAIL_API_KEY;
-    const senderEmail = process.env.MSG91_EMAIL_SENDER;
-    const templateId = process.env.MSG91_EMAIL_TEMPLATE_ID;
+  console.log("EMAIL FUNCTION CALLED");
+  console.log("EMAIL PAYLOAD:", payload);
 
-    if (!apiKey || !senderEmail || !templateId) {
-      console.warn("MSG91 email configuration missing - skipping email send");
-      return;
-    }
+  const url = "https://control.msg91.com/api/v5/email/send";
 
-    // Validate payload
-    if (!payload.to || !payload.name || !payload.bookingId) {
-      console.warn("Invalid email payload - missing required fields");
-      return;
-    }
+  const headers = {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+    authkey: process.env.MSG91_EMAIL_API_KEY!, // MUST be lowercase
+  };
 
-    // Call MSG91 API
-    await axios.post(
-      "https://api.msg91.com/api/v5/email/send",
+  const body = {
+    recipients: [
       {
-        to: [{ email: payload.to }],
-        from: {
-          email: senderEmail,
-          name: "Movigoo",
-        },
-        template_id: templateId,
+        to: [
+          {
+            email: payload.to,
+            name: payload.name,
+          },
+        ],
         variables: {
           name: payload.name,
           eventName: payload.eventName,
@@ -57,23 +44,24 @@ export async function sendTicketEmail(payload: TicketEmailPayload): Promise<void
           ticketLink: payload.ticketLink,
         },
       },
-      {
-        headers: {
-          Authkey: apiKey,
-          "Content-Type": "application/json",
-        },
-        timeout: 10000, // 10 second timeout
-      }
-    );
+    ],
+    from: {
+      email: "no-reply@mailer91.com", // TEMP SAFE SENDER
+    },
+    domain: "mailer91.com", // REQUIRED
+    template_id: "movigoo_final_ticket", // EXACT, case-sensitive
+  };
 
-    console.log(`✓ Ticket email sent successfully to ${payload.to} for booking ${payload.bookingId}`);
-  } catch (error: any) {
-    // Log error but never throw - booking must succeed even if email fails
-    console.error("Ticket email failed:", {
-      bookingId: payload.bookingId,
-      email: payload.to,
-      error: error.response?.data || error.message,
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
     });
+
+    const data = await response.json();
+    console.log("MSG91 RESPONSE:", data);
+  } catch (error: any) {
+    console.error("MSG91 ERROR:", error.message);
   }
 }
-
