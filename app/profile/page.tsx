@@ -13,6 +13,7 @@ import LoginModal from "@/components/auth/LoginModal";
 import { useAuth } from "@/hooks/useAuth";
 import { auth } from "@/lib/firebaseClient";
 import { signOut } from "firebase/auth";
+import Image from "next/image";
 
 function ProfilePageContent() {
   const router = useRouter();
@@ -103,10 +104,12 @@ function ProfilePageContent() {
                 {/* Avatar */}
                 <div className="relative h-24 w-24 flex-shrink-0 overflow-hidden rounded-full border-2 border-[#0B62FF] bg-gradient-to-br from-[#0B62FF] to-indigo-600">
                   {user.photoURL ? (
-                    <img
+                    <Image
                       src={user.photoURL}
                       alt={user.displayName || "User"}
-                      className="h-full w-full object-cover"
+                      fill
+                      className="object-cover"
+                      unoptimized
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center">

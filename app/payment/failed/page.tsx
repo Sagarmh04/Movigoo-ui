@@ -45,7 +45,7 @@ function PaymentFailedContent() {
           <div className="space-y-2">
             <h1 className="text-3xl font-bold text-white">Payment Failed</h1>
             <p className="text-slate-400">
-              We couldn't process your payment. Please try again.
+              We couldn&apos;t process your payment. Please try again.
             </p>
           </div>
 

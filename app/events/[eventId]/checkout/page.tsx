@@ -85,7 +85,7 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
     if (eventId) {
       fetchEventDetails();
     }
-  }, [mounted, eventId, authLoading, user]);
+  }, [mounted, eventId, authLoading, user, router]);
 
   // Show loading if not mounted, eventId not set, still loading, or booking data not ready
   if (!mounted || !eventId || isLoading || authLoading || !bookingData) {
