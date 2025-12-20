@@ -2,56 +2,46 @@
 
 // app/payment/page.tsx
 // Payment page - Initiates Cashfree hosted checkout using JS SDK
+// BULLETPROOF VERSION: Waits for SDK to load before opening checkout
 
 import { useEffect, useState, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Script from "next/script";
 import { Loader2, AlertCircle } from "lucide-react";
 
 function PaymentPageContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
+  const bookingId = searchParams.get("bookingId");
+  const amount = searchParams.get("amount");
+  const email = searchParams.get("email");
+  const phone = searchParams.get("phone");
+
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sdkReady, setSdkReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // 1️⃣ Create Cashfree payment session (backend)
   useEffect(() => {
-    const createSession = async () => {
+    async function createSession() {
       try {
-        // Get payment parameters from URL
-        const bookingId = searchParams.get("bookingId");
-        const amount = searchParams.get("amount");
-        const customerEmail = searchParams.get("email");
-        const customerPhone = searchParams.get("phone") || "";
-
-        // Validate required parameters
-        if (!amount) {
-          setError("Amount is required");
-          setLoading(false);
-          return;
-        }
-
         console.log("Creating Cashfree payment session...");
 
-        // Call backend API to create payment session
-        // Email and phone are mandatory for Cashfree
-        const response = await fetch("/api/payments/cashfree", {
+        const res = await fetch("/api/payments/cashfree", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             bookingId: bookingId || `booking_${Date.now()}`,
-            amount: parseFloat(amount),
-            email: customerEmail || "test@movigoo.in",
-            phone: customerPhone || "9999999999",
+            amount: amount ? parseFloat(amount) : 0,
+            email: email || "test@movigoo.in",
+            phone: phone || "9999999999",
           }),
         });
 
-        const data = await response.json();
+        const data = await res.json();
 
-        if (!response.ok) {
-          throw new Error(data.error || "Failed to create payment session");
+        if (!res.ok) {
+          throw new Error(data.error || "Failed to create session");
         }
 
         console.log("Cashfree session created:", data.paymentSessionId);
@@ -59,49 +49,32 @@ function PaymentPageContent() {
         setLoading(false);
       } catch (err: any) {
         console.error("Payment initiation error:", err);
-        setError(err.message || "Failed to initiate payment");
+        setError(err.message || "Payment failed. Please try again.");
         setLoading(false);
       }
-    };
+    }
 
-    createSession();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+    if (amount) {
+      createSession();
+    } else {
+      setError("Amount is required");
+      setLoading(false);
+    }
+  }, [bookingId, amount, email, phone]);
 
+  // 2️⃣ Open Cashfree checkout ONLY when SDK + session are ready
   useEffect(() => {
-    if (!sessionId) return;
-
-    // Wait for Cashfree SDK to load
-    const checkSDK = setInterval(() => {
-      if (typeof window !== "undefined" && (window as any).Cashfree) {
-        clearInterval(checkSDK);
-        openCashfreeCheckout();
-      }
-    }, 100);
-
-    // Timeout after 10 seconds
-    const timeout = setTimeout(() => {
-      clearInterval(checkSDK);
-      if (!(window as any).Cashfree) {
-        setError("Cashfree SDK failed to load. Please refresh the page.");
-      }
-    }, 10000);
-
-    return () => {
-      clearInterval(checkSDK);
-      clearTimeout(timeout);
-    };
-  }, [sessionId]);
-
-  const openCashfreeCheckout = () => {
-    if (!sessionId) return;
+    if (!sdkReady || !sessionId) return;
 
     try {
       console.log("Opening Cashfree checkout with session:", sessionId);
 
+      // @ts-ignore - Cashfree SDK types not available
       const cashfree = (window as any).Cashfree({
         mode: process.env.NODE_ENV === "production" ? "production" : "sandbox",
       });
+
+      console.log("Opening Cashfree checkout…");
 
       cashfree.checkout({
         paymentSessionId: sessionId,
@@ -111,7 +84,7 @@ function PaymentPageContent() {
       console.error("Error opening Cashfree checkout:", err);
       setError("Failed to open payment gateway. Please try again.");
     }
-  };
+  }, [sdkReady, sessionId]);
 
   if (loading) {
     return (
@@ -133,7 +106,7 @@ function PaymentPageContent() {
           <h1 className="text-2xl font-bold text-white mb-2">Payment Error</h1>
           <p className="text-slate-400 mb-6">{error}</p>
           <button
-            onClick={() => router.push("/")}
+            onClick={() => window.location.href = "/"}
             className="rounded-2xl bg-[#0B62FF] px-6 py-3 text-white font-semibold hover:bg-[#0A5AE6] transition"
           >
             Go Home
@@ -145,7 +118,19 @@ function PaymentPageContent() {
 
   return (
     <>
-      <Script src="https://sdk.cashfree.com/js/v3/cashfree.js" strategy="beforeInteractive" />
+      <Script
+        src="https://sdk.cashfree.com/js/v3/cashfree.js"
+        strategy="afterInteractive"
+        onLoad={() => {
+          console.log("Cashfree SDK loaded");
+          setSdkReady(true);
+        }}
+        onError={() => {
+          console.error("Cashfree SDK failed to load");
+          setError("Cashfree SDK failed to load. Please refresh the page.");
+        }}
+      />
+
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-[#050016] via-[#0b0220] to-[#05010a]">
         <div className="text-center">
           <Loader2 className="mx-auto h-12 w-12 animate-spin text-[#0B62FF] mb-4" />
