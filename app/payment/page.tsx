@@ -22,12 +22,11 @@ function PaymentPageContent() {
         const bookingId = searchParams.get("bookingId");
         const amount = searchParams.get("amount");
         const customerEmail = searchParams.get("email");
-        const customerName = searchParams.get("name");
         const customerPhone = searchParams.get("phone") || "";
 
         // Validate required parameters
-        if (!bookingId || !amount || !customerEmail || !customerName) {
-          setError("Missing required payment parameters");
+        if (!amount) {
+          setError("Amount is required");
           setLoading(false);
           return;
         }
@@ -35,17 +34,17 @@ function PaymentPageContent() {
         console.log("Creating Cashfree payment session...");
 
         // Call backend API to create payment session
+        // Email and phone are mandatory for Cashfree
         const response = await fetch("/api/payments/cashfree", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            bookingId,
+            bookingId: bookingId || `booking_${Date.now()}`,
             amount: parseFloat(amount),
-            customerEmail,
-            customerName,
-            customerPhone,
+            email: customerEmail || "test@movigoo.in",
+            phone: customerPhone || "9999999999",
           }),
         });
 

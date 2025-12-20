@@ -3,121 +3,70 @@
 // Creates a Cashfree payment session (server-side only)
 
 import { NextRequest, NextResponse } from "next/server";
-import { createCashfreePaymentSession, generateOrderId } from "@/lib/cashfree";
 
-/**
- * Request body for creating a payment session
- */
-type CreatePaymentRequest = {
-  bookingId: string;
-  amount: number;
-  customerEmail: string;
-  customerName: string;
-  customerPhone: string;
-  customerId?: string; // Optional: Firebase user ID
-};
-
-/**
- * Response containing only the payment session ID (no secrets)
- */
-type CreatePaymentResponse = {
-  paymentSessionId: string;
-  orderId: string;
-  checkoutUrl: string;
-};
-
-export async function POST(request: NextRequest) {
+export async function POST(req: NextRequest) {
   try {
-    // Parse request body
-    let body: CreatePaymentRequest;
-    try {
-      body = await request.json();
-    } catch (error) {
+    const body = await req.json();
+    const { bookingId, amount, email, phone } = body;
+
+    if (!amount) {
       return NextResponse.json(
-        { error: "Invalid request body" },
+        { error: "Amount is required" },
         { status: 400 }
       );
     }
 
-    // Validate required fields
-    const { bookingId, amount, customerEmail, customerName, customerPhone, customerId } = body;
+    const orderId = `order_${Date.now()}`;
 
-    if (!bookingId || !amount || !customerEmail || !customerName || !customerPhone) {
-      return NextResponse.json(
-        {
-          error: "Missing required fields",
-          required: ["bookingId", "amount", "customerEmail", "customerName", "customerPhone"],
-        },
-        { status: 400 }
-      );
-    }
-
-    // Validate amount
-    if (amount <= 0 || amount > 10000000) {
-      return NextResponse.json(
-        { error: "Invalid amount. Must be between 1 and 10,000,000" },
-        { status: 400 }
-      );
-    }
-
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(customerEmail)) {
-      return NextResponse.json(
-        { error: "Invalid email format" },
-        { status: 400 }
-      );
-    }
-
-    // Get app URL for return URLs
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://movigoo.in";
-    const orderId = generateOrderId();
-
-    // Create Cashfree payment session
-    const { paymentSessionId, orderId: cashfreeOrderId } = await createCashfreePaymentSession({
+    const payload = {
       order_id: orderId,
-      order_amount: amount,
+      order_amount: Number(amount),
       order_currency: "INR",
       customer_details: {
-        customer_id: customerId || `customer-${Date.now()}`,
-        customer_email: customerEmail,
-        customer_name: customerName,
-        customer_phone: customerPhone,
+        customer_id: bookingId || orderId,
+        customer_email: email || "test@movigoo.in",
+        customer_phone: phone || "9999999999",
       },
       order_meta: {
-        return_url: `${appUrl}/payment/success?order_id={order_id}&order_token={order_token}`,
-        // Webhook URL will be added later for production
-        // notify_url: `${appUrl}/api/payments/cashfree/webhook`,
+        return_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment/success?order_id=${orderId}`,
       },
-    });
-
-    // Construct checkout URL for Cashfree Redirect Checkout
-    const baseUrl = process.env.CASHFREE_BASE_URL || "https://sandbox.cashfree.com/pg";
-    const checkoutUrl = `${baseUrl}/checkout/post/submit`;
-
-    // Return only safe data (no secrets)
-    const response: CreatePaymentResponse = {
-      paymentSessionId,
-      orderId: cashfreeOrderId,
-      checkoutUrl,
     };
 
-    console.log("Payment session created:", {
-      orderId: cashfreeOrderId,
-      bookingId,
-      amount,
+    const baseUrl = process.env.CASHFREE_BASE_URL || "https://sandbox.cashfree.com/pg";
+    const response = await fetch(`${baseUrl}/orders`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-client-id": process.env.CASHFREE_APP_ID!,
+        "x-client-secret": process.env.CASHFREE_SECRET_KEY!,
+        "x-api-version": "2023-08-01",
+      },
+      body: JSON.stringify(payload),
     });
 
-    return NextResponse.json(response, { status: 200 });
-  } catch (error: any) {
-    console.error("Error creating payment session:", error);
+    const data = await response.json();
 
+    if (!response.ok) {
+      console.error("Cashfree error:", data);
+      return NextResponse.json(
+        { error: data.message || "Cashfree order failed" },
+        { status: 400 }
+      );
+    }
+
+    console.log("Cashfree order created:", {
+      orderId,
+      paymentSessionId: data.payment_session_id,
+    });
+
+    return NextResponse.json({
+      paymentSessionId: data.payment_session_id,
+    });
+  } catch (err: any) {
+    console.error("Server error:", err);
     return NextResponse.json(
-      {
-        error: error.message || "Failed to create payment session",
-      },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }
 }
-
