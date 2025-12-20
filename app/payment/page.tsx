@@ -51,9 +51,8 @@ function PaymentPageContent() {
           throw new Error("Backend did not return paymentSessionId");
         }
 
-        // Safety log to verify raw session ID
-        console.log("RAW paymentSessionId:", paymentSessionId);
-        console.log("Cashfree session created:", paymentSessionId);
+        // Safety log to verify raw session ID (EXACT format as required)
+        console.log("RAW paymentSessionId from backend:", paymentSessionId);
 
         // CRITICAL: Set session ID directly without any concatenation or mutation
         setSessionId(paymentSessionId);

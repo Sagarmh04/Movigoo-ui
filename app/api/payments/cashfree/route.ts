@@ -55,6 +55,7 @@ export async function POST(req: NextRequest) {
     }
 
     // CRITICAL: Extract payment_session_id exactly as returned by Cashfree
+    // Use data.payment_session_id (snake_case) - NOT data.paymentSessionId
     const paymentSessionId = data.payment_session_id;
 
     if (!paymentSessionId) {
@@ -65,14 +66,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log("Cashfree order created:", {
-      orderId,
-      paymentSessionId: paymentSessionId, // Log raw value
-    });
+    // Log raw value for debugging
+    console.log("Cashfree payment_session_id (raw):", paymentSessionId);
+    console.log("Type:", typeof paymentSessionId);
+    console.log("Length:", paymentSessionId.length);
 
     // CRITICAL: Return EXACT payment_session_id without any modification
+    // No concatenation, no template literals, no mutation
     return NextResponse.json({
-      paymentSessionId: paymentSessionId, // Direct assignment, no concatenation
+      paymentSessionId: paymentSessionId,
     });
   } catch (err: any) {
     console.error("Server error:", err);
