@@ -44,8 +44,19 @@ function PaymentPageContent() {
           throw new Error(data.error || "Failed to create session");
         }
 
-        console.log("Cashfree session created:", data.paymentSessionId);
-        setSessionId(data.paymentSessionId);
+        // CRITICAL: Use paymentSessionId exactly as returned, no modification
+        const paymentSessionId = data.paymentSessionId;
+
+        if (!paymentSessionId) {
+          throw new Error("Backend did not return paymentSessionId");
+        }
+
+        // Safety log to verify raw session ID
+        console.log("RAW paymentSessionId:", paymentSessionId);
+        console.log("Cashfree session created:", paymentSessionId);
+
+        // CRITICAL: Set session ID directly without any concatenation or mutation
+        setSessionId(paymentSessionId);
         setLoading(false);
       } catch (err: any) {
         console.error("Payment initiation error:", err);
@@ -67,7 +78,10 @@ function PaymentPageContent() {
     if (!sdkReady || !sessionId) return;
 
     try {
+      // CRITICAL: Verify session ID is clean before using
       console.log("Opening Cashfree checkout with session:", sessionId);
+      console.log("Session ID type:", typeof sessionId);
+      console.log("Session ID length:", sessionId.length);
 
       // @ts-ignore - Cashfree SDK types not available
       const cashfree = (window as any).Cashfree({
@@ -76,8 +90,9 @@ function PaymentPageContent() {
 
       console.log("Opening Cashfree checkout…");
 
+      // CRITICAL: Pass session ID directly without any modification
       cashfree.checkout({
-        paymentSessionId: sessionId,
+        paymentSessionId: sessionId, // MUST be clean, unmodified value
         redirectTarget: "_self",
       });
     } catch (err: any) {

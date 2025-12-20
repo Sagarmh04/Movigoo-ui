@@ -54,13 +54,25 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // CRITICAL: Extract payment_session_id exactly as returned by Cashfree
+    const paymentSessionId = data.payment_session_id;
+
+    if (!paymentSessionId) {
+      console.error("Cashfree response missing payment_session_id:", data);
+      return NextResponse.json(
+        { error: "Cashfree did not return payment_session_id" },
+        { status: 500 }
+      );
+    }
+
     console.log("Cashfree order created:", {
       orderId,
-      paymentSessionId: data.payment_session_id,
+      paymentSessionId: paymentSessionId, // Log raw value
     });
 
+    // CRITICAL: Return EXACT payment_session_id without any modification
     return NextResponse.json({
-      paymentSessionId: data.payment_session_id,
+      paymentSessionId: paymentSessionId, // Direct assignment, no concatenation
     });
   } catch (err: any) {
     console.error("Server error:", err);
