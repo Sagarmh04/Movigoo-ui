@@ -18,6 +18,14 @@ function PaymentPageContent() {
 
   async function startPayment() {
     try {
+      // STEP 3: Log domain for Vercel debugging
+      if (typeof window !== "undefined") {
+        console.log("Running on domain:", window.location.origin);
+      }
+
+      // STEP 5: Production debug logs
+      console.log("ENV:", process.env.NODE_ENV);
+
       console.log("Creating Cashfree payment session...");
 
       const res = await fetch("/api/payments/cashfree", {
@@ -49,6 +57,10 @@ function PaymentPageContent() {
       }
 
       console.log("RAW paymentSessionId:", paymentSessionId);
+      
+      // STEP 5: Production debug logs
+      console.log("Session ID length:", paymentSessionId?.length);
+      console.log("Session ID type:", typeof paymentSessionId);
 
       // @ts-ignore - Cashfree SDK types not available
       const cashfree = (window as any).Cashfree({

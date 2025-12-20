@@ -4,8 +4,32 @@
 
 import { NextRequest, NextResponse } from "next/server";
 
+// CRITICAL: Force Node.js runtime (not Edge) for Vercel deployment
+export const runtime = "nodejs";
+
 export async function POST(req: NextRequest) {
   try {
+    // STEP 2: Harden env var access (Vercel-safe)
+    if (
+      !process.env.CASHFREE_APP_ID ||
+      !process.env.CASHFREE_SECRET_KEY ||
+      !process.env.CASHFREE_BASE_URL
+    ) {
+      console.error("❌ Missing Cashfree env vars on Vercel");
+      return NextResponse.json(
+        { error: "Cashfree configuration missing" },
+        { status: 500 }
+      );
+    }
+
+    // Log env var presence (NO values for security)
+    console.log("Cashfree env check:", {
+      hasAppId: !!process.env.CASHFREE_APP_ID,
+      hasSecret: !!process.env.CASHFREE_SECRET_KEY,
+      baseUrl: process.env.CASHFREE_BASE_URL,
+      hasAppUrl: !!process.env.NEXT_PUBLIC_APP_URL,
+    });
+
     const body = await req.json();
     const { bookingId, amount, email, phone } = body;
 
