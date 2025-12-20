@@ -92,12 +92,24 @@ export async function POST(req: NextRequest) {
     const data = await response.json();
 
     if (!response.ok) {
-      console.error("Cashfree error:", data);
+      console.error("Cashfree API error:", {
+        status: response.status,
+        statusText: response.statusText,
+        error: data,
+      });
       return NextResponse.json(
         { error: data.message || "Cashfree order failed" },
         { status: 400 }
       );
     }
+
+    // Log full response for debugging (without sensitive data)
+    console.log("Cashfree order created successfully:", {
+      orderId: data.order_id,
+      hasPaymentSessionId: !!data.payment_session_id,
+      paymentSessionIdLength: data.payment_session_id?.length,
+      paymentSessionIdPrefix: data.payment_session_id?.substring(0, 20),
+    });
 
     // CRITICAL: Extract payment_session_id exactly as returned by Cashfree
     // Use data.payment_session_id (snake_case) - NOT data.paymentSessionId

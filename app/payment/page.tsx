@@ -62,9 +62,16 @@ function PaymentPageContent() {
       console.log("Session ID length:", paymentSessionId?.length);
       console.log("Session ID type:", typeof paymentSessionId);
 
+      // CRITICAL: Mode must match backend CASHFREE_BASE_URL
+      // If backend uses sandbox.cashfree.com → mode: "sandbox"
+      // If backend uses api.cashfree.com → mode: "production"
+      // Default to sandbox to match backend default
+      const cashfreeMode = process.env.NEXT_PUBLIC_CASHFREE_MODE || "sandbox";
+      console.log("Cashfree SDK mode:", cashfreeMode);
+
       // @ts-ignore - Cashfree SDK types not available
       const cashfree = (window as any).Cashfree({
-        mode: process.env.NODE_ENV === "production" ? "production" : "sandbox",
+        mode: cashfreeMode,
       });
 
       console.log("Opening Cashfree checkout");
