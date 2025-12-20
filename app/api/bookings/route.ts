@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { doc, setDoc, serverTimestamp, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebaseServer";
 import { v4 as uuidv4 } from "uuid";
+import { sendTicketEmail } from "@/lib/sendTicketEmail";
 
 const BOOKING_FEE_PER_TICKET = 7; // ₹7 per ticket
 
@@ -239,16 +240,21 @@ export async function POST(request: NextRequest) {
     console.log("Generated bookingId:", bookingId);
     console.log("Generated qrCodeData:", qrCodeData);
 
-    // Get user name if available (fetch from users collection)
-    if (!userName && userId) {
+    // Get user name and email if available (fetch from users collection)
+    let userEmail: string | null = null;
+    if (userId) {
       try {
         const userRef = doc(db, "users", userId);
         const userDoc = await getDoc(userRef);
         if (userDoc.exists()) {
-          userName = userDoc.data().name || userDoc.data().displayName || null;
+          const userData = userDoc.data();
+          if (!userName) {
+            userName = userData.name || userData.displayName || null;
+          }
+          userEmail = userData.email || userData.emailAddress || null;
         }
       } catch (error) {
-        console.warn("Could not fetch user name:", error);
+        console.warn("Could not fetch user details:", error);
       }
     }
 
@@ -307,6 +313,45 @@ export async function POST(request: NextRequest) {
         },
         { status: 500 }
       );
+    }
+
+    // Send ticket email (non-blocking - fire and forget)
+    // Booking succeeds even if email fails
+    if (userEmail) {
+      try {
+        // Format event date for email
+        const eventDateObj = new Date(bookingData.date);
+        const formattedEventDate = eventDateObj.toLocaleDateString("en-IN", {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        });
+
+        // Build ticket link
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://movigoo.in";
+        const ticketLink = `${appUrl}/booking/success?bookingId=${bookingId}`;
+
+        // Send email asynchronously (don't await - non-blocking)
+        sendTicketEmail({
+          to: userEmail,
+          name: userName || userEmail.split("@")[0],
+          eventName: bookingData.eventTitle,
+          eventDate: formattedEventDate,
+          venue: bookingData.venueName,
+          ticketQty: bookingData.quantity,
+          bookingId,
+          ticketLink,
+        }).catch((emailError) => {
+          // Already handled in sendTicketEmail, but log here too for visibility
+          console.error("Email send promise rejected:", emailError);
+        });
+      } catch (emailError) {
+        // Catch any synchronous errors (shouldn't happen, but safety first)
+        console.error("Error preparing email:", emailError);
+      }
+    } else {
+      console.warn(`No email found for user ${userId} - skipping ticket email`);
     }
 
     // Return success response
