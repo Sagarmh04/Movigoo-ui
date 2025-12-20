@@ -39,7 +39,7 @@ export function useUserBookings(userId: string | null) {
           bookingId: doc.id,
           ...doc.data(),
           createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
-        }));
+        })) as any[];
 
         // Also check global bookings collection and filter by userId
         // This query requires a composite index: userId (ASC) + createdAt (DESC)
@@ -69,7 +69,7 @@ export function useUserBookings(userId: string | null) {
                 bookingId: doc.id,
                 ...doc.data(),
                 createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
-              }));
+              })) as any[];
               
               docs.sort((a, b) => {
                 const dateA = new Date(a.createdAt).getTime();
@@ -111,7 +111,7 @@ export function useUserBookings(userId: string | null) {
             bookingId: doc.id,
             ...doc.data(),
             createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
-          }));
+          })) as any[];
 
           // Merge and deduplicate by bookingId
           const allBookings = [...userBookings, ...globalBookings];
