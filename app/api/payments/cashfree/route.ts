@@ -60,7 +60,11 @@ export async function POST(req: NextRequest) {
     // Ensure order payload uses movigoo.in (not vercel.app, localhost, or preview URLs)
     // Cashfree validates this against whitelisted domains
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://movigoo.in";
-    const returnUrl = `${appUrl}/payment/success?order_id=${orderId}`;
+    const returnUrlParams = new URLSearchParams({
+      order_id: orderId,
+      ...(bookingId && { bookingId }),
+    });
+    const returnUrl = `${appUrl}/payment/success?${returnUrlParams.toString()}`;
 
     console.log("Creating Cashfree payment session...");
     console.log("Return URL:", returnUrl);

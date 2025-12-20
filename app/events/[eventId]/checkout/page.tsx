@@ -163,25 +163,68 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
 
   const ageLimit = basic.ageLimit || "All Ages";
 
-  const handleProceedToPayment = () => {
+  const handleProceedToPayment = async () => {
     if (!user || !user.uid || !user.email) {
       setShowLoginModal(true);
       return;
     }
 
-    // Generate a temporary booking ID for tracking
-    const tempBookingId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    try {
+      // Create pending booking before payment
+      const bookingPayload = {
+        userId: user.uid,
+        eventId: eventId,
+        eventTitle: data.event.title,
+        coverUrl: data.event.coverPortrait[0] || data.event.coverWide || "",
+        venueName: firstVenue.name || data.event.venue || "TBA",
+        date: eventDate,
+        time: eventTime,
+        ticketType: bookingData.items.map((item: any) => {
+          const ticketType = data.ticketTypes.find((t) => t.id === item.ticketTypeId);
+          return `${ticketType?.name || item.ticketTypeId} (${item.quantity})`;
+        }).join(", "),
+        quantity: totalTickets,
+        price: subtotal,
+        bookingFee: bookingFee,
+        totalAmount: totalAmount,
+        items: bookingData.items.map((item: any) => ({
+          ticketTypeId: item.ticketTypeId,
+          quantity: item.quantity,
+          price: item.price,
+        })),
+      };
 
-    // Redirect to Cashfree payment page with all required parameters
-    const paymentParams = new URLSearchParams({
-      bookingId: tempBookingId,
-      amount: totalAmount.toString(),
-      email: user.email,
-      name: user.displayName || user.email.split("@")[0],
-      phone: user.phoneNumber || "",
-    });
+      console.log("Creating pending booking...");
+      const bookingResponse = await fetch("/api/bookings/create-pending", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(bookingPayload),
+      });
 
-    router.push(`/payment?${paymentParams.toString()}`);
+      const bookingResult = await bookingResponse.json();
+
+      if (!bookingResponse.ok || !bookingResult.bookingId) {
+        console.error("Failed to create pending booking:", bookingResult);
+        alert("Failed to create booking. Please try again.");
+        return;
+      }
+
+      console.log("Pending booking created:", bookingResult.bookingId);
+
+      // Redirect to Cashfree payment page with booking ID
+      const paymentParams = new URLSearchParams({
+        bookingId: bookingResult.bookingId,
+        amount: totalAmount.toString(),
+        email: user.email,
+        name: user.displayName || user.email.split("@")[0],
+        phone: user.phoneNumber || "",
+      });
+
+      router.push(`/payment?${paymentParams.toString()}`);
+    } catch (error: any) {
+      console.error("Error creating booking:", error);
+      alert("Failed to create booking. Please try again.");
+    }
   };
 
   return (

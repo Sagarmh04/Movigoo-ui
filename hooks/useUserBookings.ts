@@ -86,7 +86,20 @@ export function useUserBookings(userId: string | null) {
                 return acc;
               }, [] as any[]);
               
-              setBookings(uniqueBookings);
+              // Filter to only show CONFIRMED bookings
+              const confirmedBookings = uniqueBookings.filter((booking) => {
+                const status = booking.bookingStatus || booking.status;
+                return status === "CONFIRMED" || status === "confirmed";
+              });
+              
+              // Sort by createdAt desc
+              confirmedBookings.sort((a, b) => {
+                const dateA = new Date(a.createdAt).getTime();
+                const dateB = new Date(b.createdAt).getTime();
+                return dateB - dateA;
+              });
+              
+              setBookings(confirmedBookings);
               setLoading(false);
               return;
             } else {
@@ -109,17 +122,28 @@ export function useUserBookings(userId: string | null) {
             return acc;
           }, [] as any[]);
 
+          // Filter to only show CONFIRMED bookings
+          const confirmedBookings = uniqueBookings.filter((booking) => {
+            const status = booking.bookingStatus || booking.status;
+            return status === "CONFIRMED" || status === "confirmed";
+          });
+
           // Sort by createdAt desc
-          uniqueBookings.sort((a, b) => {
+          confirmedBookings.sort((a, b) => {
             const dateA = new Date(a.createdAt).getTime();
             const dateB = new Date(b.createdAt).getTime();
             return dateB - dateA;
           });
 
-          setBookings(uniqueBookings);
+          setBookings(confirmedBookings);
         } else {
           // If db is null, just use userBookings
-          setBookings(userBookings);
+          // Filter to only show CONFIRMED bookings
+          const confirmedBookings = userBookings.filter((booking) => {
+            const status = booking.bookingStatus || booking.status;
+            return status === "CONFIRMED" || status === "confirmed";
+          });
+          setBookings(confirmedBookings);
         }
       } catch (err: any) {
         console.error("Error fetching user bookings:", err);
