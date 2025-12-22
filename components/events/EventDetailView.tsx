@@ -126,7 +126,7 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
   // Get tickets for single location
   const [selectedTickets, setSelectedTickets] = useState<Record<string, number>>({});
   const [bookings, setBookings] = useState<any[]>([]);
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
 
   // Fetch bookings for availability calculation (if single location)
   useEffect(() => {
@@ -245,6 +245,13 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
       return;
     }
 
+    // 1. If we are still checking the auth status, don't do anything
+    if (authLoading) {
+      console.log("Auth is still initializing...");
+      return;
+    }
+
+    // 2. Now check if user actually exists
     if (!user || !user.uid) {
       alert("Please login to continue");
       return;

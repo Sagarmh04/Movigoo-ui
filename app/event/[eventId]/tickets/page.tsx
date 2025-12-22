@@ -20,7 +20,7 @@ type SelectionStage = "location-venue" | "timing" | "tickets";
 export default function TicketSelectionPage({ params }: { params: { eventId: string } }) {
   const router = useRouter();
   const { data, isLoading, isError } = useEventById(params.eventId);
-  const { user } = useAuth(); // Use useAuth hook instead of direct Firebase auth
+  const { user, loading: authLoading } = useAuth(); // Use useAuth hook instead of direct Firebase auth
   const [eventData, setEventData] = useState<any>(null);
   const [selectedLocation, setSelectedLocation] = useState<{ id: string; name: string } | null>(null);
   const [selectedVenue, setSelectedVenue] = useState<{ id: string; name: string; address: string } | null>(null);
@@ -226,7 +226,13 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
       return;
     }
 
-    // Check if user is logged in - show alert if not (don't redirect)
+    // 1. If we are still checking the auth status, don't do anything
+    if (authLoading) {
+      console.log("Auth is still initializing...");
+      return;
+    }
+
+    // 2. Now check if user actually exists
     if (!user || !user.uid) {
       alert("Please login to continue");
       return;
