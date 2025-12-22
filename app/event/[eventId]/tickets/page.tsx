@@ -27,6 +27,7 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
     if (!params.eventId || !db) return;
 
     async function fetchEventData() {
+      if (!db) return; // Additional check inside async function
       try {
         const eventDoc = await getDoc(doc(db, "events", params.eventId));
         if (eventDoc.exists()) {
