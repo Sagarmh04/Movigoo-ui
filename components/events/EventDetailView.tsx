@@ -98,7 +98,7 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
     return venues;
   }, [locations]);
 
-  // Check if event has only one location, one venue, and one show
+  // Check if event has only one location, one venue, one date, and one show
   const hasSingleLocation = locations.length === 1;
   const hasSingleShow = useMemo(() => {
     if (!hasSingleLocation || !eventData?.schedule?.locations) return false;
@@ -111,10 +111,38 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
     return shows.length === 1;
   }, [hasSingleLocation, eventData]);
 
+  // Check if single ticket type
+  const hasSingleTicketType = useMemo(() => {
+    if (!hasSingleShow || !eventData?.tickets?.venueConfigs) return false;
+    const location = eventData.schedule.locations[0];
+    const venue = location.venues[0];
+    const venueConfig = eventData.tickets.venueConfigs.find(
+      (vc: any) => vc.venueId === venue.id
+    );
+    return venueConfig?.ticketTypes?.length === 1;
+  }, [hasSingleShow, eventData]);
+
   // Get tickets for single location
   const [selectedTickets, setSelectedTickets] = useState<Record<string, number>>({});
   const [bookings, setBookings] = useState<any[]>([]);
   const { user } = useAuth();
+
+  // Set default quantity to 1 for single ticket type
+  useEffect(() => {
+    if (hasSingleTicketType && availableTickets.length === 1 && !selectedTickets[availableTickets[0].id]) {
+      setSelectedTickets({ [availableTickets[0].id]: 1 });
+    }
+  }, [hasSingleTicketType, availableTickets, selectedTickets]);
+
+  // Handle quantity change for single ticket type
+  const handleQuantityChangeSingle = (delta: number) => {
+    if (hasSingleTicketType && availableTickets.length === 1) {
+      const ticket = availableTickets[0];
+      const currentQty = selectedTickets[ticket.id] || 1;
+      const newQty = Math.max(1, Math.min(currentQty + delta, ticket.maxPerOrder || 10));
+      setSelectedTickets({ [ticket.id]: newQty });
+    }
+  };
 
   // Fetch bookings for availability calculation (if single location)
   useEffect(() => {
@@ -339,43 +367,25 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
       <div className="block lg:hidden space-y-4">
         {/* 2. Ticket Selection (if single location) or Book Now Button (Mobile) */}
         {hasSingleShow && availableTickets.length > 0 ? (
-          <section className="space-y-4 rounded-2xl border border-white/10 bg-white/5 p-4">
-            <h3 className="text-lg font-semibold text-white">Select Tickets</h3>
-            <div className="space-y-3">
-              {availableTickets.map((ticket) => (
-                <TicketSelectionCard
-                  key={ticket.id}
-                  ticket={ticket}
-                  quantity={selectedTickets[ticket.id] || 0}
-                  onQuantityChange={(id, qty) => {
-                    setSelectedTickets((prev) => ({ ...prev, [id]: qty }));
-                  }}
-                />
-              ))}
-            </div>
-            {selectedTicketsArray.length > 0 && (
-              <div className="space-y-3 pt-4 border-t border-white/10">
-                <div className="flex justify-between text-sm text-slate-300">
-                  <span>Subtotal</span>
-                  <span>{currencyFormatter.format(subtotal)}</span>
+          <>
+            {availableTickets.length > 1 && (
+              <section className="space-y-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+                <h3 className="text-lg font-semibold text-white">Select Tickets</h3>
+                <div className="space-y-3">
+                  {availableTickets.map((ticket) => (
+                    <TicketSelectionCard
+                      key={ticket.id}
+                      ticket={ticket}
+                      quantity={selectedTickets[ticket.id] || 0}
+                      onQuantityChange={(id, qty) => {
+                        setSelectedTickets((prev) => ({ ...prev, [id]: qty }));
+                      }}
+                    />
+                  ))}
                 </div>
-                <div className="flex justify-between text-sm text-slate-300">
-                  <span>Booking Fee</span>
-                  <span>{currencyFormatter.format(bookingFee)}</span>
-                </div>
-                <div className="flex justify-between text-lg font-bold text-white pt-2 border-t border-white/10">
-                  <span>Total</span>
-                  <span className="text-[#0B62FF]">{currencyFormatter.format(total)}</span>
-                </div>
-                <Button
-                  onClick={handleProceedToPayment}
-                  className="w-full rounded-2xl bg-[#0B62FF] py-6 text-base font-semibold hover:bg-[#0A5AE6]"
-                >
-                  Proceed to Payment
-                </Button>
-              </div>
+              </section>
             )}
-          </section>
+          </>
         ) : (
           <Button
             onClick={() => router.push(`/event/${event.id}/tickets`)}
@@ -530,43 +540,25 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
         {/* Desktop: Ticket Selection (if single location) or Book Now Button */}
         <div>
           {hasSingleShow && availableTickets.length > 0 ? (
-            <section className="space-y-4 rounded-2xl border border-white/10 bg-white/5 p-6 sticky top-20">
-              <h3 className="text-lg font-semibold text-white">Select Tickets</h3>
-              <div className="space-y-3">
-                {availableTickets.map((ticket) => (
-                  <TicketSelectionCard
-                    key={ticket.id}
-                    ticket={ticket}
-                    quantity={selectedTickets[ticket.id] || 0}
-                    onQuantityChange={(id, qty) => {
-                      setSelectedTickets((prev) => ({ ...prev, [id]: qty }));
-                    }}
-                  />
-                ))}
-              </div>
-              {selectedTicketsArray.length > 0 && (
-                <div className="space-y-3 pt-4 border-t border-white/10">
-                  <div className="flex justify-between text-sm text-slate-300">
-                    <span>Subtotal</span>
-                    <span>{currencyFormatter.format(subtotal)}</span>
+            <>
+              {availableTickets.length > 1 && (
+                <section className="space-y-4 rounded-2xl border border-white/10 bg-white/5 p-6 sticky top-20">
+                  <h3 className="text-lg font-semibold text-white">Select Tickets</h3>
+                  <div className="space-y-3">
+                    {availableTickets.map((ticket) => (
+                      <TicketSelectionCard
+                        key={ticket.id}
+                        ticket={ticket}
+                        quantity={selectedTickets[ticket.id] || 0}
+                        onQuantityChange={(id, qty) => {
+                          setSelectedTickets((prev) => ({ ...prev, [id]: qty }));
+                        }}
+                      />
+                    ))}
                   </div>
-                  <div className="flex justify-between text-sm text-slate-300">
-                    <span>Booking Fee</span>
-                    <span>{currencyFormatter.format(bookingFee)}</span>
-                  </div>
-                  <div className="flex justify-between text-lg font-bold text-white pt-2 border-t border-white/10">
-                    <span>Total</span>
-                    <span className="text-[#0B62FF]">{currencyFormatter.format(total)}</span>
-                  </div>
-                  <Button
-                    onClick={handleProceedToPayment}
-                    className="w-full rounded-2xl bg-[#0B62FF] py-6 text-base font-semibold hover:bg-[#0A5AE6]"
-                  >
-                    Proceed to Payment
-                  </Button>
-                </div>
+                </section>
               )}
-            </section>
+            </>
           ) : (
             <Button
               onClick={() => router.push(`/event/${event.id}/tickets`)}
@@ -577,6 +569,64 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
           )}
         </div>
       </div>
+
+      {/* Sticky Bottom Component for Single Location Events */}
+      {hasSingleShow && availableTickets.length > 0 && (
+        <div className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-black/90 px-4 py-4 backdrop-blur-xl sm:relative sm:mt-6 sm:rounded-2xl sm:border sm:bg-white/5 sm:px-0 sm:py-0">
+          <div className="mx-auto w-full max-w-3xl">
+            {hasSingleTicketType ? (
+              // Single ticket type: quantity selector on left, checkout button on right
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-slate-300">Quantity</span>
+                  <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 p-1">
+                    <button
+                      onClick={() => handleQuantityChangeSingle(-1)}
+                      disabled={(selectedTickets[availableTickets[0]?.id] || 1) <= 1}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-white transition hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Minus size={14} />
+                    </button>
+                    <span className="min-w-[2rem] text-center text-base font-semibold text-white">
+                      {selectedTickets[availableTickets[0]?.id] || 1}
+                    </span>
+                    <button
+                      onClick={() => handleQuantityChangeSingle(1)}
+                      disabled={(selectedTickets[availableTickets[0]?.id] || 1) >= (availableTickets[0]?.maxPerOrder || 10)}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-white transition hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Plus size={14} />
+                    </button>
+                  </div>
+                </div>
+                <Button
+                  onClick={handleProceedToPayment}
+                  className="rounded-full bg-[#0B62FF] px-6 py-3 text-base font-semibold shadow-lg transition hover:bg-[#0A5AE6] sm:rounded-2xl"
+                >
+                  Checkout {currencyFormatter.format(total)}
+                </Button>
+              </div>
+            ) : (
+              // Multiple ticket types: total on left, checkout button on right (disabled if no selection)
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-slate-300">Total</span>
+                  <span className="text-xl font-bold text-[#0B62FF]">
+                    {currencyFormatter.format(total)}
+                  </span>
+                </div>
+                <Button
+                  onClick={handleProceedToPayment}
+                  disabled={selectedTicketsArray.length === 0}
+                  className="rounded-full bg-[#0B62FF] px-6 py-3 text-base font-semibold shadow-lg transition hover:bg-[#0A5AE6] disabled:opacity-50 disabled:cursor-not-allowed sm:rounded-2xl"
+                >
+                  Checkout {currencyFormatter.format(total)}
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
