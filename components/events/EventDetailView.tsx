@@ -1,13 +1,17 @@
 "use client";
 
+import { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { Calendar, MapPin, ShieldCheck } from "lucide-react";
-import BookingSidebar from "@/components/BookingSidebar";
+import { Calendar, MapPin, ShieldCheck, Users } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "@/lib/firebaseClient";
 import HostedBadge from "@/components/HostedBadge";
 import { Event, TicketType } from "@/types/event";
 import { User } from "@/types/user";
-import { formatDateRange } from "@/lib/utils";
+import { formatDateRange, currencyFormatter } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 type EventDetailViewProps = {
   event: Event;
@@ -16,7 +20,52 @@ type EventDetailViewProps = {
 };
 
 const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps) => {
+  const router = useRouter();
+  const [eventData, setEventData] = useState<any>(null);
+  const [isLoadingPrice, setIsLoadingPrice] = useState(true);
   const isHosted = event.organizerId === organizer.id;
+
+  // Fetch full event data to calculate lowest price
+  useEffect(() => {
+    if (!event.id || !db) return;
+
+    async function fetchEventData() {
+      if (!db) return;
+      try {
+        const eventDoc = await getDoc(doc(db, "events", event.id));
+        if (eventDoc.exists()) {
+          setEventData(eventDoc.data());
+        }
+      } catch (error) {
+        console.error("Error fetching event data:", error);
+      } finally {
+        setIsLoadingPrice(false);
+      }
+    }
+
+    fetchEventData();
+  }, [event.id]);
+
+  // Calculate lowest price from all ticket types
+  const lowestPrice = useMemo(() => {
+    if (!eventData?.tickets?.venueConfigs) return null;
+    
+    const venueConfigs = Array.isArray(eventData.tickets.venueConfigs) ? eventData.tickets.venueConfigs : [];
+    const allTicketTypes = venueConfigs.flatMap((vc: any) =>
+      Array.isArray(vc.ticketTypes) ? vc.ticketTypes : []
+    );
+
+    if (allTicketTypes.length === 0) return null;
+
+    const prices = allTicketTypes
+      .map((t: any) => typeof t.price === "number" ? t.price : null)
+      .filter((p: any) => p !== null && p > 0);
+
+    return prices.length > 0 ? Math.min(...prices) : null;
+  }, [eventData]);
+
+  // Get age limit from event data
+  const ageLimit = eventData?.basicDetails?.ageLimit || "All Ages";
 
   return (
     <div className="mx-auto max-w-md space-y-4 px-4 pb-24 sm:max-w-none sm:space-y-6 sm:px-0 sm:pb-6 lg:space-y-10">
@@ -36,22 +85,43 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
             <p className="max-w-2xl text-sm text-slate-200 sm:text-lg">{event.description}</p>
             <div className="flex flex-wrap gap-2 text-xs text-slate-200 sm:gap-4 sm:text-sm">
               <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 sm:px-4 sm:py-2">
-                <Calendar size={14} className="sm:w-4 sm:h-4" />
-                {formatDateRange(event.dateStart, event.dateEnd)}
+                <Users size={14} className="sm:w-4 sm:h-4" />
+                Age: {ageLimit}
               </span>
-              <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 sm:px-4 sm:py-2">
-                <MapPin size={14} className="sm:w-4 sm:h-4" />
-                {event.venue}
-              </span>
+            </div>
+            {/* Price Display */}
+            <div className="mt-4">
+              {isLoadingPrice ? (
+                <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2">
+                  <div className="h-4 w-16 animate-pulse rounded bg-white/20" />
+                  <span className="text-xs text-slate-400">Loading...</span>
+                </div>
+              ) : lowestPrice !== null ? (
+                <div className="inline-flex items-center gap-2 rounded-full bg-[#0B62FF]/20 px-4 py-2 border border-[#0B62FF]/40">
+                  <span className="text-lg font-bold text-white">
+                    {currencyFormatter.format(lowestPrice)}
+                  </span>
+                  <span className="text-xs text-slate-300">Onwards</span>
+                </div>
+              ) : (
+                <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2">
+                  <span className="text-sm text-slate-400">Price TBA</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
       </motion.section>
 
-      {/* Mobile Order: Tickets → Summary/Book Now → Details */}
+      {/* Mobile Order: Book Now Button → Details */}
       <div className="block lg:hidden space-y-4">
-        {/* 2. Ticket Types & Booking Section (Mobile) */}
-        <BookingSidebar event={event} ticketTypes={ticketTypes} />
+        {/* 2. Book Now Button (Mobile) */}
+        <Button
+          onClick={() => router.push(`/event/${event.id}/tickets`)}
+          className="w-full rounded-2xl bg-[#0B62FF] py-6 text-base font-semibold hover:bg-[#0A5AE6]"
+        >
+          Book Now
+        </Button>
 
         {/* 3. Organizer Section (Mobile) */}
         <section className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
@@ -151,9 +221,14 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
             </div>
           </section>
         </div>
-        {/* Desktop: Booking sidebar on the right */}
+        {/* Desktop: Book Now Button */}
         <div>
-          <BookingSidebar event={event} ticketTypes={ticketTypes} />
+          <Button
+            onClick={() => router.push(`/event/${event.id}/tickets`)}
+            className="w-full rounded-2xl bg-[#0B62FF] py-6 text-lg font-semibold hover:bg-[#0A5AE6] sticky top-20"
+          >
+            Book Now
+          </Button>
         </div>
       </div>
     </div>

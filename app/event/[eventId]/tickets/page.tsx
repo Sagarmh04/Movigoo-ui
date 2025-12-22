@@ -4,7 +4,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useEventById } from "@/hooks/useEventById";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebaseClient";
 import StepIndicator from "@/components/booking/StepIndicator";
 import ShowSelector, { type ShowSelection } from "@/components/booking/ShowSelector";
@@ -54,7 +54,96 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
     return eventData.schedule.locations;
   }, [eventData]);
 
-  // Filter tickets by selected venue
+  // Check if event has only one location, one venue, and one show
+  const hasSingleShow = useMemo(() => {
+    if (!eventData?.schedule?.locations) return false;
+    
+    const locations = eventData.schedule.locations;
+    if (locations.length !== 1) return false;
+    
+    const venues = locations[0]?.venues || [];
+    if (venues.length !== 1) return false;
+    
+    const dates = venues[0]?.dates || [];
+    if (dates.length !== 1) return false;
+    
+    const shows = dates[0]?.shows || [];
+    return shows.length === 1;
+  }, [eventData]);
+
+  // Auto-select show if there's only one
+  useEffect(() => {
+    if (hasSingleShow && !selectedShow && eventData?.schedule?.locations) {
+      const location = eventData.schedule.locations[0];
+      const venue = location.venues[0];
+      const date = venue.dates[0];
+      const show = date.shows[0];
+      
+      setSelectedShow({
+        locationId: location.id,
+        locationName: location.name,
+        venueId: venue.id,
+        venueName: venue.name,
+        venueAddress: venue.address,
+        dateId: date.id,
+        date: date.date,
+        showId: show.id,
+        showName: show.name || "Show 1",
+        startTime: show.startTime,
+        endTime: show.endTime,
+      });
+    }
+  }, [hasSingleShow, selectedShow, eventData]);
+
+  // Fetch bookings to calculate available tickets
+  const [bookings, setBookings] = useState<any[]>([]);
+  const [isLoadingBookings, setIsLoadingBookings] = useState(false);
+
+  useEffect(() => {
+    if (!selectedShow || !params.eventId || !db) return;
+
+    async function fetchBookings() {
+      if (!db) return;
+      setIsLoadingBookings(true);
+      try {
+        // Fetch bookings for this event and show
+        const bookingsRef = collection(db, "events", params.eventId, "bookings");
+        const q = query(
+          bookingsRef,
+          where("showId", "==", selectedShow.showId),
+          where("paymentStatus", "==", "confirmed")
+        );
+        const snapshot = await getDocs(q);
+        setBookings(snapshot.docs.map(doc => doc.data()));
+      } catch (error) {
+        console.error("Error fetching bookings:", error);
+        setBookings([]);
+      } finally {
+        setIsLoadingBookings(false);
+      }
+    }
+
+    fetchBookings();
+  }, [selectedShow, params.eventId]);
+
+  // Calculate booked quantities per ticket type
+  const bookedQuantities = useMemo(() => {
+    const booked: Record<string, number> = {};
+    
+    bookings.forEach((booking: any) => {
+      if (booking.items && Array.isArray(booking.items)) {
+        booking.items.forEach((item: any) => {
+          if (item.ticketTypeId && item.quantity) {
+            booked[item.ticketTypeId] = (booked[item.ticketTypeId] || 0) + item.quantity;
+          }
+        });
+      }
+    });
+    
+    return booked;
+  }, [bookings]);
+
+  // Filter tickets by selected venue and calculate availability
   const tickets = useMemo((): TicketTypeCard[] => {
     if (!eventData?.tickets?.venueConfigs) return [];
     
@@ -68,15 +157,22 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
 
     if (!venueConfig?.ticketTypes) return [];
 
-    return venueConfig.ticketTypes.map((t: any): TicketTypeCard => ({
-      id: t.id,
-      typeName: t.typeName || t.name || "Ticket",
-      price: typeof t.price === "number" ? t.price : 0,
-      totalQuantity: typeof t.totalQuantity === "number" ? t.totalQuantity : 0,
-      available: typeof t.totalQuantity === "number" ? t.totalQuantity : 0,
-      maxPerOrder: 10, // Default
-    }));
-  }, [eventData, selectedShow]);
+    return venueConfig.ticketTypes.map((t: any): TicketTypeCard => {
+      const totalQuantity = typeof t.totalQuantity === "number" ? t.totalQuantity : 0;
+      const booked = bookedQuantities[t.id] || 0;
+      const available = Math.max(0, totalQuantity - booked);
+      const maxPerOrder = Math.min(available, 10); // Max is 10, but can't exceed available
+
+      return {
+        id: t.id,
+        typeName: t.typeName || t.name || "Ticket",
+        price: typeof t.price === "number" ? t.price : 0,
+        totalQuantity,
+        available,
+        maxPerOrder,
+      };
+    });
+  }, [eventData, selectedShow, bookedQuantities]);
 
   const selectedTicketsArray = useMemo(() => {
     return tickets
@@ -172,7 +268,7 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
         </div>
 
         {/* Show Selection (if multiple shows) */}
-        {locations.length > 0 && (
+        {!hasSingleShow && locations.length > 0 && (
           <div className="mb-6">
             <ShowSelector
               locations={locations}
