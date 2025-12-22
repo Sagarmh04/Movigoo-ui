@@ -5,8 +5,8 @@ import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useEventById } from "@/hooks/useEventById";
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
-import { getAuth, onAuthStateChanged, User } from "firebase/auth";
 import { db } from "@/lib/firebaseClient";
+import { useAuth } from "@/hooks/useAuth";
 import ShowSelector, { type ShowSelection } from "@/components/booking/ShowSelector";
 import TicketSelectionCard, { type TicketType as TicketTypeCard } from "@/components/booking/TicketSelectionCard";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ type SelectionStage = "location-venue" | "timing" | "tickets";
 export default function TicketSelectionPage({ params }: { params: { eventId: string } }) {
   const router = useRouter();
   const { data, isLoading, isError } = useEventById(params.eventId);
+  const { user } = useAuth(); // Use useAuth hook instead of direct Firebase auth
   const [eventData, setEventData] = useState<any>(null);
   const [selectedLocation, setSelectedLocation] = useState<{ id: string; name: string } | null>(null);
   const [selectedVenue, setSelectedVenue] = useState<{ id: string; name: string; address: string } | null>(null);
@@ -27,18 +28,6 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
   const [selectedShow, setSelectedShow] = useState<ShowSelection | null>(null);
   const [selectedTickets, setSelectedTickets] = useState<Record<string, number>>({});
   const [stage, setStage] = useState<SelectionStage>("location-venue");
-  const [user, setUser] = useState<User | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
-
-  // Check Firebase Auth (no sessions for customers)
-  useEffect(() => {
-    const auth = getAuth();
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      setUser(firebaseUser);
-      setAuthLoading(false);
-    });
-    return () => unsubscribe();
-  }, []);
 
   // Fetch full event data with schedule structure
   useEffect(() => {
@@ -237,10 +226,9 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
       return;
     }
 
-    // Check if user is logged in
+    // Check if user is logged in - show alert if not (don't redirect)
     if (!user || !user.uid) {
       alert("Please login to continue");
-      // Redirect to login or show login modal
       return;
     }
 
@@ -281,7 +269,7 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
     }
   };
 
-  if (isLoading || authLoading) {
+  if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center px-4">
         <div className="text-center">
