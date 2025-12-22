@@ -287,19 +287,19 @@ export async function POST(request: NextRequest) {
     await new Promise((resolve) => setTimeout(resolve, 500));
     console.log("Payment simulation complete");
 
+    // Extract location/venue/show metadata from booking data (before try block for email access)
+    const locationId = body.locationId || bookingData.locationId || null;
+    const locationName = body.locationName || bookingData.locationName || null;
+    const venueId = body.venueId || bookingData.venueId || null;
+    const dateId = body.dateId || null;
+    const showId = body.showId || bookingData.showId || null;
+    const showTime = body.showTime || bookingData.showTime || bookingData.time || "00:00";
+    const showEndTime = body.showEndTime || null;
+    const venueAddress = body.venueAddress || null;
+
     // Save to ALL 3 locations in Firestore (BookMyShow style)
     try {
       const bookingRef = doc(db, "bookings", bookingId);
-      
-      // Extract location/venue/show metadata from booking data
-      const locationId = body.locationId || bookingData.locationId || null;
-      const locationName = body.locationName || bookingData.locationName || null;
-      const venueId = body.venueId || bookingData.venueId || null;
-      const dateId = body.dateId || null;
-      const showId = body.showId || bookingData.showId || null;
-      const showTime = body.showTime || bookingData.showTime || bookingData.time || "00:00";
-      const showEndTime = body.showEndTime || null;
-      const venueAddress = body.venueAddress || null;
 
       // Prepare event booking data with metadata for host queries
       const eventBookingData = {
