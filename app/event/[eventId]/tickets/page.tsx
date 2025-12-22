@@ -103,7 +103,7 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
     if (!selectedShow || !params.eventId || !db) return;
 
     async function fetchBookings() {
-      if (!db) return;
+      if (!db || !selectedShow) return; // Additional check inside async function
       setIsLoadingBookings(true);
       try {
         // Fetch bookings for this event and show
