@@ -124,53 +124,14 @@ const HomeLanding = ({ featuredEvents, searchQuery = "", isSearching = false }: 
         </motion.div>
       </section>
 
-      {/* Host Section - Premium with Animations */}
-      <section className="relative overflow-hidden rounded-[40px] border border-white/10 bg-gradient-to-br from-[#0B62FF]/20 via-purple-900/30 to-slate-900/50 p-8 backdrop-blur-3xl shadow-[0_40px_120px_rgba(11,98,255,0.3)] lg:p-12">
-        {/* Animated Background Elements */}
-        <div className="absolute inset-0 overflow-hidden">
-          <motion.div
-            className="absolute -top-20 -right-20 h-64 w-64 rounded-full bg-[#0B62FF]/20 blur-3xl"
-            animate={{
-              scale: [1, 1.2, 1],
-              opacity: [0.3, 0.5, 0.3],
-            }}
-            transition={{
-              duration: 4,
-              repeat: Infinity,
-              ease: "easeInOut",
-            }}
-          />
-          <motion.div
-            className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-purple-500/20 blur-3xl"
-            animate={{
-              scale: [1.2, 1, 1.2],
-              opacity: [0.3, 0.5, 0.3],
-            }}
-            transition={{
-              duration: 5,
-              repeat: Infinity,
-              ease: "easeInOut",
-            }}
-          />
-        </div>
-
-        <div className="relative z-10 space-y-8">
+      {/* Host Section - Simple */}
+      <section className="relative rounded-[40px] border border-white/10 bg-gradient-to-br from-[#0B62FF]/20 via-purple-900/30 to-slate-900/50 p-8 backdrop-blur-3xl shadow-[0_40px_120px_rgba(11,98,255,0.3)] lg:p-12">
+        <div className="space-y-8">
           {/* Header */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="flex flex-wrap items-center justify-between gap-6"
-          >
+          <div className="flex flex-wrap items-center justify-between gap-6">
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <motion.div
-                  animate={{ rotate: [0, 360] }}
-                  transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-                >
-                  <Sparkles className="text-[#0B62FF]" size={24} />
-                </motion.div>
+                <Sparkles className="text-[#0B62FF]" size={24} />
                 <p className="text-xs uppercase tracking-[0.5em] text-[#0B62FF] font-semibold">For Organizers</p>
               </div>
               <h2 className="text-3xl font-bold text-white sm:text-4xl lg:text-5xl">
@@ -180,27 +141,16 @@ const HomeLanding = ({ featuredEvents, searchQuery = "", isSearching = false }: 
                 Create and manage events effortlessly. Host an event in just 5 minutes with our powerful platform.
               </p>
             </div>
-            <motion.div
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              <Button size="lg" className="rounded-full bg-[#0B62FF] px-8 py-6 text-base font-semibold hover:bg-[#0A5AE6] shadow-lg shadow-[#0B62FF]/50" asChild>
-                <Link href="/profile">
-                  Start Hosting
-                  <ArrowRight className="ml-2" size={20} />
-                </Link>
-              </Button>
-            </motion.div>
-          </motion.div>
+            <Button size="lg" className="rounded-full bg-[#0B62FF] px-8 py-6 text-base font-semibold hover:bg-[#0A5AE6] shadow-lg shadow-[#0B62FF]/50" asChild>
+              <Link href="/profile">
+                Start Hosting
+                <ArrowRight className="ml-2" size={20} />
+              </Link>
+            </Button>
+          </div>
 
           {/* Feature Tags */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="flex flex-wrap gap-3"
-          >
+          <div className="flex flex-wrap gap-3">
             {[
               { label: "Host in 5 mins", icon: Clock, color: "from-emerald-500/20 to-emerald-600/20 border-emerald-500/30" },
               { label: "Real-time Analytics", icon: BarChart3, color: "from-blue-500/20 to-blue-600/20 border-blue-500/30" },
@@ -208,53 +158,32 @@ const HomeLanding = ({ featuredEvents, searchQuery = "", isSearching = false }: 
               { label: "Volunteer Support", icon: Users, color: "from-amber-500/20 to-amber-600/20 border-amber-500/30" },
               { label: "Live Updates", icon: Zap, color: "from-yellow-500/20 to-yellow-600/20 border-yellow-500/30" },
               { label: "Secure Platform", icon: Shield, color: "from-green-500/20 to-green-600/20 border-green-500/30" },
-            ].map((tag, index) => (
-              <motion.div
+            ].map((tag) => (
+              <div
                 key={tag.label}
-                initial={{ opacity: 0, scale: 0.8 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.4, delay: 0.3 + index * 0.1 }}
-                whileHover={{ scale: 1.05, y: -4 }}
-                className={`group relative rounded-full border bg-gradient-to-r ${tag.color} px-4 py-2 backdrop-blur-sm transition-all duration-300`}
+                className={`rounded-full border bg-gradient-to-r ${tag.color} px-4 py-2 backdrop-blur-sm`}
               >
                 <div className="flex items-center gap-2">
                   <tag.icon size={16} className="text-white/90" />
                   <span className="text-sm font-medium text-white">{tag.label}</span>
                 </div>
-                <motion.div
-                  className="absolute inset-0 rounded-full bg-white/10 opacity-0 group-hover:opacity-100"
-                  transition={{ duration: 0.3 }}
-                />
-              </motion.div>
+              </div>
             ))}
-          </motion.div>
-
+          </div>
 
           {/* CTA Section */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.8 }}
-            className="flex flex-wrap items-center justify-between gap-6 rounded-3xl border border-[#0B62FF]/30 bg-gradient-to-r from-[#0B62FF]/10 to-purple-500/10 p-6 backdrop-blur-sm"
-          >
+          <div className="flex flex-wrap items-center justify-between gap-6 rounded-3xl border border-[#0B62FF]/30 bg-gradient-to-r from-[#0B62FF]/10 to-purple-500/10 p-6 backdrop-blur-sm">
             <div>
               <p className="text-lg font-semibold text-white mb-1">Ready to host your first event?</p>
               <p className="text-sm text-slate-300">Join thousands of organizers already using Movigoo</p>
             </div>
-            <motion.div
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              <Button size="lg" className="rounded-full bg-white text-[#0e2144] px-8 py-6 font-semibold hover:bg-slate-100 shadow-lg" asChild>
-                <Link href="/profile">
-                  Get Started Now
-                  <ArrowRight className="ml-2" size={20} />
-                </Link>
-              </Button>
-            </motion.div>
-          </motion.div>
+            <Button size="lg" className="rounded-full bg-white text-[#0e2144] px-8 py-6 font-semibold hover:bg-slate-100 shadow-lg" asChild>
+              <Link href="/profile">
+                Get Started Now
+                <ArrowRight className="ml-2" size={20} />
+              </Link>
+            </Button>
+          </div>
         </div>
       </section>
     </div>
