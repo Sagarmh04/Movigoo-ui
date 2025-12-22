@@ -174,12 +174,31 @@ export async function POST(req: NextRequest) {
       updatedAt: serverTimestamp(),
     };
 
-    // Update in both locations
+    // Prepare event booking update (preserve metadata fields)
+    const eventBookingUpdate = {
+      ...updateData,
+      // Preserve metadata fields if they exist
+      locationId: existingBooking.locationId || null,
+      locationName: existingBooking.locationName || null,
+      venueId: existingBooking.venueId || null,
+      showId: existingBooking.showId || null,
+      showTime: existingBooking.showTime || existingBooking.time || null,
+      locationVenueKey: existingBooking.locationVenueKey || null,
+      venueShowKey: existingBooking.venueShowKey || null,
+      dateTimeKey: existingBooking.dateTimeKey || null,
+    };
+
+    // Update in all locations
     await Promise.all([
       setDoc(bookingRef, updateData, { merge: true }),
-      existingBooking.userId && existingBooking.eventId && setDoc(
-        doc(db, "users", existingBooking.userId, "events", existingBooking.eventId, "bookings", bookingId),
+      existingBooking.userId && setDoc(
+        doc(db, "users", existingBooking.userId, "bookings", bookingId),
         updateData,
+        { merge: true }
+      ),
+      existingBooking.eventId && setDoc(
+        doc(db, "events", existingBooking.eventId, "bookings", bookingId),
+        eventBookingUpdate,
         { merge: true }
       ),
     ]);

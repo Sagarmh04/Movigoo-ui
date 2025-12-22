@@ -171,6 +171,16 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
 
     try {
       // Create pending booking before payment
+      // Generate IDs for location/venue/show (using index-based IDs for now)
+      const locationIndex = 0; // Using first location
+      const venueIndex = 0; // Using first venue
+      const dateIndex = 0; // Using first date
+      const showIndex = 0; // Using first show
+      
+      const locationId = `loc_${locationIndex}`;
+      const venueId = `venue_${venueIndex}`;
+      const showId = `show_${dateIndex}_${showIndex}`;
+      
       const bookingPayload = {
         userId: user.uid,
         eventId: eventId,
@@ -194,6 +204,12 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
         })),
         userEmail: user.email || null, // Include user email for confirmation email
         userName: user.displayName || user.email?.split("@")[0] || "Guest", // Include user name
+        // Metadata for event bookings (for host queries)
+        locationId: locationId,
+        locationName: firstLocation.name || data.event.city || "TBA",
+        venueId: venueId,
+        showId: showId,
+        showTime: eventTime,
       };
 
       console.log("Creating pending booking...");

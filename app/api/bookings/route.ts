@@ -290,18 +290,40 @@ export async function POST(request: NextRequest) {
     try {
       const bookingRef = doc(db, "bookings", bookingId);
       
+      // Extract location/venue/show metadata from booking data
+      const locationId = bookingData.locationId || null;
+      const locationName = bookingData.locationName || null;
+      const venueId = bookingData.venueId || null;
+      const showId = bookingData.showId || null;
+      const showTime = bookingData.showTime || bookingData.time || "00:00";
+
+      // Prepare event booking data with metadata for host queries
+      const eventBookingData = {
+        ...finalBookingData,
+        // Metadata fields for querying by location/venue/show
+        locationId,
+        locationName,
+        venueId,
+        showId,
+        showTime,
+        // Composite fields for easy querying
+        locationVenueKey: locationId && venueId ? `${locationId}_${venueId}` : null,
+        venueShowKey: venueId && showId ? `${venueId}_${showId}` : null,
+        dateTimeKey: bookingData.date && showTime ? `${bookingData.date}_${showTime}` : null,
+      };
+
       // Use Promise.all to save to all 3 paths simultaneously
       await Promise.all([
-        // 1. Save under user events: /users/{userId}/events/{eventId}/bookings/{bookingId}
-        setDoc(doc(db, "users", userId, "events", eventId, "bookings", bookingId), finalBookingData),
-        // 2. Save under event: /events/{eventId}/bookings/{bookingId}
-        setDoc(doc(db, "events", eventId, "bookings", bookingId), finalBookingData),
+        // 1. Save under user: /users/{userId}/bookings/{bookingId} (simple structure)
+        setDoc(doc(db, "users", userId, "bookings", bookingId), finalBookingData),
+        // 2. Save under event: /events/{eventId}/bookings/{bookingId} (with metadata)
+        setDoc(doc(db, "events", eventId, "bookings", bookingId), eventBookingData),
         // 3. Save in global bookings: /bookings/{bookingId} (for admin)
         setDoc(bookingRef, finalBookingData),
       ]);
 
-      console.log("✓ Saved to /users/{userId}/events/{eventId}/bookings/{bookingId}");
-      console.log("✓ Saved to /events/{eventId}/bookings/{bookingId}");
+      console.log("✓ Saved to /users/{userId}/bookings/{bookingId}");
+      console.log("✓ Saved to /events/{eventId}/bookings/{bookingId} (with metadata)");
       console.log("✓ Saved to /bookings/{bookingId}");
       console.log("All 3 Firestore writes completed successfully");
     } catch (firestoreError: any) {

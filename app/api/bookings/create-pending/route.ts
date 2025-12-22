@@ -28,6 +28,11 @@ export async function POST(req: NextRequest) {
       items, // Array of { ticketTypeId, quantity, price }
       userEmail, // User email for sending confirmation
       userName, // User name for email
+      locationId, // Location ID for event bookings metadata
+      locationName, // Location name
+      venueId, // Venue ID for event bookings metadata
+      showId, // Show ID for event bookings metadata
+      showTime, // Show time
     } = body;
 
     if (!userId || !eventId || !totalAmount) {
@@ -73,14 +78,32 @@ export async function POST(req: NextRequest) {
       createdAt: serverTimestamp(),
     };
 
+    // Prepare event booking data with metadata for host queries
+    const eventBookingData = {
+      ...bookingData,
+      // Metadata fields for querying by location/venue/show
+      locationId: locationId || null,
+      locationName: locationName || null,
+      venueId: venueId || null,
+      showId: showId || null,
+      showTime: showTime || time || "00:00",
+      // Composite fields for easy querying
+      locationVenueKey: locationId && venueId ? `${locationId}_${venueId}` : null,
+      venueShowKey: venueId && showId ? `${venueId}_${showId}` : null,
+      dateTimeKey: date && (showTime || time) ? `${date}_${showTime || time}` : null,
+    };
+
     // Save to Firestore in multiple locations
     const bookingRef = doc(db, "bookings", bookingId);
-    // Save to /users/{userId}/events/{eventId}/bookings/{bookingId}
-    const userEventBookingRef = doc(db, "users", userId, "events", eventId, "bookings", bookingId);
+    // Save to /users/{userId}/bookings/{bookingId} (simple structure for users)
+    const userBookingRef = doc(db, "users", userId, "bookings", bookingId);
+    // Save to /events/{eventId}/bookings/{bookingId} (with metadata for hosts)
+    const eventBookingRef = doc(db, "events", eventId, "bookings", bookingId);
 
     await Promise.all([
       setDoc(bookingRef, bookingData),
-      setDoc(userEventBookingRef, bookingData),
+      setDoc(userBookingRef, bookingData),
+      setDoc(eventBookingRef, eventBookingData),
     ]);
 
     console.log("Created pending booking:", bookingId);
