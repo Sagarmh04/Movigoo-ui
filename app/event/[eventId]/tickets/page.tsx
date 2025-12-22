@@ -55,7 +55,7 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
   }, [eventData]);
 
   // Filter tickets by selected venue
-  const tickets = useMemo(() => {
+  const tickets = useMemo((): TicketTypeCard[] => {
     if (!eventData?.tickets?.venueConfigs) return [];
     
     // If no show is selected, return empty array
@@ -68,7 +68,7 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
 
     if (!venueConfig?.ticketTypes) return [];
 
-    return venueConfig.ticketTypes.map((t: any) => ({
+    return venueConfig.ticketTypes.map((t: any): TicketTypeCard => ({
       id: t.id,
       typeName: t.typeName || t.name || "Ticket",
       price: typeof t.price === "number" ? t.price : 0,
@@ -80,8 +80,8 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
 
   const selectedTicketsArray = useMemo(() => {
     return tickets
-      .filter((t) => selectedTickets[t.id] > 0)
-      .map((t) => ({
+      .filter((t: TicketTypeCard) => selectedTickets[t.id] > 0)
+      .map((t: TicketTypeCard) => ({
         ticketId: t.id,
         typeName: t.typeName,
         quantity: selectedTickets[t.id],
