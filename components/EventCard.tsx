@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Users, Star } from "lucide-react";
+import { Users, Star, Share2 } from "lucide-react";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebaseClient";
 import { Event } from "@/types/event";
@@ -33,7 +33,9 @@ const EventCard = ({ event }: EventCardProps) => {
         if (eventDoc.exists()) {
           const eventData = eventDoc.data();
           const ageLimitValue = eventData.basicDetails?.ageLimit || "All Ages";
-          setAgeLimit(ageLimitValue);
+          // Format age limit: add "+" if it's a number
+          const formattedAge = ageLimitValue === "All Ages" ? "All Ages" : `${ageLimitValue}+`;
+          setAgeLimit(formattedAge);
         }
       } catch (error) {
         console.error("Error fetching age limit:", error);
@@ -60,6 +62,50 @@ const EventCard = ({ event }: EventCardProps) => {
           sizes="(max-width:768px) 100vw, 33vw"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent" />
+        {/* Share Button - Top Right */}
+        <div className="absolute top-3 right-3 z-10">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const shareData = {
+                title: event.title,
+                text: `Check out ${event.title} on Movigoo!`,
+                url: typeof window !== "undefined" ? `${window.location.origin}/events/${event.id}` : "",
+              };
+              (async () => {
+                try {
+                  if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+                    await navigator.share(shareData);
+                  } else {
+                    // Fallback: Copy to clipboard
+                    if (typeof window !== "undefined") {
+                      await navigator.clipboard.writeText(shareData.url);
+                      alert("Event link copied to clipboard!");
+                    }
+                  }
+                } catch (err) {
+                  if (err instanceof Error && err.name !== "AbortError") {
+                    // Fallback: Copy to clipboard
+                    if (typeof window !== "undefined") {
+                      try {
+                        await navigator.clipboard.writeText(shareData.url);
+                        alert("Event link copied to clipboard!");
+                      } catch (clipboardErr) {
+                        console.error("Failed to copy to clipboard:", clipboardErr);
+                      }
+                    }
+                  }
+                }
+              })();
+            }}
+            className="rounded-full border-white/20 bg-black/40 backdrop-blur-sm hover:bg-black/60 h-8 w-8 p-0"
+          >
+            <Share2 size={16} className="text-white" />
+          </Button>
+        </div>
         <div className="absolute left-4 bottom-4 space-y-2">
           {isHosted && <HostedBadge />}
           <p className="text-xs uppercase tracking-[0.3em] text-slate-300">{event.city}</p>
@@ -75,9 +121,8 @@ const EventCard = ({ event }: EventCardProps) => {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1 text-xs text-slate-200">
-              <Users size={12} />
-              {ageLimit}
+            <span className="inline-flex items-center rounded-full bg-white/10 px-3 py-1 text-xs text-slate-200">
+              Age: {ageLimit}
             </span>
             {event.rating && (
               <div className="flex items-center gap-1 rounded-full bg-white/10 px-3 py-1 text-xs text-amber-200">

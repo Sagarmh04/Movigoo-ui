@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { Calendar, MapPin, ShieldCheck, Users, Plus, Minus } from "lucide-react";
+import { Calendar, MapPin, ShieldCheck, Users, Plus, Minus, Share2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebaseClient";
@@ -67,8 +67,9 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
     return prices.length > 0 ? Math.min(...prices) : null;
   }, [eventData]);
 
-  // Get age limit from event data
-  const ageLimit = eventData?.basicDetails?.ageLimit || "All Ages";
+  // Get age limit from event data and format it
+  const ageLimitRaw = eventData?.basicDetails?.ageLimit || "All Ages";
+  const ageLimit = ageLimitRaw === "All Ages" ? "All Ages" : `${ageLimitRaw}+`;
 
   // Get locations and format location display
   const locations = useMemo(() => {
@@ -328,14 +329,53 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
         <div className="relative h-[280px] sm:h-[440px]">
           <Image src={event.coverWide} alt={event.title} fill sizes="(max-width: 768px) 100vw, 1200px" className="object-cover" priority />
           <div className="absolute inset-0 bg-gradient-to-r from-slate-950/80 via-slate-950/50 to-transparent" />
+          {/* Share Button - Top Right */}
+          <div className="absolute top-4 right-4 z-20">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                const shareData = {
+                  title: event.title,
+                  text: `Check out ${event.title} on Movigoo!`,
+                  url: typeof window !== "undefined" ? window.location.href : "",
+                };
+                try {
+                  if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+                    await navigator.share(shareData);
+                  } else {
+                    // Fallback: Copy to clipboard
+                    if (typeof window !== "undefined") {
+                      await navigator.clipboard.writeText(window.location.href);
+                      alert("Event link copied to clipboard!");
+                    }
+                  }
+                } catch (err) {
+                  if (err instanceof Error && err.name !== "AbortError") {
+                    // Fallback: Copy to clipboard
+                    if (typeof window !== "undefined") {
+                      try {
+                        await navigator.clipboard.writeText(window.location.href);
+                        alert("Event link copied to clipboard!");
+                      } catch (clipboardErr) {
+                        console.error("Failed to copy to clipboard:", clipboardErr);
+                      }
+                    }
+                  }
+                }
+              }}
+              className="rounded-full border-white/20 bg-black/40 backdrop-blur-sm hover:bg-black/60"
+            >
+              <Share2 size={18} className="text-white" />
+            </Button>
+          </div>
           <div className="relative z-10 flex h-full flex-col justify-center gap-3 p-6 text-white sm:gap-4 sm:p-10">
             {isHosted && <HostedBadge />}
             <p className="text-xs uppercase tracking-[0.5em] text-slate-300">{locationDisplay}</p>
             <h1 className="text-2xl font-semibold sm:text-4xl">{event.title}</h1>
             <p className="max-w-2xl text-sm text-slate-200 sm:text-lg">{event.description}</p>
             <div className="flex flex-wrap gap-2 text-xs text-slate-200 sm:gap-4 sm:text-sm">
-              <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 sm:px-4 sm:py-2">
-                <Users size={14} className="sm:w-4 sm:h-4" />
+              <span className="inline-flex items-center rounded-full bg-white/10 px-3 py-1.5 sm:px-4 sm:py-2">
                 Age: {ageLimit}
               </span>
             </div>
