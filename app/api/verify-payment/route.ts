@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseServer";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { sendTicketEmail } from "@/lib/sendTicketEmail";
 
 // Force Node.js runtime
 export const runtime = "nodejs";
@@ -157,6 +158,60 @@ export async function POST(req: NextRequest) {
     ]);
 
     console.log("Updated booking:", bookingId, "to CONFIRMED with ticketId:", ticketId);
+
+    // Send confirmation email (non-blocking) - ONLY when booking is confirmed
+    try {
+      // Get user email and name from booking (stored during create-pending)
+      const userEmail = existingBooking.userEmail || existingBooking.email;
+      const userName = existingBooking.userName || existingBooking.name || "Guest";
+
+      // Only send email if user email is available
+      if (userEmail) {
+        // Format event date
+        const eventDate = existingBooking.date || existingBooking.eventDate || new Date().toISOString().split("T")[0];
+        let formattedEventDate: string;
+        try {
+          const eventDateObj = new Date(eventDate);
+          if (!isNaN(eventDateObj.getTime())) {
+            formattedEventDate = eventDateObj.toLocaleDateString("en-IN", {
+              weekday: "long",
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            });
+          } else {
+            formattedEventDate = eventDate || "TBA";
+          }
+        } catch {
+          formattedEventDate = eventDate || "TBA";
+        }
+
+        // Build ticket link
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://movigoo.in";
+        const ticketLink = `${appUrl}/my-bookings?bookingId=${bookingId}`;
+
+        // Send email asynchronously (don't await - non-blocking)
+        sendTicketEmail({
+          to: userEmail,
+          name: userName,
+          eventName: existingBooking.eventTitle || "Event",
+          eventDate: formattedEventDate,
+          venue: existingBooking.venueName || existingBooking.venue || "TBA",
+          ticketQty: existingBooking.quantity || 1,
+          bookingId: bookingId,
+          ticketLink: ticketLink,
+        }).catch((emailError) => {
+          console.error("Email send error (non-blocking):", emailError);
+        });
+
+        console.log("📧 Confirmation email queued for:", userEmail);
+      } else {
+        console.warn("⚠️ No user email found in booking - skipping email");
+      }
+    } catch (emailError) {
+      console.error("Error preparing email:", emailError);
+      // Don't fail the booking if email fails
+    }
 
     return NextResponse.json({
       success: true,

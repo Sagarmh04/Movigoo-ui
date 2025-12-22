@@ -14,15 +14,18 @@ type TicketEmailPayload = {
 };
 
 export async function sendTicketEmail(payload: TicketEmailPayload): Promise<void> {
-  console.log("EMAIL FUNCTION CALLED");
-  console.log("EMAIL PAYLOAD:", payload);
+  console.log("📧 EMAIL FUNCTION CALLED");
+  console.log("📧 EMAIL PAYLOAD:", payload);
 
   const url = "https://control.msg91.com/api/v5/email/send";
+
+  // Use env var or fallback to provided key
+  const authkey = process.env.MSG91_EMAIL_API_KEY || "476956A42GXVhu1d694664f7P1";
 
   const headers = {
     "Content-Type": "application/json",
     Accept: "application/json",
-    authkey: process.env.MSG91_EMAIL_API_KEY!, // MUST be lowercase
+    authkey: authkey,
   };
 
   const body = {
@@ -35,21 +38,21 @@ export async function sendTicketEmail(payload: TicketEmailPayload): Promise<void
           },
         ],
         variables: {
-          name: payload.name,
-          eventName: payload.eventName,
-          eventDate: payload.eventDate,
-          venue: payload.venue,
-          ticketQty: payload.ticketQty,
-          bookingId: payload.bookingId,
-          ticketLink: payload.ticketLink,
+          name: payload.name || "Guest",
+          eventName: payload.eventName || "Event",
+          eventDate: payload.eventDate || "TBA",
+          venue: payload.venue || "TBA",
+          ticketQty: payload.ticketQty || 1,
+          bookingId: payload.bookingId || "N/A",
+          ticketLink: payload.ticketLink || "#",
         },
       },
     ],
     from: {
-      email: "no-reply@mailer91.com", // TEMP SAFE SENDER
+      email: "noreply@bookings.movigoo.in",
     },
-    domain: "mailer91.com", // REQUIRED
-    template_id: "movigoo_final_ticket", // EXACT, case-sensitive
+    domain: "bookings.movigoo.in",
+    template_id: "movigoo_final_ticket",
   };
 
   try {
@@ -60,8 +63,14 @@ export async function sendTicketEmail(payload: TicketEmailPayload): Promise<void
     });
 
     const data = await response.json();
-    console.log("MSG91 RESPONSE:", data);
+    console.log("📧 MSG91 RESPONSE:", data);
+    
+    if (!response.ok) {
+      console.error("📧 MSG91 ERROR:", data);
+    } else {
+      console.log("📧 Email sent successfully");
+    }
   } catch (error: any) {
-    console.error("MSG91 ERROR:", error.message);
+    console.error("📧 MSG91 ERROR:", error.message);
   }
 }

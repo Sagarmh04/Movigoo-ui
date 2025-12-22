@@ -26,6 +26,8 @@ export async function POST(req: NextRequest) {
       bookingFee,
       totalAmount,
       items, // Array of { ticketTypeId, quantity, price }
+      userEmail, // User email for sending confirmation
+      userName, // User name for email
     } = body;
 
     if (!userId || !eventId || !totalAmount) {
@@ -66,6 +68,8 @@ export async function POST(req: NextRequest) {
       paymentGateway: "cashfree",
       paymentStatus: "PENDING",
       bookingStatus: "PENDING_PAYMENT",
+      userEmail: userEmail || null, // Store user email for email sending
+      userName: userName || null, // Store user name for email
       createdAt: serverTimestamp(),
     };
 

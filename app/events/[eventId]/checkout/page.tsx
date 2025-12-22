@@ -192,6 +192,8 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
           quantity: item.quantity,
           price: item.price,
         })),
+        userEmail: user.email || null, // Include user email for confirmation email
+        userName: user.displayName || user.email?.split("@")[0] || "Guest", // Include user name
       };
 
       console.log("Creating pending booking...");
