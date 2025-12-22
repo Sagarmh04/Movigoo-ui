@@ -170,25 +170,38 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
     }
 
     try {
-      // Create pending booking before payment
-      // Generate IDs for location/venue/show (using index-based IDs for now)
-      const locationIndex = 0; // Using first location
-      const venueIndex = 0; // Using first venue
-      const dateIndex = 0; // Using first date
-      const showIndex = 0; // Using first show
-      
-      const locationId = `loc_${locationIndex}`;
-      const venueId = `venue_${venueIndex}`;
-      const showId = `show_${dateIndex}_${showIndex}`;
+      // Extract show selection from sessionStorage if available
+      const storedBookingState = sessionStorage.getItem("movigoo_booking_state");
+      let showSelection: any = null;
+      if (storedBookingState) {
+        try {
+          const parsed = JSON.parse(storedBookingState);
+          showSelection = parsed.showSelection || null;
+        } catch (e) {
+          console.warn("Could not parse booking state:", e);
+        }
+      }
+
+      // Use show selection if available, otherwise use first show
+      const locationId = showSelection?.locationId || firstLocation.id || `loc_0`;
+      const locationName = showSelection?.locationName || firstLocation.name || data.event.city || "TBA";
+      const venueId = showSelection?.venueId || firstVenue.id || `venue_0`;
+      const dateId = showSelection?.dateId || firstDate.id || `date_0`;
+      const showId = showSelection?.showId || firstShow.id || `show_0`;
+      const showTime = showSelection?.startTime || eventTime;
+      const showEndTime = showSelection?.endTime || null;
+      const venueAddress = showSelection?.venueAddress || firstVenue.address || null;
+      const venueName = showSelection?.venueName || firstVenue.name || data.event.venue || "TBA";
+      const selectedDate = showSelection?.date || eventDate;
       
       const bookingPayload = {
         userId: user.uid,
         eventId: eventId,
         eventTitle: data.event.title,
         coverUrl: data.event.coverPortrait[0] || data.event.coverWide || "",
-        venueName: firstVenue.name || data.event.venue || "TBA",
-        date: eventDate,
-        time: eventTime,
+        venueName: venueName,
+        date: selectedDate,
+        time: showTime,
         ticketType: bookingData.items.map((item: any) => {
           const ticketType = data.ticketTypes.find((t) => t.id === item.ticketTypeId);
           return `${ticketType?.name || item.ticketTypeId} (${item.quantity})`;
@@ -206,10 +219,13 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
         userName: user.displayName || user.email?.split("@")[0] || "Guest", // Include user name
         // Metadata for event bookings (for host queries)
         locationId: locationId,
-        locationName: firstLocation.name || data.event.city || "TBA",
+        locationName: locationName,
         venueId: venueId,
+        dateId: dateId,
         showId: showId,
-        showTime: eventTime,
+        showTime: showTime,
+        showEndTime: showEndTime,
+        venueAddress: venueAddress,
       };
 
       console.log("Creating pending booking...");

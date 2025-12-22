@@ -81,9 +81,9 @@ export async function createBooking(
     paymentSessionId,
   };
 
-  // Save to Firestore at /users/{uid}/bookings/{bookingId} (simple structure)
-  const userBookingsRef = collection(db, "users", userId, "bookings");
-  const docRef = await addDoc(userBookingsRef, {
+  // Save to Firestore at /bookings/{bookingId} (users subcollections are for host users only)
+  const bookingsRef = collection(db, "bookings");
+  const docRef = await addDoc(bookingsRef, {
     ...bookingData,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),

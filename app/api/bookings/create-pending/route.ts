@@ -85,8 +85,11 @@ export async function POST(req: NextRequest) {
       locationId: locationId || null,
       locationName: locationName || null,
       venueId: venueId || null,
+      dateId: body.dateId || null,
       showId: showId || null,
       showTime: showTime || time || "00:00",
+      showEndTime: body.showEndTime || null,
+      venueAddress: body.venueAddress || null,
       // Composite fields for easy querying
       locationVenueKey: locationId && venueId ? `${locationId}_${venueId}` : null,
       venueShowKey: venueId && showId ? `${venueId}_${showId}` : null,
@@ -94,15 +97,13 @@ export async function POST(req: NextRequest) {
     };
 
     // Save to Firestore in multiple locations
+    // NOTE: We do NOT save to /users/{userId}/bookings because that's reserved for host users only
     const bookingRef = doc(db, "bookings", bookingId);
-    // Save to /users/{userId}/bookings/{bookingId} (simple structure for users)
-    const userBookingRef = doc(db, "users", userId, "bookings", bookingId);
     // Save to /events/{eventId}/bookings/{bookingId} (with metadata for hosts)
     const eventBookingRef = doc(db, "events", eventId, "bookings", bookingId);
 
     await Promise.all([
       setDoc(bookingRef, bookingData),
-      setDoc(userBookingRef, bookingData),
       setDoc(eventBookingRef, eventBookingData),
     ]);
 

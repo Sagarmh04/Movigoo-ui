@@ -40,9 +40,14 @@ export default function PaymentPage({ params }: { params: { eventId: string } })
     try {
       setIsProcessing(true);
 
-      // Extract date and time from event
-      const eventDate = new Date(booking.dateStart).toLocaleDateString();
-      const eventTime = new Date(booking.dateStart).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      // Extract date and time from show selection or fallback to event
+      const showSelection = booking.showSelection;
+      const eventDate = showSelection
+        ? showSelection.date
+        : new Date(booking.dateStart).toISOString().split("T")[0];
+      const eventTime = showSelection
+        ? showSelection.startTime
+        : new Date(booking.dateStart).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
       // Prepare booking payload for API
       const userDisplayName = (user as any).name || (user as any).email || (user as any).displayName || null;
@@ -52,7 +57,7 @@ export default function PaymentPage({ params }: { params: { eventId: string } })
         eventId: booking.eventId,
         eventTitle: booking.eventName,
         coverUrl: booking.eventImage,
-        venueName: booking.venue,
+        venueName: showSelection?.venueName || booking.venue,
         date: eventDate,
         time: eventTime,
         ticketType: booking.tickets.map((t) => `${t.typeName} (${t.quantity})`).join(", "),
@@ -60,6 +65,15 @@ export default function PaymentPage({ params }: { params: { eventId: string } })
         price: booking.tickets.reduce((sum, t) => sum + t.price * t.quantity, 0),
         bookingFee: booking.bookingFee,
         totalAmount: booking.totalAmount,
+        // Show selection metadata
+        locationId: showSelection?.locationId || null,
+        locationName: showSelection?.locationName || booking.city || null,
+        venueId: showSelection?.venueId || null,
+        dateId: showSelection?.dateId || null,
+        showId: showSelection?.showId || null,
+        showTime: showSelection?.startTime || eventTime,
+        showEndTime: showSelection?.endTime || null,
+        venueAddress: showSelection?.venueAddress || null,
       };
 
       console.log("Booking payload:", bookingPayload);

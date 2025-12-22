@@ -2,7 +2,7 @@
 "use client";
 
 import Image from "next/image";
-import { Calendar, MapPin } from "lucide-react";
+import { Calendar, MapPin, Clock } from "lucide-react";
 import { currencyFormatter, formatDateRange } from "@/lib/utils";
 import type { BookingState } from "@/lib/bookingState";
 import { calculateTotals } from "@/lib/bookingState";
@@ -11,8 +11,17 @@ type ReviewSummaryProps = {
   booking: BookingState;
 };
 
+const formatTime = (timeString: string) => {
+  const [hours, minutes] = timeString.split(":");
+  const hour = parseInt(hours, 10);
+  const ampm = hour >= 12 ? "PM" : "AM";
+  const hour12 = hour % 12 || 12;
+  return `${hour12}:${minutes} ${ampm}`;
+};
+
 export default function ReviewSummary({ booking }: ReviewSummaryProps) {
   const { subtotal, bookingFee, total } = calculateTotals(booking.tickets);
+  const showSelection = booking.showSelection;
 
   return (
     <div className="space-y-6">
@@ -24,15 +33,51 @@ export default function ReviewSummary({ booking }: ReviewSummaryProps) {
         <div>
           <h2 className="text-xl font-semibold text-white sm:text-2xl">{booking.eventName}</h2>
           <div className="mt-3 space-y-2 text-sm text-slate-300">
-            <div className="flex items-center gap-2">
-              <Calendar size={16} className="text-[#0B62FF]" />
-              {formatDateRange(booking.dateStart, booking.dateEnd)}
-            </div>
-            <div className="flex items-center gap-2">
-              <MapPin size={16} className="text-[#0B62FF]" />
-              {booking.venue}
-              {booking.city && <span className="text-slate-400">, {booking.city}</span>}
-            </div>
+            {showSelection ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <Calendar size={16} className="text-[#0B62FF]" />
+                  <span>
+                    {new Date(showSelection.date).toLocaleDateString("en-IN", {
+                      weekday: "long",
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Clock size={16} className="text-[#0B62FF]" />
+                  <span>
+                    {formatTime(showSelection.startTime)} - {formatTime(showSelection.endTime)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <MapPin size={16} className="text-[#0B62FF]" />
+                  <div>
+                    <span>{showSelection.venueName}</span>
+                    {showSelection.venueAddress && (
+                      <span className="text-slate-400">, {showSelection.venueAddress}</span>
+                    )}
+                    {showSelection.locationName && (
+                      <span className="text-slate-400">, {showSelection.locationName}</span>
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-2">
+                  <Calendar size={16} className="text-[#0B62FF]" />
+                  {formatDateRange(booking.dateStart, booking.dateEnd)}
+                </div>
+                <div className="flex items-center gap-2">
+                  <MapPin size={16} className="text-[#0B62FF]" />
+                  {booking.venue}
+                  {booking.city && <span className="text-slate-400">, {booking.city}</span>}
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>

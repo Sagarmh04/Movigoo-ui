@@ -3,7 +3,7 @@
 // Complete booking endpoint that saves to 3 Firestore locations (BookMyShow style)
 
 import { NextRequest, NextResponse } from "next/server";
-import { doc, setDoc, serverTimestamp, getDoc } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp, getDoc, updateDoc, increment } from "firebase/firestore";
 import { db } from "@/lib/firebaseServer";
 import { v4 as uuidv4 } from "uuid";
 import { sendTicketEmail } from "@/lib/sendTicketEmail";
@@ -233,12 +233,13 @@ export async function POST(request: NextRequest) {
       };
     }
 
-    // Generate unique IDs
+    // Generate unique booking ID - use same ID for everything (booking, QR code, etc.)
     const bookingId = uuidv4();
-    const qrCodeData = `MOV-${uuidv4().toUpperCase().replace(/-/g, "")}`;
+    // Use bookingId for QR code to ensure consistency
+    const qrCodeData = bookingId; // CRITICAL: Use bookingId as QR code data for consistency
 
     console.log("Generated bookingId:", bookingId);
-    console.log("Generated qrCodeData:", qrCodeData);
+    console.log("QR Code Data (using bookingId):", qrCodeData);
 
     // Get user name and email if available (fetch from users collection)
     let userEmail: string | null = null;
@@ -291,11 +292,14 @@ export async function POST(request: NextRequest) {
       const bookingRef = doc(db, "bookings", bookingId);
       
       // Extract location/venue/show metadata from booking data
-      const locationId = bookingData.locationId || null;
-      const locationName = bookingData.locationName || null;
-      const venueId = bookingData.venueId || null;
-      const showId = bookingData.showId || null;
-      const showTime = bookingData.showTime || bookingData.time || "00:00";
+      const locationId = body.locationId || bookingData.locationId || null;
+      const locationName = body.locationName || bookingData.locationName || null;
+      const venueId = body.venueId || bookingData.venueId || null;
+      const dateId = body.dateId || null;
+      const showId = body.showId || bookingData.showId || null;
+      const showTime = body.showTime || bookingData.showTime || bookingData.time || "00:00";
+      const showEndTime = body.showEndTime || null;
+      const venueAddress = body.venueAddress || null;
 
       // Prepare event booking data with metadata for host queries
       const eventBookingData = {
@@ -304,28 +308,48 @@ export async function POST(request: NextRequest) {
         locationId,
         locationName,
         venueId,
+        dateId,
         showId,
         showTime,
+        showEndTime,
+        venueAddress,
         // Composite fields for easy querying
         locationVenueKey: locationId && venueId ? `${locationId}_${venueId}` : null,
         venueShowKey: venueId && showId ? `${venueId}_${showId}` : null,
         dateTimeKey: bookingData.date && showTime ? `${bookingData.date}_${showTime}` : null,
       };
 
-      // Use Promise.all to save to all 3 paths simultaneously
+      // Use Promise.all to save to all paths simultaneously
+      // NOTE: We do NOT save to /users/{userId}/bookings because that's reserved for host users only
       await Promise.all([
-        // 1. Save under user: /users/{userId}/bookings/{bookingId} (simple structure)
-        setDoc(doc(db, "users", userId, "bookings", bookingId), finalBookingData),
-        // 2. Save under event: /events/{eventId}/bookings/{bookingId} (with metadata)
+        // 1. Save under event: /events/{eventId}/bookings/{bookingId} (with metadata for hosts)
         setDoc(doc(db, "events", eventId, "bookings", bookingId), eventBookingData),
-        // 3. Save in global bookings: /bookings/{bookingId} (for admin)
+        // 2. Save in global bookings: /bookings/{bookingId} (for customers and admin)
         setDoc(bookingRef, finalBookingData),
       ]);
 
-      console.log("✓ Saved to /users/{userId}/bookings/{bookingId}");
       console.log("✓ Saved to /events/{eventId}/bookings/{bookingId} (with metadata)");
       console.log("✓ Saved to /bookings/{bookingId}");
-      console.log("All 3 Firestore writes completed successfully");
+      console.log("All Firestore writes completed successfully");
+
+      // Update event statistics for the selected show
+      if (showId && eventId) {
+        try {
+          const eventRef = doc(db, "events", eventId);
+          const statisticsPath = `statistics.shows.${showId}.bookingsCount`;
+          
+          // Initialize statistics if it doesn't exist
+          await updateDoc(eventRef, {
+            [statisticsPath]: increment(bookingData.quantity),
+            [`statistics.shows.${showId}.lastUpdated`]: serverTimestamp(),
+          });
+
+          console.log(`✓ Updated statistics for show ${showId}: +${bookingData.quantity} bookings`);
+        } catch (statsError: any) {
+          // Log but don't fail the booking if statistics update fails
+          console.warn("Failed to update event statistics:", statsError);
+        }
+      }
     } catch (firestoreError: any) {
       console.error("Firestore write error:", firestoreError);
       return NextResponse.json(
@@ -350,6 +374,26 @@ export async function POST(request: NextRequest) {
           day: "numeric",
         });
 
+        // Format time for email
+        const formatTime = (timeString: string) => {
+          const [hours, minutes] = timeString.split(":");
+          const hour = parseInt(hours, 10);
+          const ampm = hour >= 12 ? "PM" : "AM";
+          const hour12 = hour % 12 || 12;
+          return `${hour12}:${minutes} ${ampm}`;
+        };
+
+        const formattedTime = showTime ? formatTime(showTime) : bookingData.time;
+        const formattedEndTime = showEndTime ? formatTime(showEndTime) : null;
+        const timeString = formattedEndTime 
+          ? `${formattedTime} - ${formattedEndTime}`
+          : formattedTime;
+
+        // Build venue string with address if available
+        const venueString = venueAddress 
+          ? `${bookingData.venueName}, ${venueAddress}${locationName ? `, ${locationName}` : ""}`
+          : `${bookingData.venueName}${locationName ? `, ${locationName}` : ""}`;
+
         // Build ticket link
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://movigoo.in";
         const ticketLink = `${appUrl}/booking/success?bookingId=${bookingId}`;
@@ -360,7 +404,8 @@ export async function POST(request: NextRequest) {
           name: userName || userEmail.split("@")[0],
           eventName: bookingData.eventTitle,
           eventDate: formattedEventDate,
-          venue: bookingData.venueName,
+          eventTime: timeString,
+          venue: venueString,
           ticketQty: bookingData.quantity,
           bookingId,
           ticketLink,

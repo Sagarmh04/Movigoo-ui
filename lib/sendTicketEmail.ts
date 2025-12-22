@@ -7,6 +7,7 @@ type TicketEmailPayload = {
   name: string;
   eventName: string;
   eventDate: string;
+  eventTime?: string; // Optional time string (e.g., "7:00 PM - 9:00 PM")
   venue: string;
   ticketQty: number;
   bookingId: string;
@@ -37,6 +38,7 @@ export async function sendTicketEmail(payload: TicketEmailPayload): Promise<void
     name: payload.name || "Guest User",
     eventName: payload.eventName || "Sample Event",
     eventDate: payload.eventDate || "Saturday, 1 February 2025",
+    eventTime: payload.eventTime || "7:00 PM",
     venue: payload.venue || "Sample Venue",
     ticketQty: payload.ticketQty || 1,
     bookingId: payload.bookingId || "BOOKING-12345",
@@ -56,6 +58,7 @@ export async function sendTicketEmail(payload: TicketEmailPayload): Promise<void
           name: safePayload.name,
           eventName: safePayload.eventName,
           eventDate: safePayload.eventDate,
+          eventTime: safePayload.eventTime,
           venue: safePayload.venue,
           ticketQty: safePayload.ticketQty,
           bookingId: safePayload.bookingId,

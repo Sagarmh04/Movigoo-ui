@@ -1,6 +1,20 @@
 // lib/bookingState.ts
 // Simple state management using localStorage
 
+export type ShowSelection = {
+  locationId: string;
+  locationName: string;
+  venueId: string;
+  venueName: string;
+  venueAddress: string;
+  dateId: string;
+  date: string;
+  showId: string;
+  showName: string;
+  startTime: string;
+  endTime: string;
+};
+
 export type BookingState = {
   eventId: string;
   eventName: string;
@@ -18,6 +32,7 @@ export type BookingState = {
   bookingFee: number;
   totalAmount: number;
   paymentSessionId?: string; // Server-generated payment session ID
+  showSelection?: ShowSelection; // Show selection metadata
 };
 
 const BOOKING_STATE_KEY = "movigoo_booking_state";

@@ -189,13 +189,9 @@ export async function POST(req: NextRequest) {
     };
 
     // Update in all locations
+    // NOTE: We do NOT update /users/{userId}/bookings because that's reserved for host users only
     await Promise.all([
       setDoc(bookingRef, updateData, { merge: true }),
-      existingBooking.userId && setDoc(
-        doc(db, "users", existingBooking.userId, "bookings", bookingId),
-        updateData,
-        { merge: true }
-      ),
       existingBooking.eventId && setDoc(
         doc(db, "events", existingBooking.eventId, "bookings", bookingId),
         eventBookingUpdate,

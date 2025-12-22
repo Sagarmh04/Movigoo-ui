@@ -54,7 +54,8 @@ function BookingSuccessPageContent() {
               eventId = bookingDocData.eventId;
             } else if (user?.uid) {
               // Try user bookings collection
-              const userBookingRef = doc(db, "users", user.uid, "bookings", bookingId);
+              // Use global bookings collection (users subcollections are for host users only)
+              const userBookingRef = doc(db, "bookings", bookingId);
               const userBookingDoc = await getDoc(userBookingRef);
 
               if (userBookingDoc.exists()) {
