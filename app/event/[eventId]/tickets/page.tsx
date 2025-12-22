@@ -10,7 +10,6 @@ import { useAuth } from "@/hooks/useAuth";
 import ShowSelector, { type ShowSelection } from "@/components/booking/ShowSelector";
 import TicketSelectionCard, { type TicketType as TicketTypeCard } from "@/components/booking/TicketSelectionCard";
 import { Button } from "@/components/ui/button";
-import { saveBookingState } from "@/lib/bookingState";
 import { currencyFormatter } from "@/lib/utils";
 import { calculateBookingTotals, type TicketSelection } from "@/lib/bookingService";
 import { MapPin, Building2, Edit2, Plus, Minus } from "lucide-react";
@@ -221,12 +220,12 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
     }));
   };
 
-  const handleProceed = () => {
+  const handleProceed = async () => {
     if (selectedTicketsArray.length === 0 || !selectedShow) {
       return;
     }
 
-    // 1. If we are still checking the auth status, don't do anything
+    // 1. Wait for auth to fully load - no race conditions
     if (authLoading) {
       console.log("Auth is still initializing...");
       return;
@@ -234,44 +233,90 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
 
     // 2. Now check if user actually exists
     if (!user || !user.uid) {
-      alert("Please login to continue");
+      alert("Please login to continue. You can login from the Profile page.");
+      router.push("/profile?login=true");
       return;
     }
 
-    if (data) {
-      // Save booking state for review page
-      saveBookingState({
+    if (!data) return;
+
+    try {
+      // Create pending booking and redirect directly to Cashfree
+      const showSelection = {
+        locationId: selectedShow.locationId,
+        locationName: selectedShow.locationName,
+        venueId: selectedShow.venueId,
+        venueName: selectedShow.venueName,
+        venueAddress: selectedShow.venueAddress,
+        dateId: selectedShow.dateId,
+        date: selectedShow.date,
+        showId: selectedShow.showId,
+        showName: selectedShow.showName,
+        startTime: selectedShow.startTime,
+        endTime: selectedShow.endTime,
+      };
+
+      const userDisplayName = (user as any).displayName || (user as any).email?.split("@")[0] || "Guest";
+      const bookingPayload = {
+        userId: user.uid,
+        userName: userDisplayName,
         eventId: data.event.id,
-        eventName: data.event.title,
-        eventImage: data.event.coverWide || "",
-        dateStart: selectedShow.date,
-        dateEnd: selectedShow.date,
-        venue: selectedShow.venueName,
-        city: selectedShow.locationName,
-        tickets: selectedTicketsArray.map((t) => ({
-          ticketId: t.ticketId,
-          typeName: t.typeName,
+        eventTitle: data.event.title,
+        coverUrl: data.event.coverWide || "",
+        venueName: selectedShow.venueName,
+        date: selectedShow.date,
+        time: selectedShow.startTime,
+        ticketType: selectedTicketsArray.map((t) => `${t.typeName} (${t.quantity})`).join(", "),
+        quantity: selectedTicketsArray.reduce((sum, t) => sum + t.quantity, 0),
+        price: subtotal,
+        bookingFee: bookingFee,
+        totalAmount: total,
+        items: selectedTicketsArray.map((t) => ({
+          ticketTypeId: t.ticketId,
           quantity: t.quantity,
           price: t.price,
         })),
-        bookingFee,
-        totalAmount: total,
-        showSelection: {
-          locationId: selectedShow.locationId,
-          locationName: selectedShow.locationName,
-          venueId: selectedShow.venueId,
-          venueName: selectedShow.venueName,
-          venueAddress: selectedShow.venueAddress,
-          dateId: selectedShow.dateId,
-          date: selectedShow.date,
-          showId: selectedShow.showId,
-          showName: selectedShow.showName,
-          startTime: selectedShow.startTime,
-          endTime: selectedShow.endTime,
-        },
+        userEmail: (user as any).email || null,
+        locationId: showSelection.locationId,
+        locationName: showSelection.locationName,
+        venueId: showSelection.venueId,
+        dateId: showSelection.dateId,
+        showId: showSelection.showId,
+        showTime: showSelection.startTime,
+        showEndTime: showSelection.endTime,
+        venueAddress: showSelection.venueAddress,
+      };
+
+      console.log("Creating pending booking...");
+      const bookingResponse = await fetch("/api/bookings/create-pending", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(bookingPayload),
       });
 
-      router.push(`/event/${params.eventId}/review`);
+      const bookingResult = await bookingResponse.json();
+
+      if (!bookingResponse.ok || !bookingResult.bookingId) {
+        console.error("Failed to create pending booking:", bookingResult);
+        alert("Failed to create booking. Please try again.");
+        return;
+      }
+
+      console.log("Pending booking created:", bookingResult.bookingId);
+
+      // Redirect directly to Cashfree payment page
+      const paymentParams = new URLSearchParams({
+        bookingId: bookingResult.bookingId,
+        amount: total.toString(),
+        email: (user as any).email || "",
+        name: userDisplayName,
+        phone: (user as any).phoneNumber || "",
+      });
+
+      router.push(`/payment?${paymentParams.toString()}`);
+    } catch (error: any) {
+      console.error("Error creating booking:", error);
+      alert("Failed to create booking. Please try again.");
     }
   };
 

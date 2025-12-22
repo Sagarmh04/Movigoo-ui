@@ -435,7 +435,23 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
           </>
         ) : (
           <Button
-            onClick={() => router.push(`/event/${event.id}/tickets`)}
+            onClick={async () => {
+              // Wait for auth to fully load - no race conditions
+              if (authLoading) {
+                console.log("Auth is still initializing...");
+                return;
+              }
+
+              // Check if user is logged in
+              if (!user || !user.uid) {
+                alert("Please login to continue. You can login from the Profile page.");
+                router.push("/profile?login=true");
+                return;
+              }
+
+              // User is logged in, proceed to tickets page
+              router.push(`/event/${event.id}/tickets`);
+            }}
             className="w-full rounded-2xl bg-[#0B62FF] py-6 text-base font-semibold hover:bg-[#0A5AE6]"
           >
             Book Now
@@ -608,7 +624,23 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
             </>
           ) : (
             <Button
-              onClick={() => router.push(`/event/${event.id}/tickets`)}
+              onClick={async () => {
+                // Wait for auth to fully load - no race conditions
+                if (authLoading) {
+                  console.log("Auth is still initializing...");
+                  return;
+                }
+
+                // Check if user is logged in
+                if (!user || !user.uid) {
+                  alert("Please login to continue. You can login from the Profile page.");
+                  router.push("/profile?login=true");
+                  return;
+                }
+
+                // User is logged in, proceed to tickets page
+                router.push(`/event/${event.id}/tickets`);
+              }}
               className="w-full rounded-2xl bg-[#0B62FF] py-6 text-lg font-semibold hover:bg-[#0A5AE6] sticky top-20"
             >
               Book Now

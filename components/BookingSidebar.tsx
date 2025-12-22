@@ -17,7 +17,6 @@ import PaymentSuccessAnimation from "@/components/PaymentSuccessAnimation";
 import PaymentFailureAnimation from "@/components/PaymentFailureAnimation";
 import { useToast } from "@/components/Toast";
 import { useAuth } from "@/hooks/useAuth";
-import LoginModal from "@/components/auth/LoginModal";
 
 type BookingSidebarProps = {
   event: Event;
@@ -31,7 +30,6 @@ const BookingSidebar = ({ event, ticketTypes }: BookingSidebarProps) => {
   const [coupon, setCoupon] = useState("");
   const [status, setStatus] = useState<"idle" | "processing" | "success" | "failure">("idle");
   const [confirmedBooking, setConfirmedBooking] = useState<Booking | null>(null);
-  const [showLoginModal, setShowLoginModal] = useState(false);
   const mutation = useCreateBooking();
   const { pushToast } = useToast();
 
@@ -71,13 +69,10 @@ const BookingSidebar = ({ event, ticketTypes }: BookingSidebarProps) => {
   }, [user, selection, ticketTypes, coupon, event.id, router]);
 
   const handleBooking = async () => {
-    // Check if user is logged in - show login modal if not
+    // Check if user is logged in - redirect to profile if not
     if (!user || !user.uid) {
-      // Store the intended action for after login
-      if (typeof window !== "undefined") {
-        sessionStorage.setItem("postLoginAction", "continueBooking");
-      }
-      setShowLoginModal(true);
+      alert("Please login to continue. You can login from the Profile page.");
+      router.push("/profile?login=true");
       return;
     }
 
@@ -202,18 +197,6 @@ const BookingSidebar = ({ event, ticketTypes }: BookingSidebarProps) => {
         </div>
       )}
 
-      {/* Login Modal */}
-      {showLoginModal && (
-        <LoginModal
-          isOpen={showLoginModal}
-          onClose={() => setShowLoginModal(false)}
-          onSuccess={() => {
-            setShowLoginModal(false);
-            // The useEffect will handle continuing the booking
-            router.refresh();
-          }}
-        />
-      )}
     </>
   );
 };

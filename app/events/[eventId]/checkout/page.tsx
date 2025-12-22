@@ -15,7 +15,6 @@ import { useAuth } from "@/hooks/useAuth";
 import Image from "next/image";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebaseClient";
-import LoginModal from "@/components/auth/LoginModal";
 
 const BOOKING_FEE_PER_TICKET = 7;
 
@@ -27,7 +26,6 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
   const [bookingData, setBookingData] = useState<any>(null);
   const [eventDetails, setEventDetails] = useState<any>(null);
   const [mounted, setMounted] = useState(false);
-  const [showLoginModal, setShowLoginModal] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -49,9 +47,14 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
   useEffect(() => {
     if (!mounted || !eventId) return;
 
-    // Check if user is logged in (Firebase Auth)
-    if (!authLoading && (!user || !user.uid)) {
-      setShowLoginModal(true);
+    // Check if user is logged in (Firebase Auth) - wait for auth to load
+    if (authLoading) {
+      return; // Still loading, wait
+    }
+
+    if (!user || !user.uid) {
+      alert("Please login to continue. You can login from the Profile page.");
+      router.push("/profile?login=true");
       return;
     }
 
@@ -164,8 +167,16 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
   const ageLimit = basic.ageLimit || "All Ages";
 
   const handleProceedToPayment = async () => {
+    // Wait for auth to fully load - no race conditions
+    if (authLoading) {
+      console.log("Auth is still initializing...");
+      return;
+    }
+
+    // Check if user is logged in
     if (!user || !user.uid || !user.email) {
-      setShowLoginModal(true);
+      alert("Please login to continue. You can login from the Profile page.");
+      router.push("/profile?login=true");
       return;
     }
 
@@ -408,20 +419,6 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
         </div>
       </div>
 
-      {/* Login Modal */}
-      {showLoginModal && (
-        <LoginModal
-          isOpen={showLoginModal}
-          onClose={() => {
-            setShowLoginModal(false);
-            router.push(`/events/${eventId}`);
-          }}
-          onSuccess={() => {
-            setShowLoginModal(false);
-            router.refresh();
-          }}
-        />
-      )}
     </div>
   );
 }
