@@ -230,91 +230,6 @@ const HomeLanding = ({ featuredEvents, searchQuery = "", isSearching = false }: 
             ))}
           </motion.div>
 
-          {/* Features Grid */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.4 }}
-            className="grid gap-6 md:grid-cols-2 lg:grid-cols-3"
-          >
-            {[
-              {
-                icon: BarChart3,
-                title: "Real-time Analytics",
-                description: "Track bookings, revenue, and attendance in real-time with comprehensive dashboards.",
-                gradient: "from-blue-500/20 to-cyan-500/20",
-                borderColor: "border-blue-500/30",
-              },
-              {
-                icon: Calendar,
-                title: "Multiple Large Format Events",
-                description: "Manage unlimited events across multiple locations, venues, and dates simultaneously.",
-                gradient: "from-purple-500/20 to-pink-500/20",
-                borderColor: "border-purple-500/30",
-              },
-              {
-                icon: Users,
-                title: "Volunteer Support",
-                description: "Get dedicated support from our volunteer team to help you manage your events smoothly.",
-                gradient: "from-amber-500/20 to-orange-500/20",
-                borderColor: "border-amber-500/30",
-              },
-              {
-                icon: Zap,
-                title: "Lightning Fast Setup",
-                description: "Create and publish your event in just 5 minutes with our streamlined process.",
-                gradient: "from-yellow-500/20 to-amber-500/20",
-                borderColor: "border-yellow-500/30",
-              },
-              {
-                icon: TrendingUp,
-                title: "Growth Insights",
-                description: "Understand your audience with detailed analytics and performance metrics.",
-                gradient: "from-green-500/20 to-emerald-500/20",
-                borderColor: "border-green-500/30",
-              },
-              {
-                icon: Shield,
-                title: "Secure & Reliable",
-                description: "Enterprise-grade security with reliable payment processing and data protection.",
-                gradient: "from-indigo-500/20 to-blue-500/20",
-                borderColor: "border-indigo-500/30",
-              },
-            ].map((feature, index) => (
-              <motion.div
-                key={feature.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: 0.5 + index * 0.1 }}
-                whileHover={{ y: -8, scale: 1.02 }}
-                className={`group relative overflow-hidden rounded-3xl border ${feature.borderColor} bg-gradient-to-br ${feature.gradient} p-6 backdrop-blur-sm transition-all duration-300`}
-              >
-                {/* Animated Background Glow */}
-                <motion.div
-                  className={`absolute inset-0 bg-gradient-to-br ${feature.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`}
-                />
-                
-                <div className="relative z-10 space-y-3">
-                  <motion.div
-                    whileHover={{ rotate: [0, -10, 10, -10, 0] }}
-                    transition={{ duration: 0.5 }}
-                  >
-                    <feature.icon size={32} className="text-[#0B62FF] mb-2" />
-                  </motion.div>
-                  <h3 className="text-xl font-semibold text-white">{feature.title}</h3>
-                  <p className="text-sm text-slate-300 leading-relaxed">{feature.description}</p>
-                </div>
-
-                {/* Shine Effect */}
-                <motion.div
-                  className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full"
-                  transition={{ duration: 0.6 }}
-                />
-              </motion.div>
-            ))}
-          </motion.div>
 
           {/* CTA Section */}
           <motion.div
@@ -332,7 +247,7 @@ const HomeLanding = ({ featuredEvents, searchQuery = "", isSearching = false }: 
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
-              <Button size="lg" className="rounded-full bg-white text-[#0B62FF] px-8 py-6 font-semibold hover:bg-slate-100 shadow-lg" asChild>
+              <Button size="lg" className="rounded-full bg-white text-[#0e2144] px-8 py-6 font-semibold hover:bg-slate-100 shadow-lg" asChild>
                 <Link href="/profile">
                   Get Started Now
                   <ArrowRight className="ml-2" size={20} />
