@@ -29,17 +29,36 @@ export function useUserBookings(userId: string | null) {
           return;
         }
 
-        // Fetch from /users/{userId}/bookings
-        // TypeScript: db is guaranteed to be non-null here due to the check above
-        const userBookingsRef = collection(db, "users", userId!, "bookings");
-        const q = query(userBookingsRef, orderBy("createdAt", "desc"));
-        const snapshot = await getDocs(q);
-
-        const userBookings = snapshot.docs.map((doc) => ({
-          bookingId: doc.id,
-          ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
-        })) as any[];
+        // Fetch from /users/{userId}/events/{eventId}/bookings
+        // First, get all events for this user, then get bookings from each event
+        const userEventsRef = collection(db, "users", userId!, "events");
+        const eventsSnapshot = await getDocs(userEventsRef);
+        
+        // Collect all bookings from all events
+        const userBookings: any[] = [];
+        
+        for (const eventDoc of eventsSnapshot.docs) {
+          const eventId = eventDoc.id;
+          const eventBookingsRef = collection(db, "users", userId!, "events", eventId, "bookings");
+          const eventBookingsQuery = query(eventBookingsRef, orderBy("createdAt", "desc"));
+          const eventBookingsSnapshot = await getDocs(eventBookingsQuery);
+          
+          const eventBookings = eventBookingsSnapshot.docs.map((doc) => ({
+            bookingId: doc.id,
+            eventId: eventId, // Include eventId for reference
+            ...doc.data(),
+            createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+          }));
+          
+          userBookings.push(...eventBookings);
+        }
+        
+        // Sort all bookings by createdAt desc
+        userBookings.sort((a, b) => {
+          const dateA = new Date(a.createdAt).getTime();
+          const dateB = new Date(b.createdAt).getTime();
+          return dateB - dateA;
+        });
 
         // Also check global bookings collection and filter by userId
         // This query requires a composite index: userId (ASC) + createdAt (DESC)

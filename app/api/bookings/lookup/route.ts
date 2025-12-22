@@ -41,22 +41,44 @@ export async function POST(request: NextRequest) {
     
     const { limit: limitCount = 50 } = body;
 
-    // Fetch bookings from Firestore
+    // Fetch bookings from Firestore - new structure: /users/{userId}/events/{eventId}/bookings
     const { collection, query, getDocs, orderBy, limit: limitQuery } = await import("firebase/firestore");
-    const bookingsRef = collection(db!, "users", user.uid, "bookings");
-    const q = query(
-      bookingsRef,
-      orderBy("createdAt", "desc"),
-      limitQuery(limitCount)
-    );
-
-    const snapshot = await getDocs(q);
-    const bookings = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-      createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || null,
-      updatedAt: doc.data().updatedAt?.toDate?.()?.toISOString() || null,
-    }));
+    
+    // Get all events for this user
+    const userEventsRef = collection(db!, "users", user.uid, "events");
+    const eventsSnapshot = await getDocs(userEventsRef);
+    
+    // Collect all bookings from all events
+    const allBookings: any[] = [];
+    
+    for (const eventDoc of eventsSnapshot.docs) {
+      const eventId = eventDoc.id;
+      const eventBookingsRef = collection(db!, "users", user.uid, "events", eventId, "bookings");
+      const eventBookingsQuery = query(
+        eventBookingsRef,
+        orderBy("createdAt", "desc")
+      );
+      const eventBookingsSnapshot = await getDocs(eventBookingsQuery);
+      
+      const eventBookings = eventBookingsSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        eventId: eventId,
+        ...doc.data(),
+        createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || null,
+        updatedAt: doc.data().updatedAt?.toDate?.()?.toISOString() || null,
+      }));
+      
+      allBookings.push(...eventBookings);
+    }
+    
+    // Sort all bookings by createdAt desc and limit
+    allBookings.sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return dateB - dateA;
+    });
+    
+    const bookings = allBookings.slice(0, limitCount);
 
     return NextResponse.json({
       success: true,

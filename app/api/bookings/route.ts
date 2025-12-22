@@ -292,15 +292,15 @@ export async function POST(request: NextRequest) {
       
       // Use Promise.all to save to all 3 paths simultaneously
       await Promise.all([
-        // 1. Save under user: /users/{userId}/bookings/{bookingId}
-        setDoc(doc(db, "users", userId, "bookings", bookingId), finalBookingData),
+        // 1. Save under user events: /users/{userId}/events/{eventId}/bookings/{bookingId}
+        setDoc(doc(db, "users", userId, "events", eventId, "bookings", bookingId), finalBookingData),
         // 2. Save under event: /events/{eventId}/bookings/{bookingId}
         setDoc(doc(db, "events", eventId, "bookings", bookingId), finalBookingData),
         // 3. Save in global bookings: /bookings/{bookingId} (for admin)
         setDoc(bookingRef, finalBookingData),
       ]);
 
-      console.log("✓ Saved to /users/{userId}/bookings/{bookingId}");
+      console.log("✓ Saved to /users/{userId}/events/{eventId}/bookings/{bookingId}");
       console.log("✓ Saved to /events/{eventId}/bookings/{bookingId}");
       console.log("✓ Saved to /bookings/{bookingId}");
       console.log("All 3 Firestore writes completed successfully");

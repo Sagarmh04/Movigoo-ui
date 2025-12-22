@@ -75,11 +75,12 @@ export async function POST(req: NextRequest) {
 
     // Save to Firestore in multiple locations
     const bookingRef = doc(db, "bookings", bookingId);
-    const userBookingRef = doc(db, "users", userId, "bookings", bookingId);
+    // Save to /users/{userId}/events/{eventId}/bookings/{bookingId}
+    const userEventBookingRef = doc(db, "users", userId, "events", eventId, "bookings", bookingId);
 
     await Promise.all([
       setDoc(bookingRef, bookingData),
-      setDoc(userBookingRef, bookingData),
+      setDoc(userEventBookingRef, bookingData),
     ]);
 
     console.log("Created pending booking:", bookingId);

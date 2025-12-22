@@ -177,8 +177,8 @@ export async function POST(req: NextRequest) {
     // Update in both locations
     await Promise.all([
       setDoc(bookingRef, updateData, { merge: true }),
-      existingBooking.userId && setDoc(
-        doc(db, "users", existingBooking.userId, "bookings", bookingId),
+      existingBooking.userId && existingBooking.eventId && setDoc(
+        doc(db, "users", existingBooking.userId, "events", existingBooking.eventId, "bookings", bookingId),
         updateData,
         { merge: true }
       ),
