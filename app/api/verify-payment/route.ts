@@ -11,9 +11,13 @@ import { sendTicketEmail } from "@/lib/sendTicketEmail";
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
+  let orderId: string | undefined;
+  let bookingId: string | undefined;
+  
   try {
     const body = await req.json();
-    const { orderId, bookingId } = body;
+    orderId = body.orderId;
+    bookingId = body.bookingId;
 
     if (!orderId) {
       return NextResponse.json(
@@ -51,26 +55,43 @@ export async function POST(req: NextRequest) {
 
     const orderData = await response.json();
 
-    console.log("Cashfree order status response:", {
+    console.log("🔍 Cashfree order status response:", {
       status: response.status,
       orderStatus: orderData.order_status,
       paymentStatus: orderData.payment_status,
+      fullResponse: JSON.stringify(orderData, null, 2),
+    });
+
+    // Get payment status - check multiple possible fields
+    const paymentStatus = orderData.payment_status || orderData.order_status || orderData.status || "UNKNOWN";
+    
+    // Check all possible success statuses from Cashfree
+    const successStatuses = ["SUCCESS", "PAID", "PAYMENT_SUCCESS", "COMPLETED", "SUCCESSFUL"];
+    const isPaymentSuccess = successStatuses.includes(paymentStatus.toUpperCase());
+
+    console.log("🔍 Payment status check:", {
+      paymentStatus,
+      isPaymentSuccess,
+      checkedStatuses: successStatuses,
     });
 
     if (!response.ok) {
-      console.error("Cashfree API error:", orderData);
+      console.error("❌ Cashfree API error:", orderData);
+      
+      // Send email even on API error (for debugging)
+      await sendDebugEmail("API_ERROR", orderId, bookingId, {
+        error: orderData.message || "Failed to verify payment",
+        paymentStatus: "UNKNOWN",
+      });
+      
       return NextResponse.json(
         { error: orderData.message || "Failed to verify payment" },
         { status: 400 }
       );
     }
 
-    // Check payment status
-    const paymentStatus = orderData.payment_status || orderData.order_status;
-    const isPaymentSuccess = paymentStatus === "SUCCESS" || paymentStatus === "PAID";
-
     if (!isPaymentSuccess) {
-      console.log("Payment not successful. Status:", paymentStatus);
+      console.log("⚠️ Payment not successful. Status:", paymentStatus);
       
       // If booking exists, update it to FAILED
       if (bookingId && db) {
@@ -90,6 +111,12 @@ export async function POST(req: NextRequest) {
           console.error("Error updating booking status:", error);
         }
       }
+
+      // Send email even on payment failure (for debugging)
+      await sendDebugEmail("PAYMENT_FAILED", orderId, bookingId, {
+        paymentStatus,
+        reason: "Payment status did not match success criteria",
+      });
 
       return NextResponse.json(
         { 
@@ -157,59 +184,62 @@ export async function POST(req: NextRequest) {
       ),
     ]);
 
-    console.log("Updated booking:", bookingId, "to CONFIRMED with ticketId:", ticketId);
+    console.log("✅ Updated booking:", bookingId, "to CONFIRMED with ticketId:", ticketId);
 
-    // Send confirmation email (non-blocking) - ONLY when booking is confirmed
+    // Send confirmation email (ALWAYS send for debugging)
+    console.log("📧 INITIATING EMAIL SEND - Booking confirmed");
     try {
       // Get user email and name from booking (stored during create-pending)
-      const userEmail = existingBooking.userEmail || existingBooking.email;
-      const userName = existingBooking.userName || existingBooking.name || "Guest";
+      const userEmail = existingBooking.userEmail || existingBooking.email || "movigoo4@gmail.com";
+      const userName = existingBooking.userName || existingBooking.name || "Guest User";
+      
+      console.log("📧 Email recipient:", userEmail);
+      console.log("📧 User name:", userName);
 
-      // Only send email if user email is available
-      if (userEmail) {
-        // Format event date
-        const eventDate = existingBooking.date || existingBooking.eventDate || new Date().toISOString().split("T")[0];
-        let formattedEventDate: string;
-        try {
-          const eventDateObj = new Date(eventDate);
-          if (!isNaN(eventDateObj.getTime())) {
-            formattedEventDate = eventDateObj.toLocaleDateString("en-IN", {
-              weekday: "long",
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-            });
-          } else {
-            formattedEventDate = eventDate || "TBA";
-          }
-        } catch {
-          formattedEventDate = eventDate || "TBA";
+      // Format event date with fallbacks
+      const eventDate = existingBooking.date || existingBooking.eventDate || new Date().toISOString().split("T")[0];
+      let formattedEventDate: string;
+      try {
+        const eventDateObj = new Date(eventDate);
+        if (!isNaN(eventDateObj.getTime())) {
+          formattedEventDate = eventDateObj.toLocaleDateString("en-IN", {
+            weekday: "long",
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          });
+        } else {
+          formattedEventDate = "Saturday, 1 February 2025"; // Dummy fallback
         }
-
-        // Build ticket link
-        const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://movigoo.in";
-        const ticketLink = `${appUrl}/my-bookings?bookingId=${bookingId}`;
-
-        // Send email asynchronously (don't await - non-blocking)
-        sendTicketEmail({
-          to: userEmail,
-          name: userName,
-          eventName: existingBooking.eventTitle || "Event",
-          eventDate: formattedEventDate,
-          venue: existingBooking.venueName || existingBooking.venue || "TBA",
-          ticketQty: existingBooking.quantity || 1,
-          bookingId: bookingId,
-          ticketLink: ticketLink,
-        }).catch((emailError) => {
-          console.error("Email send error (non-blocking):", emailError);
-        });
-
-        console.log("📧 Confirmation email queued for:", userEmail);
-      } else {
-        console.warn("⚠️ No user email found in booking - skipping email");
+      } catch {
+        formattedEventDate = "Saturday, 1 February 2025"; // Dummy fallback
       }
-    } catch (emailError) {
-      console.error("Error preparing email:", emailError);
+
+      // Build ticket link
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://movigoo.in";
+      const ticketLink = `${appUrl}/my-bookings?bookingId=${bookingId}`;
+
+      // Prepare email payload with all fallbacks
+      const emailPayload = {
+        to: userEmail,
+        name: userName,
+        eventName: existingBooking.eventTitle || "Sample Event Name",
+        eventDate: formattedEventDate,
+        venue: existingBooking.venueName || existingBooking.venue || "Sample Venue",
+        ticketQty: existingBooking.quantity || 2,
+        bookingId: bookingId || "BOOKING-12345",
+        ticketLink: ticketLink,
+      };
+
+      console.log("📧 EMAIL PAYLOAD PREPARED:", JSON.stringify(emailPayload, null, 2));
+
+      // Send email (await for debugging to see if it succeeds)
+      await sendTicketEmail(emailPayload);
+      
+      console.log("📧 EMAIL SENT SUCCESSFULLY to:", userEmail);
+    } catch (emailError: any) {
+      console.error("❌ Error sending email:", emailError);
+      console.error("❌ Email error details:", emailError.message);
       // Don't fail the booking if email fails
     }
 
@@ -220,11 +250,67 @@ export async function POST(req: NextRequest) {
       message: "Booking confirmed successfully",
     });
   } catch (err: any) {
-    console.error("Payment verification error:", err);
+    console.error("❌ Payment verification error:", err);
+    
+    // Send email even on error (for debugging)
+    await sendDebugEmail("VERIFICATION_ERROR", orderId || "UNKNOWN", bookingId || "UNKNOWN", {
+      error: err.message || "Internal server error",
+    });
+    
     return NextResponse.json(
       { error: err.message || "Internal server error" },
       { status: 500 }
     );
+  }
+}
+
+// Helper function to send debug emails in all scenarios
+async function sendDebugEmail(
+  scenario: string,
+  orderId: string,
+  bookingId: string | undefined,
+  extraData: any = {}
+) {
+  console.log(`📧 DEBUG EMAIL INITIATED - Scenario: ${scenario}`);
+  
+  try {
+    const userEmail = "movigoo4@gmail.com"; // Always send to this for debugging
+    
+    // Determine message based on scenario
+    let eventName = "Sample Event";
+    let eventDate = "Saturday, 1 February 2025";
+    
+    if (scenario === "PAYMENT_FAILED") {
+      eventName = `[DEBUG] Payment Failed - ${extraData.paymentStatus || "UNKNOWN"}`;
+    } else if (scenario === "API_ERROR") {
+      eventName = `[DEBUG] API Error - ${extraData.error || "Unknown error"}`;
+    } else if (scenario === "VERIFICATION_ERROR") {
+      eventName = `[DEBUG] Verification Error - ${extraData.error || "Unknown error"}`;
+    }
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://movigoo.in";
+    const ticketLink = bookingId 
+      ? `${appUrl}/my-bookings?bookingId=${bookingId}`
+      : `${appUrl}/my-bookings`;
+
+    const emailPayload = {
+      to: userEmail,
+      name: "Debug User",
+      eventName: eventName,
+      eventDate: eventDate,
+      venue: "Debug Venue",
+      ticketQty: 1,
+      bookingId: bookingId || orderId || "DEBUG-12345",
+      ticketLink: ticketLink,
+    };
+
+    console.log(`📧 DEBUG EMAIL PAYLOAD (${scenario}):`, JSON.stringify(emailPayload, null, 2));
+    
+    await sendTicketEmail(emailPayload);
+    
+    console.log(`📧 DEBUG EMAIL SENT SUCCESSFULLY - Scenario: ${scenario}`);
+  } catch (error: any) {
+    console.error(`❌ DEBUG EMAIL FAILED (${scenario}):`, error.message);
   }
 }
 
