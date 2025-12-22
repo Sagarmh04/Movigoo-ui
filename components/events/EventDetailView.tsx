@@ -127,23 +127,6 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
   const [bookings, setBookings] = useState<any[]>([]);
   const { user } = useAuth();
 
-  // Set default quantity to 1 for single ticket type
-  useEffect(() => {
-    if (hasSingleTicketType && availableTickets.length === 1 && !selectedTickets[availableTickets[0].id]) {
-      setSelectedTickets({ [availableTickets[0].id]: 1 });
-    }
-  }, [hasSingleTicketType, availableTickets, selectedTickets]);
-
-  // Handle quantity change for single ticket type
-  const handleQuantityChangeSingle = (delta: number) => {
-    if (hasSingleTicketType && availableTickets.length === 1) {
-      const ticket = availableTickets[0];
-      const currentQty = selectedTickets[ticket.id] || 1;
-      const newQty = Math.max(1, Math.min(currentQty + delta, ticket.maxPerOrder || 10));
-      setSelectedTickets({ [ticket.id]: newQty });
-    }
-  };
-
   // Fetch bookings for availability calculation (if single location)
   useEffect(() => {
     if (!hasSingleShow || !event.id || !db) return;
@@ -216,6 +199,23 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
       };
     });
   }, [hasSingleShow, eventData, bookedQuantities]);
+
+  // Set default quantity to 1 for single ticket type
+  useEffect(() => {
+    if (hasSingleTicketType && availableTickets.length === 1 && !selectedTickets[availableTickets[0].id]) {
+      setSelectedTickets({ [availableTickets[0].id]: 1 });
+    }
+  }, [hasSingleTicketType, availableTickets, selectedTickets]);
+
+  // Handle quantity change for single ticket type
+  const handleQuantityChangeSingle = (delta: number) => {
+    if (hasSingleTicketType && availableTickets.length === 1) {
+      const ticket = availableTickets[0];
+      const currentQty = selectedTickets[ticket.id] || 1;
+      const newQty = Math.max(1, Math.min(currentQty + delta, ticket.maxPerOrder || 10));
+      setSelectedTickets({ [ticket.id]: newQty });
+    }
+  };
 
   const selectedTicketsArray = useMemo(() => {
     return availableTickets
