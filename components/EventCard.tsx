@@ -1,13 +1,16 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Calendar, MapPin, Star } from "lucide-react";
+import { Users, Star } from "lucide-react";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "@/lib/firebaseClient";
 import { Event } from "@/types/event";
 import HostedBadge from "@/components/HostedBadge";
 import { Button } from "@/components/ui/button";
-import { cn, currencyFormatter, formatDateRange, truncate } from "@/lib/utils";
+import { cn, currencyFormatter, truncate } from "@/lib/utils";
 import { useFakeUser } from "@/hooks/useFakeUser";
 
 type EventCardProps = {
@@ -17,6 +20,28 @@ type EventCardProps = {
 const EventCard = ({ event }: EventCardProps) => {
   const { user } = useFakeUser();
   const isHosted = event.organizerId === user.id;
+  const [ageLimit, setAgeLimit] = useState<string>("All Ages");
+
+  // Fetch age limit from event data
+  useEffect(() => {
+    if (!event.id || !db) return;
+
+    async function fetchAgeLimit() {
+      if (!db) return;
+      try {
+        const eventDoc = await getDoc(doc(db, "events", event.id));
+        if (eventDoc.exists()) {
+          const eventData = eventDoc.data();
+          const ageLimitValue = eventData.basicDetails?.ageLimit || "All Ages";
+          setAgeLimit(ageLimitValue);
+        }
+      } catch (error) {
+        console.error("Error fetching age limit:", error);
+      }
+    }
+
+    fetchAgeLimit();
+  }, [event.id]);
 
   return (
     <motion.article
@@ -42,14 +67,6 @@ const EventCard = ({ event }: EventCardProps) => {
         </div>
       </Link>
       <div className="flex flex-1 flex-col gap-3 p-5 text-sm text-slate-300">
-        <div className="flex items-center gap-2 text-slate-200">
-          <Calendar size={16} className="text-accent-amber" />
-          {formatDateRange(event.dateStart, event.dateEnd)}
-        </div>
-        <div className="flex items-center gap-2">
-          <MapPin size={16} className="text-slate-400" />
-          {event.venue}
-        </div>
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.3em] text-slate-500">From</p>
@@ -57,12 +74,18 @@ const EventCard = ({ event }: EventCardProps) => {
               {currencyFormatter.format(event.priceFrom)}
             </p>
           </div>
-          {event.rating && (
-            <div className="flex items-center gap-1 rounded-full bg-white/10 px-3 py-1 text-xs text-amber-200">
-              <Star size={12} fill="#FCD34D" className="text-amber-300" />
-              {event.rating.toFixed(1)}
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1 text-xs text-slate-200">
+              <Users size={12} />
+              {ageLimit}
+            </span>
+            {event.rating && (
+              <div className="flex items-center gap-1 rounded-full bg-white/10 px-3 py-1 text-xs text-amber-200">
+                <Star size={12} fill="#FCD34D" className="text-amber-300" />
+                {event.rating.toFixed(1)}
+              </div>
+            )}
+          </div>
         </div>
       </div>
       <div className="flex items-center gap-2 border-t border-white/5 p-4">

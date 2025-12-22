@@ -5,13 +5,16 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import { Calendar, MapPin, ShieldCheck, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebaseClient";
 import HostedBadge from "@/components/HostedBadge";
 import { Event, TicketType } from "@/types/event";
 import { User } from "@/types/user";
 import { formatDateRange, currencyFormatter } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import TicketSelectionCard, { type TicketType as TicketTypeCard } from "@/components/booking/TicketSelectionCard";
+import { useAuth } from "@/hooks/useAuth";
+import { calculateBookingTotals, type TicketSelection } from "@/lib/bookingService";
 
 type EventDetailViewProps = {
   event: Event;
@@ -67,6 +70,225 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
   // Get age limit from event data
   const ageLimit = eventData?.basicDetails?.ageLimit || "All Ages";
 
+  // Get locations and format location display
+  const locations = useMemo(() => {
+    if (!eventData?.schedule?.locations) return [];
+    return eventData.schedule.locations;
+  }, [eventData]);
+
+  const locationDisplay = useMemo(() => {
+    if (locations.length === 0) return event.city || "TBA";
+    if (locations.length === 1) return locations[0].name;
+    return `${locations[0].name} + ${locations.length - 1} more`;
+  }, [locations, event.city]);
+
+  // Get all venues across all locations
+  const allVenues = useMemo(() => {
+    const venues: Array<{ locationName: string; venue: any }> = [];
+    locations.forEach((location: any) => {
+      if (Array.isArray(location.venues)) {
+        location.venues.forEach((venue: any) => {
+          venues.push({
+            locationName: location.name,
+            venue,
+          });
+        });
+      }
+    });
+    return venues;
+  }, [locations]);
+
+  // Check if event has only one location, one venue, and one show
+  const hasSingleLocation = locations.length === 1;
+  const hasSingleShow = useMemo(() => {
+    if (!hasSingleLocation || !eventData?.schedule?.locations) return false;
+    const location = eventData.schedule.locations[0];
+    const venues = location?.venues || [];
+    if (venues.length !== 1) return false;
+    const dates = venues[0]?.dates || [];
+    if (dates.length !== 1) return false;
+    const shows = dates[0]?.shows || [];
+    return shows.length === 1;
+  }, [hasSingleLocation, eventData]);
+
+  // Get tickets for single location
+  const [selectedTickets, setSelectedTickets] = useState<Record<string, number>>({});
+  const [bookings, setBookings] = useState<any[]>([]);
+  const { user } = useAuth();
+
+  // Fetch bookings for availability calculation (if single location)
+  useEffect(() => {
+    if (!hasSingleShow || !event.id || !db) return;
+
+    async function fetchBookings() {
+      if (!db || !eventData?.schedule?.locations) return;
+      try {
+        const location = eventData.schedule.locations[0];
+        const venue = location.venues[0];
+        const date = venue.dates[0];
+        const show = date.shows[0];
+
+        const bookingsRef = collection(db, "events", event.id, "bookings");
+        const q = query(
+          bookingsRef,
+          where("showId", "==", show.id),
+          where("paymentStatus", "==", "confirmed")
+        );
+        const snapshot = await getDocs(q);
+        setBookings(snapshot.docs.map(doc => doc.data()));
+      } catch (error) {
+        console.error("Error fetching bookings:", error);
+        setBookings([]);
+      }
+    }
+
+    fetchBookings();
+  }, [hasSingleShow, event.id, eventData]);
+
+  // Calculate booked quantities
+  const bookedQuantities = useMemo(() => {
+    const booked: Record<string, number> = {};
+    bookings.forEach((booking: any) => {
+      if (booking.items && Array.isArray(booking.items)) {
+        booking.items.forEach((item: any) => {
+          if (item.ticketTypeId && item.quantity) {
+            booked[item.ticketTypeId] = (booked[item.ticketTypeId] || 0) + item.quantity;
+          }
+        });
+      }
+    });
+    return booked;
+  }, [bookings]);
+
+  // Get tickets for single location
+  const availableTickets = useMemo((): TicketTypeCard[] => {
+    if (!hasSingleShow || !eventData?.tickets?.venueConfigs) return [];
+    
+    const location = eventData.schedule.locations[0];
+    const venue = location.venues[0];
+    const venueConfig = eventData.tickets.venueConfigs.find(
+      (vc: any) => vc.venueId === venue.id
+    );
+
+    if (!venueConfig?.ticketTypes) return [];
+
+    return venueConfig.ticketTypes.map((t: any): TicketTypeCard => {
+      const totalQuantity = typeof t.totalQuantity === "number" ? t.totalQuantity : 0;
+      const booked = bookedQuantities[t.id] || 0;
+      const available = Math.max(0, totalQuantity - booked);
+      const maxPerOrder = Math.min(available, 10);
+
+      return {
+        id: t.id,
+        typeName: t.typeName || t.name || "Ticket",
+        price: typeof t.price === "number" ? t.price : 0,
+        totalQuantity,
+        available,
+        maxPerOrder,
+      };
+    });
+  }, [hasSingleShow, eventData, bookedQuantities]);
+
+  const selectedTicketsArray = useMemo(() => {
+    return availableTickets
+      .filter((t: TicketTypeCard) => selectedTickets[t.id] > 0)
+      .map((t: TicketTypeCard) => ({
+        ticketId: t.id,
+        typeName: t.typeName,
+        quantity: selectedTickets[t.id],
+        price: t.price,
+      }));
+  }, [availableTickets, selectedTickets]);
+
+  const { subtotal, bookingFee, total } = useMemo(() => {
+    const ticketSelections: TicketSelection[] = selectedTicketsArray.map((t) => ({
+      ticketTypeId: t.ticketId,
+      ticketName: t.typeName,
+      quantity: t.quantity,
+      price: t.price,
+    }));
+    return calculateBookingTotals(ticketSelections);
+  }, [selectedTicketsArray]);
+
+  const handleProceedToPayment = async () => {
+    if (selectedTicketsArray.length === 0) {
+      alert("Please select at least one ticket");
+      return;
+    }
+
+    if (!user || !user.uid) {
+      alert("Please login to continue");
+      return;
+    }
+
+    if (!hasSingleShow || !eventData?.schedule?.locations) return;
+
+    const location = eventData.schedule.locations[0];
+    const venue = location.venues[0];
+    const date = venue.dates[0];
+    const show = date.shows[0];
+
+    try {
+      // Create pending booking
+      const bookingPayload = {
+        userId: user.uid,
+        userName: (user as any).displayName || (user as any).email?.split("@")[0] || "Guest",
+        eventId: event.id,
+        eventTitle: event.title,
+        coverUrl: event.coverWide || "",
+        venueName: venue.name,
+        date: date.date,
+        time: show.startTime,
+        ticketType: selectedTicketsArray.map((t) => `${t.typeName} (${t.quantity})`).join(", "),
+        quantity: selectedTicketsArray.reduce((sum, t) => sum + t.quantity, 0),
+        price: subtotal,
+        bookingFee: bookingFee,
+        totalAmount: total,
+        items: selectedTicketsArray.map((t) => ({
+          ticketTypeId: t.ticketId,
+          quantity: t.quantity,
+          price: t.price,
+        })),
+        userEmail: (user as any).email || null,
+        locationId: location.id,
+        locationName: location.name,
+        venueId: venue.id,
+        dateId: date.id,
+        showId: show.id,
+        showTime: show.startTime,
+        showEndTime: show.endTime,
+        venueAddress: venue.address || null,
+      };
+
+      const bookingResponse = await fetch("/api/bookings/create-pending", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(bookingPayload),
+      });
+
+      const bookingResult = await bookingResponse.json();
+
+      if (!bookingResponse.ok || !bookingResult.bookingId) {
+        alert("Failed to create booking. Please try again.");
+        return;
+      }
+
+      // Redirect to Cashfree payment
+      const paymentParams = new URLSearchParams({
+        bookingId: bookingResult.bookingId,
+        amount: total.toString(),
+        email: (user as any).email || "",
+        name: (user as any).displayName || (user as any).email?.split("@")[0] || "",
+        phone: (user as any).phoneNumber || "",
+      });
+
+      router.push(`/payment?${paymentParams.toString()}`);
+    } catch (error: any) {
+      console.error("Error creating booking:", error);
+      alert("Failed to create booking. Please try again.");
+    }
+  };
+
   return (
     <div className="mx-auto max-w-md space-y-4 px-4 pb-24 sm:max-w-none sm:space-y-6 sm:px-0 sm:pb-6 lg:space-y-10">
       {/* 1. Event Title & Cover Image */}
@@ -80,7 +302,7 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
           <div className="absolute inset-0 bg-gradient-to-r from-slate-950/80 via-slate-950/50 to-transparent" />
           <div className="relative z-10 flex h-full flex-col justify-center gap-3 p-6 text-white sm:gap-4 sm:p-10">
             {isHosted && <HostedBadge />}
-            <p className="text-xs uppercase tracking-[0.5em] text-slate-300">{event.city}</p>
+            <p className="text-xs uppercase tracking-[0.5em] text-slate-300">{locationDisplay}</p>
             <h1 className="text-2xl font-semibold sm:text-4xl">{event.title}</h1>
             <p className="max-w-2xl text-sm text-slate-200 sm:text-lg">{event.description}</p>
             <div className="flex flex-wrap gap-2 text-xs text-slate-200 sm:gap-4 sm:text-sm">
@@ -113,15 +335,55 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
         </div>
       </motion.section>
 
-      {/* Mobile Order: Book Now Button → Details */}
+      {/* Mobile Order: Ticket Selection (if single location) or Book Now Button → Details */}
       <div className="block lg:hidden space-y-4">
-        {/* 2. Book Now Button (Mobile) */}
-        <Button
-          onClick={() => router.push(`/event/${event.id}/tickets`)}
-          className="w-full rounded-2xl bg-[#0B62FF] py-6 text-base font-semibold hover:bg-[#0A5AE6]"
-        >
-          Book Now
-        </Button>
+        {/* 2. Ticket Selection (if single location) or Book Now Button (Mobile) */}
+        {hasSingleShow && availableTickets.length > 0 ? (
+          <section className="space-y-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+            <h3 className="text-lg font-semibold text-white">Select Tickets</h3>
+            <div className="space-y-3">
+              {availableTickets.map((ticket) => (
+                <TicketSelectionCard
+                  key={ticket.id}
+                  ticket={ticket}
+                  quantity={selectedTickets[ticket.id] || 0}
+                  onQuantityChange={(id, qty) => {
+                    setSelectedTickets((prev) => ({ ...prev, [id]: qty }));
+                  }}
+                />
+              ))}
+            </div>
+            {selectedTicketsArray.length > 0 && (
+              <div className="space-y-3 pt-4 border-t border-white/10">
+                <div className="flex justify-between text-sm text-slate-300">
+                  <span>Subtotal</span>
+                  <span>{currencyFormatter.format(subtotal)}</span>
+                </div>
+                <div className="flex justify-between text-sm text-slate-300">
+                  <span>Booking Fee</span>
+                  <span>{currencyFormatter.format(bookingFee)}</span>
+                </div>
+                <div className="flex justify-between text-lg font-bold text-white pt-2 border-t border-white/10">
+                  <span>Total</span>
+                  <span className="text-[#0B62FF]">{currencyFormatter.format(total)}</span>
+                </div>
+                <Button
+                  onClick={handleProceedToPayment}
+                  className="w-full rounded-2xl bg-[#0B62FF] py-6 text-base font-semibold hover:bg-[#0A5AE6]"
+                >
+                  Proceed to Payment
+                </Button>
+              </div>
+            )}
+          </section>
+        ) : (
+          <Button
+            onClick={() => router.push(`/event/${event.id}/tickets`)}
+            className="w-full rounded-2xl bg-[#0B62FF] py-6 text-base font-semibold hover:bg-[#0A5AE6]"
+          >
+            Book Now
+          </Button>
+        )}
 
         {/* 3. Organizer Section (Mobile) */}
         <section className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
@@ -129,7 +391,6 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
             <div>
               <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Organizer</p>
               <p className="text-base font-semibold text-white">{organizer.name}</p>
-              <p className="text-xs text-slate-400">{organizer.email}</p>
             </div>
             <div className="rounded-2xl border border-white/10 px-3 py-1.5 text-xs text-slate-300">
               <ShieldCheck size={14} className="inline text-emerald-400" />
@@ -137,6 +398,29 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
             </div>
           </div>
         </section>
+
+        {/* Venues Section (Mobile) */}
+        {allVenues.length > 0 && (
+          <section className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+            <p className="text-sm font-semibold text-white">Venues</p>
+            <div className="space-y-2">
+              {allVenues.map((item, index) => (
+                <div key={index} className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 p-3">
+                  <MapPin size={16} className="text-[#0B62FF]" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-white">{item.venue.name}</p>
+                    {item.venue.address && (
+                      <p className="text-xs text-slate-400">{item.venue.address}</p>
+                    )}
+                  </div>
+                  <span className="rounded-full bg-[#0B62FF]/20 px-2 py-1 text-xs text-[#0B62FF]">
+                    {item.locationName}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* 4. Gallery Section (Mobile) */}
         <section className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
@@ -181,7 +465,6 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
               <div>
                 <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Organizer</p>
                 <p className="text-xl font-semibold text-white">{organizer.name}</p>
-                <p className="text-sm text-slate-400">{organizer.email}</p>
               </div>
               <div className="rounded-2xl border border-white/10 px-4 py-2 text-sm text-slate-300">
                 <ShieldCheck size={16} className="inline text-emerald-400" />
@@ -189,6 +472,29 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
               </div>
             </div>
           </section>
+
+          {/* Venues Section (Desktop) */}
+          {allVenues.length > 0 && (
+            <section className="space-y-4 rounded-3xl border border-white/10 bg-white/5 p-6">
+              <p className="text-lg font-semibold text-white">Venues</p>
+              <div className="space-y-3">
+                {allVenues.map((item, index) => (
+                  <div key={index} className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-4">
+                    <MapPin size={18} className="text-[#0B62FF]" />
+                    <div className="flex-1">
+                      <p className="text-base font-medium text-white">{item.venue.name}</p>
+                      {item.venue.address && (
+                        <p className="text-sm text-slate-400">{item.venue.address}</p>
+                      )}
+                    </div>
+                    <span className="rounded-full bg-[#0B62FF]/20 px-3 py-1.5 text-sm text-[#0B62FF]">
+                      {item.locationName}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           <section className="space-y-4 rounded-3xl border border-white/10 bg-white/5 p-6">
             <p className="text-lg font-semibold text-white">Gallery</p>
@@ -221,14 +527,54 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
             </div>
           </section>
         </div>
-        {/* Desktop: Book Now Button */}
+        {/* Desktop: Ticket Selection (if single location) or Book Now Button */}
         <div>
-          <Button
-            onClick={() => router.push(`/event/${event.id}/tickets`)}
-            className="w-full rounded-2xl bg-[#0B62FF] py-6 text-lg font-semibold hover:bg-[#0A5AE6] sticky top-20"
-          >
-            Book Now
-          </Button>
+          {hasSingleShow && availableTickets.length > 0 ? (
+            <section className="space-y-4 rounded-2xl border border-white/10 bg-white/5 p-6 sticky top-20">
+              <h3 className="text-lg font-semibold text-white">Select Tickets</h3>
+              <div className="space-y-3">
+                {availableTickets.map((ticket) => (
+                  <TicketSelectionCard
+                    key={ticket.id}
+                    ticket={ticket}
+                    quantity={selectedTickets[ticket.id] || 0}
+                    onQuantityChange={(id, qty) => {
+                      setSelectedTickets((prev) => ({ ...prev, [id]: qty }));
+                    }}
+                  />
+                ))}
+              </div>
+              {selectedTicketsArray.length > 0 && (
+                <div className="space-y-3 pt-4 border-t border-white/10">
+                  <div className="flex justify-between text-sm text-slate-300">
+                    <span>Subtotal</span>
+                    <span>{currencyFormatter.format(subtotal)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-slate-300">
+                    <span>Booking Fee</span>
+                    <span>{currencyFormatter.format(bookingFee)}</span>
+                  </div>
+                  <div className="flex justify-between text-lg font-bold text-white pt-2 border-t border-white/10">
+                    <span>Total</span>
+                    <span className="text-[#0B62FF]">{currencyFormatter.format(total)}</span>
+                  </div>
+                  <Button
+                    onClick={handleProceedToPayment}
+                    className="w-full rounded-2xl bg-[#0B62FF] py-6 text-base font-semibold hover:bg-[#0A5AE6]"
+                  >
+                    Proceed to Payment
+                  </Button>
+                </div>
+              )}
+            </section>
+          ) : (
+            <Button
+              onClick={() => router.push(`/event/${event.id}/tickets`)}
+              className="w-full rounded-2xl bg-[#0B62FF] py-6 text-lg font-semibold hover:bg-[#0A5AE6] sticky top-20"
+            >
+              Book Now
+            </Button>
+          )}
         </div>
       </div>
     </div>

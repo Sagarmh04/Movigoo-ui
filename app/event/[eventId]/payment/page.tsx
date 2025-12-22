@@ -1,13 +1,12 @@
-// app/event/[eventId]/payment/page.tsx - STEP 4: Payment Screen
+// app/event/[eventId]/payment/page.tsx - STEP 4: Payment Screen (Cashfree)
 "use client";
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Script from "next/script";
 import StepIndicator from "@/components/booking/StepIndicator";
-import PaymentSimulator from "@/components/booking/PaymentSimulator";
-import { getBookingState, type BookingState, clearBookingState } from "@/lib/bookingState";
+import { getBookingState, type BookingState } from "@/lib/bookingState";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
-import api from "@/lib/api";
 
 export default function PaymentPage({ params }: { params: { eventId: string } }) {
   const router = useRouter();
@@ -25,81 +24,93 @@ export default function PaymentPage({ params }: { params: { eventId: string } })
     setBooking(state as BookingState);
   }, [params.eventId, router]);
 
-  const handlePaymentSuccess = async () => {
-    if (!booking) {
-      console.error("Missing booking data");
-      return;
-    }
+  useEffect(() => {
+    if (!booking || !user || !user.id || isProcessing) return;
 
-    if (!user || !user.id) {
-      alert("Please login to complete booking");
-      router.push(`/event/${params.eventId}/review`);
-      return;
-    }
+    // Redirect to Cashfree payment
+    const initiatePayment = async () => {
+      try {
+        setIsProcessing(true);
 
-    try {
-      setIsProcessing(true);
+        // Extract date and time from show selection or fallback to event
+        const showSelection = booking.showSelection;
+        const eventDate = showSelection
+          ? showSelection.date
+          : new Date(booking.dateStart).toISOString().split("T")[0];
+        const eventTime = showSelection
+          ? showSelection.startTime
+          : new Date(booking.dateStart).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-      // Extract date and time from show selection or fallback to event
-      const showSelection = booking.showSelection;
-      const eventDate = showSelection
-        ? showSelection.date
-        : new Date(booking.dateStart).toISOString().split("T")[0];
-      const eventTime = showSelection
-        ? showSelection.startTime
-        : new Date(booking.dateStart).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        // Create pending booking first
+        const userDisplayName = (user as any).name || (user as any).email || (user as any).displayName || null;
+        const bookingPayload = {
+          userId: user.id,
+          userName: userDisplayName,
+          eventId: booking.eventId,
+          eventTitle: booking.eventName,
+          coverUrl: booking.eventImage,
+          venueName: showSelection?.venueName || booking.venue,
+          date: eventDate,
+          time: eventTime,
+          ticketType: booking.tickets.map((t) => `${t.typeName} (${t.quantity})`).join(", "),
+          quantity: booking.tickets.reduce((sum, t) => sum + t.quantity, 0),
+          price: booking.tickets.reduce((sum, t) => sum + t.price * t.quantity, 0),
+          bookingFee: booking.bookingFee,
+          totalAmount: booking.totalAmount,
+          items: booking.tickets.map((t) => ({
+            ticketTypeId: t.ticketId,
+            quantity: t.quantity,
+            price: t.price,
+          })),
+          userEmail: (user as any).email || null,
+          // Show selection metadata
+          locationId: showSelection?.locationId || null,
+          locationName: showSelection?.locationName || booking.city || null,
+          venueId: showSelection?.venueId || null,
+          dateId: showSelection?.dateId || null,
+          showId: showSelection?.showId || null,
+          showTime: showSelection?.startTime || eventTime,
+          showEndTime: showSelection?.endTime || null,
+          venueAddress: showSelection?.venueAddress || null,
+        };
 
-      // Prepare booking payload for API
-      const userDisplayName = (user as any).name || (user as any).email || (user as any).displayName || null;
-      const bookingPayload = {
-        userId: user.id,
-        userName: userDisplayName,
-        eventId: booking.eventId,
-        eventTitle: booking.eventName,
-        coverUrl: booking.eventImage,
-        venueName: showSelection?.venueName || booking.venue,
-        date: eventDate,
-        time: eventTime,
-        ticketType: booking.tickets.map((t) => `${t.typeName} (${t.quantity})`).join(", "),
-        quantity: booking.tickets.reduce((sum, t) => sum + t.quantity, 0),
-        price: booking.tickets.reduce((sum, t) => sum + t.price * t.quantity, 0),
-        bookingFee: booking.bookingFee,
-        totalAmount: booking.totalAmount,
-        // Show selection metadata
-        locationId: showSelection?.locationId || null,
-        locationName: showSelection?.locationName || booking.city || null,
-        venueId: showSelection?.venueId || null,
-        dateId: showSelection?.dateId || null,
-        showId: showSelection?.showId || null,
-        showTime: showSelection?.startTime || eventTime,
-        showEndTime: showSelection?.endTime || null,
-        venueAddress: showSelection?.venueAddress || null,
-      };
+        console.log("Creating pending booking...");
+        const bookingResponse = await fetch("/api/bookings/create-pending", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(bookingPayload),
+        });
 
-      console.log("Booking payload:", bookingPayload);
-      console.log("Calling /api/bookings");
+        const bookingResult = await bookingResponse.json();
 
-      // Call API route
-      const response = await api.post("/api/bookings", bookingPayload);
+        if (!bookingResponse.ok || !bookingResult.bookingId) {
+          console.error("Failed to create pending booking:", bookingResult);
+          alert("Failed to create booking. Please try again.");
+          setIsProcessing(false);
+          return;
+        }
 
-      console.log("Booking API response:", response.data);
+        console.log("Pending booking created:", bookingResult.bookingId);
 
-      if (!response.data.ok) {
-        throw new Error(response.data.error || "Booking failed");
+        // Redirect to Cashfree payment page
+        const paymentParams = new URLSearchParams({
+          bookingId: bookingResult.bookingId,
+          amount: booking.totalAmount.toString(),
+          email: (user as any).email || "",
+          name: userDisplayName || "",
+          phone: (user as any).phoneNumber || "",
+        });
+
+        router.push(`/payment?${paymentParams.toString()}`);
+      } catch (error: any) {
+        console.error("Error initiating payment:", error);
+        alert("Failed to initiate payment. Please try again.");
+        setIsProcessing(false);
       }
+    };
 
-      // Clear booking state
-      clearBookingState();
-
-      // Navigate to success page
-      router.push(`/booking/success?bookingId=${response.data.bookingId}`);
-    } catch (error: any) {
-      console.error("Error creating booking:", error);
-      const errorMessage = error.response?.data?.error || error.message || "Failed to create booking. Please try again.";
-      alert(errorMessage);
-      setIsProcessing(false);
-    }
-  };
+    initiatePayment();
+  }, [booking, user, router, isProcessing]);
 
   if (!booking) {
     return (
@@ -120,14 +131,14 @@ export default function PaymentPage({ params }: { params: { eventId: string } })
           <StepIndicator currentStep={3} />
         </div>
 
-        {/* Payment Simulator */}
+        {/* Payment Loading */}
         <div className="flex-1 space-y-6 overflow-y-auto pb-4">
-          <h2 className="text-2xl font-semibold text-white">Complete Payment</h2>
-          <PaymentSimulator 
-            totalAmount={booking.totalAmount} 
-            onPaymentSuccess={handlePaymentSuccess}
-            isProcessing={isProcessing}
-          />
+          <h2 className="text-2xl font-semibold text-white">Redirecting to Payment</h2>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center">
+            <div className="mb-4 h-12 w-12 animate-spin rounded-full border-4 border-[#0B62FF] border-t-transparent mx-auto" />
+            <p className="text-slate-300">Preparing your payment...</p>
+            <p className="text-sm text-slate-400 mt-2">You will be redirected to Cashfree checkout shortly</p>
+          </div>
         </div>
       </div>
     </div>

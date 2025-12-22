@@ -234,13 +234,31 @@ export async function POST(req: NextRequest) {
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://movigoo.in";
       const ticketLink = `${appUrl}/my-bookings?bookingId=${bookingId}`;
 
+      // Format event time with show details
+      const showTime = existingBooking.showTime || existingBooking.time || null;
+      const showEndTime = existingBooking.showEndTime || null;
+      let formattedEventTime: string | undefined;
+      if (showTime) {
+        if (showEndTime) {
+          formattedEventTime = `${showTime} - ${showEndTime}`;
+        } else {
+          formattedEventTime = showTime;
+        }
+      }
+
+      // Get venue with address if available
+      const venueName = existingBooking.venueName || existingBooking.venue || "Sample Venue";
+      const venueAddress = existingBooking.venueAddress || null;
+      const venueDisplay = venueAddress ? `${venueName}, ${venueAddress}` : venueName;
+
       // Prepare email payload with all fallbacks
       const emailPayload = {
         to: userEmail,
         name: userName,
         eventName: existingBooking.eventTitle || "Sample Event Name",
         eventDate: formattedEventDate,
-        venue: existingBooking.venueName || existingBooking.venue || "Sample Venue",
+        eventTime: formattedEventTime,
+        venue: venueDisplay,
         ticketQty: existingBooking.quantity || 2,
         bookingId: bookingId || "BOOKING-12345",
         ticketLink: ticketLink,
