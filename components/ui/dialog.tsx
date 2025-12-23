@@ -31,17 +31,20 @@ const DialogContent = ({ className, children, ...props }: ContentProps) => (
     <DialogPrimitive.Content
       {...props}
       className={cn(
-        // Centered positioning
+        // Centered positioning with better viewport handling
         "fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2",
-        // Mobile layout
-        "w-[90vw] max-w-[360px]",
-        "max-h-[85vh]",
+        // Mobile layout - ensure it fits on screen
+        "w-[calc(100vw-2rem)] max-w-[380px]",
+        "max-h-[90vh]",
+        "my-4",
         "overflow-y-auto overflow-x-hidden",
         "rounded-2xl border border-white/10 bg-slate-900/95",
-        "p-4 shadow-2xl backdrop-blur-3xl",
+        "p-5 shadow-2xl backdrop-blur-3xl",
         "box-border",
         // Desktop layout
-        "sm:w-[420px] sm:max-w-[420px] sm:p-6",
+        "sm:w-[440px] sm:max-w-[440px] sm:p-6",
+        // Ensure it stays within viewport
+        "sm:max-h-[88vh]",
         // Content constraints
         "[&>*]:max-w-full [&>*]:box-border [&>*]:break-words",
         className
@@ -54,7 +57,7 @@ const DialogContent = ({ className, children, ...props }: ContentProps) => (
         exit={{ opacity: 0, scale: 0.96 }}
         transition={{ duration: 0.25, ease: "easeOut" }}
         onClick={(e) => e.stopPropagation()}
-        className="w-full h-full max-w-full box-border"
+        className="w-full max-w-full box-border flex flex-col"
         style={{ 
           maxWidth: '100%',
           wordWrap: 'break-word',
