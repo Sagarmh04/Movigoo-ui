@@ -1,12 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Event } from "@/types/event";
 import { Button } from "@/components/ui/button";
 import EventCard from "@/components/EventCard";
-import { ArrowRight, PlayCircle, BarChart3, Users, Calendar, Zap, Shield, TrendingUp, Clock, Sparkles } from "lucide-react";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { ArrowRight, PlayCircle, BarChart3, Users, Calendar, Zap, Shield, TrendingUp, Clock, Sparkles, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type HomeLandingProps = {
@@ -24,6 +26,7 @@ const heroPosters = [
 const HomeLanding = ({ featuredEvents, searchQuery = "", isSearching = false }: HomeLandingProps) => {
   // Show first 5 events for featured section (or all search results if searching)
   const featured = isSearching ? featuredEvents : featuredEvents.slice(0, 5);
+  const [isOrganizerModalOpen, setIsOrganizerModalOpen] = useState(false);
 
   return (
     <div className="space-y-16">
@@ -124,68 +127,78 @@ const HomeLanding = ({ featuredEvents, searchQuery = "", isSearching = false }: 
         </motion.div>
       </section>
 
-      {/* Host Section - Simple */}
-      <section className="relative rounded-[40px] border border-white/10 bg-gradient-to-br from-[#0B62FF]/20 via-purple-900/30 to-slate-900/50 p-8 backdrop-blur-3xl shadow-[0_40px_120px_rgba(11,98,255,0.3)] lg:p-12">
-        <div className="space-y-8">
-          {/* Header */}
-          <div className="flex flex-wrap items-center justify-between gap-6">
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Sparkles className="text-[#0B62FF]" size={24} />
-                <p className="text-xs uppercase tracking-[0.5em] text-[#0B62FF] font-semibold">For Organizers</p>
-              </div>
-              <h2 className="text-3xl font-bold text-white sm:text-4xl lg:text-5xl">
-                Would you like to host?
-              </h2>
-              <p className="text-lg text-slate-200 max-w-2xl">
-                Create and manage events effortlessly. Host an event in just 5 minutes with our powerful platform.
-              </p>
-            </div>
-            <Button size="lg" className="rounded-full bg-[#0B62FF] px-8 py-6 text-base font-semibold hover:bg-[#0A5AE6] shadow-lg shadow-[#0B62FF]/50" asChild>
-              <Link href="/profile">
-                Start Hosting
-                <ArrowRight className="ml-2" size={20} />
-              </Link>
-            </Button>
+      {/* Compact Organizer Section */}
+      <section className="relative rounded-[40px] border border-white/10 bg-gradient-to-br from-[#0B62FF]/20 via-purple-900/30 to-slate-900/50 p-6 backdrop-blur-3xl shadow-[0_40px_120px_rgba(11,98,255,0.3)] lg:p-8">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="space-y-2 flex-1">
+            <p className="text-xs uppercase tracking-[0.5em] text-[#0B62FF] font-semibold">For Organizers</p>
+            <h2 className="text-2xl font-bold text-white sm:text-3xl">
+              Would you like to host?
+            </h2>
+            <p className="text-base text-slate-200">
+              Create and manage events effortlessly. Host an event in just 5 minutes.
+            </p>
           </div>
-
-          {/* Feature Tags */}
-          <div className="flex flex-wrap gap-3">
-            {[
-              { label: "Host in 5 mins", icon: Clock, color: "from-emerald-500/20 to-emerald-600/20 border-emerald-500/30" },
-              { label: "Real-time Analytics", icon: BarChart3, color: "from-blue-500/20 to-blue-600/20 border-blue-500/30" },
-              { label: "Multiple Events", icon: Calendar, color: "from-purple-500/20 to-purple-600/20 border-purple-500/30" },
-              { label: "Volunteer Support", icon: Users, color: "from-amber-500/20 to-amber-600/20 border-amber-500/30" },
-              { label: "Live Updates", icon: Zap, color: "from-yellow-500/20 to-yellow-600/20 border-yellow-500/30" },
-              { label: "Secure Platform", icon: Shield, color: "from-green-500/20 to-green-600/20 border-green-500/30" },
-            ].map((tag) => (
-              <div
-                key={tag.label}
-                className={`rounded-full border bg-gradient-to-r ${tag.color} px-4 py-2 backdrop-blur-sm`}
-              >
-                <div className="flex items-center gap-2">
-                  <tag.icon size={16} className="text-white/90" />
-                  <span className="text-sm font-medium text-white">{tag.label}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* CTA Section */}
-          <div className="flex flex-wrap items-center justify-between gap-6 rounded-3xl border border-[#0B62FF]/30 bg-gradient-to-r from-[#0B62FF]/10 to-purple-500/10 p-6 backdrop-blur-sm">
-            <div>
-              <p className="text-lg font-semibold text-white mb-1">Ready to host your first event?</p>
-              <p className="text-sm text-slate-300">Join thousands of organizers already using Movigoo</p>
-            </div>
-            <Button size="lg" className="rounded-full bg-white text-[#0e2144] px-8 py-6 font-semibold hover:bg-slate-100 shadow-lg" asChild>
-              <Link href="/profile">
-                Get Started Now
-                <ArrowRight className="ml-2" size={20} />
-              </Link>
-            </Button>
-          </div>
+          <Button 
+            size="lg" 
+            className="rounded-full bg-[#0B62FF] px-6 py-5 text-base font-semibold hover:bg-[#0A5AE6] shadow-lg shadow-[#0B62FF]/50 whitespace-nowrap" 
+            onClick={() => setIsOrganizerModalOpen(true)}
+          >
+            Start Hosting
+            <ArrowRight className="ml-2" size={18} />
+          </Button>
         </div>
       </section>
+
+      {/* Organizer Modal */}
+      <Dialog open={isOrganizerModalOpen} onOpenChange={setIsOrganizerModalOpen}>
+        <DialogContent className="max-w-md w-[calc(100%-2rem)] sm:w-full">
+          <div className="space-y-6 pt-2">
+            <div className="space-y-2">
+              <DialogTitle className="text-2xl font-bold text-white">
+                Ready to host your first event?
+              </DialogTitle>
+              <p className="text-slate-300 text-sm leading-relaxed">
+                Everything you need to launch and manage events effortlessly.
+              </p>
+            </div>
+
+            {/* Feature List */}
+            <div className="space-y-3">
+              {[
+                { label: "Host in 5 minutes", icon: Clock },
+                { label: "Real-time analytics", icon: BarChart3 },
+                { label: "Multiple events support", icon: Calendar },
+                { label: "Volunteer support", icon: Users },
+                { label: "Live updates", icon: Zap },
+                { label: "Secure payments", icon: Shield },
+              ].map((feature) => (
+                <div key={feature.label} className="flex items-center gap-3 text-slate-200">
+                  <feature.icon size={18} className="text-[#0B62FF] flex-shrink-0" />
+                  <span className="text-sm">{feature.label}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* CTA Section */}
+            <div className="space-y-4 pt-4 border-t border-white/10">
+              <p className="text-sm text-slate-300 text-center">
+                Join thousands of organizers already using Movigoo
+              </p>
+              <Button 
+                size="lg" 
+                className="w-full rounded-full bg-white text-[#0e2144] py-6 font-semibold hover:bg-slate-100 shadow-lg" 
+                onClick={() => {
+                  window.location.href = "https://corporate.movigoo.in";
+                }}
+              >
+                Get started now
+                <ArrowRight className="ml-2" size={20} />
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

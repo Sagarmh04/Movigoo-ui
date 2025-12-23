@@ -31,12 +31,13 @@ const DialogContent = ({ className, children, ...props }: ContentProps) => (
       <DialogOverlay />
       <DialogPrimitive.Content asChild {...props}>
         <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          transition={{ duration: 0.2, ease: "easeOut" }}
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          transition={{ duration: 0.3, ease: "easeOut" }}
           className={cn(
-            "fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-3xl border border-white/10 bg-slate-900/90 p-6 shadow-2xl backdrop-blur-3xl",
+            "fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-3xl border border-white/10 bg-slate-900/95 p-6 shadow-2xl backdrop-blur-3xl",
+            "max-h-[90vh] overflow-y-auto",
             className
           )}
         >
