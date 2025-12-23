@@ -152,19 +152,20 @@ const HomeLanding = ({ featuredEvents, searchQuery = "", isSearching = false }: 
 
       {/* Organizer Modal - Only opens on button click */}
       <Dialog open={isOrganizerModalOpen} onOpenChange={setIsOrganizerModalOpen}>
-        <DialogContent className="max-h-[90vh] sm:max-h-[88vh]">
-          <div className="space-y-3 pt-1">
-            <div className="space-y-1.5">
-              <DialogTitle className="text-lg sm:text-xl font-bold text-white break-words leading-tight">
+        <DialogContent>
+          <div className="space-y-4 pr-6 sm:pr-0">
+            {/* Header */}
+            <div className="space-y-2">
+              <DialogTitle className="text-base sm:text-xl font-bold text-white leading-tight pr-4">
                 Ready to host your first event?
               </DialogTitle>
-              <p className="text-slate-300 text-xs sm:text-sm leading-relaxed break-words">
+              <p className="text-slate-300 text-xs sm:text-sm leading-relaxed">
                 Everything you need to launch and manage events effortlessly.
               </p>
             </div>
 
-            {/* Feature List - Compact Grid */}
-            <div className="grid grid-cols-2 gap-2 sm:gap-2.5 py-1">
+            {/* Feature List - Responsive Grid */}
+            <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 sm:gap-3">
               {[
                 { label: "Host in 5 min", icon: Clock },
                 { label: "Real-time analytics", icon: BarChart3 },
@@ -173,21 +174,21 @@ const HomeLanding = ({ featuredEvents, searchQuery = "", isSearching = false }: 
                 { label: "Live updates", icon: Zap },
                 { label: "Secure payments", icon: Shield },
               ].map((feature) => (
-                <div key={feature.label} className="flex items-center gap-2 text-slate-200">
-                  <feature.icon size={14} className="text-[#0B62FF] flex-shrink-0" />
-                  <span className="text-xs sm:text-sm break-words leading-tight">{feature.label}</span>
+                <div key={feature.label} className="flex items-start gap-2 text-slate-200">
+                  <feature.icon size={16} className="text-[#0B62FF] flex-shrink-0 mt-0.5" />
+                  <span className="text-xs sm:text-sm leading-snug">{feature.label}</span>
                 </div>
               ))}
             </div>
 
             {/* CTA Section */}
             <div className="space-y-2.5 pt-2 border-t border-white/10">
-              <p className="text-xs text-slate-300 text-center break-words">
+              <p className="text-xs text-slate-300 text-center">
                 Join thousands of organizers already using Movigoo
               </p>
               <Button 
                 size="lg" 
-                className="w-full rounded-full bg-white text-[#0e2144] h-11 sm:h-12 text-sm sm:text-base font-semibold hover:bg-slate-100 shadow-lg" 
+                className="w-full rounded-full bg-white text-[#0e2144] h-11 sm:h-12 text-sm sm:text-base font-semibold hover:bg-slate-100 shadow-lg active:scale-[0.98] transition-transform" 
                 onClick={() => {
                   window.location.href = "https://corporate.movigoo.in";
                 }}
