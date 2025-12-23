@@ -48,7 +48,7 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
     fetchEventData();
   }, [params.eventId]);
 
-  // Get locations from event data
+  // Get locations from event data instant
   const locations = useMemo(() => {
     if (!eventData?.schedule?.locations) return [];
     return eventData.schedule.locations;
