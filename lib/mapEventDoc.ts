@@ -93,6 +93,7 @@ export function mapEventDoc(
     description: basic.description || "",
     organizerId: d.hostUid || "",
     hosted: false, // Will be set based on current user comparison
+    fillingFast: d.fillingFast === true, // Backend-calculated momentum flag
   };
 
   // Add searchTitle for Firestore indexing (optional, for future use)

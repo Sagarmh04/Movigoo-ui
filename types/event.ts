@@ -24,5 +24,7 @@ export type Event = {
   description: string;
   organizerId: string;
   hosted?: boolean;
+  /** Backend-calculated flag: true if event has high recent booking momentum */
+  fillingFast?: boolean;
 };
 
