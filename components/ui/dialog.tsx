@@ -31,10 +31,18 @@ const DialogContent = ({ className, children, ...props }: ContentProps) => (
     <DialogPrimitive.Content
       {...props}
       className={cn(
-        "fixed left-1/2 top-1/2 z-50 w-[calc(100vw-24px)] max-w-[360px] max-h-[85vh] -translate-x-1/2 -translate-y-1/2 overflow-y-auto overflow-x-hidden rounded-2xl border border-white/10 bg-slate-900/95 p-4 shadow-2xl backdrop-blur-3xl",
+        // Mobile styles
+        "fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2",
+        "w-[calc(100vw-24px)] max-w-[360px] max-h-[90vh]",
+        "overflow-y-auto overflow-x-hidden",
+        "rounded-2xl border border-white/10 bg-slate-900/95 p-4",
+        "shadow-2xl backdrop-blur-3xl",
         "box-border",
-        "sm:max-w-[420px] sm:p-6 sm:w-[calc(100vw-32px)]",
-        "max-[480px]:max-w-[calc(100vw-24px)] max-[480px]:max-h-[90vh]",
+        // Desktop styles
+        "sm:max-w-[420px] sm:p-6 sm:w-auto sm:min-w-[400px]",
+        // Small mobile override
+        "max-[480px]:max-w-[calc(100vw-16px)] max-[480px]:max-h-[95vh]",
+        // Content constraints
         "[&>*]:max-w-full [&>*]:box-border [&>*]:break-words",
         className
       )}
