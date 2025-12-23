@@ -14,7 +14,7 @@ const DialogClose = DialogPrimitive.Close;
 const DialogOverlay = ({ className, ...props }: DialogPrimitive.DialogOverlayProps) => (
   <DialogPrimitive.Overlay
     className={cn(
-      "fixed inset-0 z-40 bg-black/45 backdrop-blur-sm",
+      "fixed inset-0 z-40 flex items-center justify-center bg-black/45 backdrop-blur-sm p-3",
       className
     )}
     {...props}
@@ -31,7 +31,9 @@ const DialogContent = ({ className, children, ...props }: ContentProps) => (
     <DialogPrimitive.Content
       {...props}
       className={cn(
-        "fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-[420px] max-h-[90vh] -translate-x-1/2 -translate-y-1/2 overflow-y-auto overflow-x-hidden rounded-2xl border border-white/10 bg-slate-900/95 p-4 sm:p-6 shadow-2xl backdrop-blur-3xl",
+        "fixed left-1/2 top-1/2 z-50 w-[calc(100%-1.5rem)] max-w-[360px] max-h-[85vh] -translate-x-1/2 -translate-y-1/2 overflow-y-auto overflow-x-hidden rounded-2xl border border-white/10 bg-slate-900/95 p-4 shadow-2xl backdrop-blur-3xl",
+        "box-border",
+        "sm:max-w-[420px] sm:p-6 sm:w-[calc(100%-2rem)]",
         className
       )}
       asChild
@@ -42,6 +44,7 @@ const DialogContent = ({ className, children, ...props }: ContentProps) => (
         exit={{ opacity: 0, scale: 0.96 }}
         transition={{ duration: 0.25, ease: "easeOut" }}
         onClick={(e) => e.stopPropagation()}
+        className="max-w-full box-border"
       >
         <DialogClose
           className="absolute right-3 top-3 z-10 flex items-center justify-center rounded-full border border-white/10 bg-slate-800/50 p-1.5 text-slate-200 transition hover:bg-white/10 hover:border-white/20 cursor-pointer"
@@ -49,7 +52,9 @@ const DialogContent = ({ className, children, ...props }: ContentProps) => (
         >
           <X size={18} />
         </DialogClose>
-        {children}
+        <div className="max-w-full box-border [&>*]:max-w-full [&>*]:break-words">
+          {children}
+        </div>
       </motion.div>
     </DialogPrimitive.Content>
   </DialogPortal>
