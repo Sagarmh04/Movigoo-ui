@@ -26,6 +26,7 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
   const [bookingData, setBookingData] = useState<any>(null);
   const [eventDetails, setEventDetails] = useState<any>(null);
   const [mounted, setMounted] = useState(false);
+  const [isPaying, setIsPaying] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -167,6 +168,9 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
   const ageLimit = basic.ageLimit || "All Ages";
 
   const handleProceedToPayment = async () => {
+    // Prevent duplicate clicks
+    if (isPaying) return;
+
     // Wait for auth to fully load - no race conditions
     if (authLoading) {
       console.log("Auth is still initializing...");
@@ -179,6 +183,10 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
       router.push("/profile?login=true");
       return;
     }
+
+    // Disable button immediately and track start time
+    setIsPaying(true);
+    const startTime = Date.now();
 
     try {
       // Extract show selection from sessionStorage if available
@@ -251,12 +259,20 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
       if (!bookingResponse.ok || !bookingResult.bookingId) {
         console.error("Failed to create pending booking:", bookingResult);
         alert("Failed to create booking. Please try again.");
+        setIsPaying(false);
         return;
       }
 
       console.log("Pending booking created:", bookingResult.bookingId);
 
+      // Minimum 2 seconds loader to prevent panic clicks
+      const elapsed = Date.now() - startTime;
+      if (elapsed < 2000) {
+        await new Promise((resolve) => setTimeout(resolve, 2000 - elapsed));
+      }
+
       // Redirect to Cashfree payment page with booking ID
+      // Do NOT reset isPaying - Cashfree will take over
       const paymentParams = new URLSearchParams({
         bookingId: bookingResult.bookingId,
         amount: totalAmount.toString(),
@@ -269,6 +285,7 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
     } catch (error: any) {
       console.error("Error creating booking:", error);
       alert("Failed to create booking. Please try again.");
+      setIsPaying(false);
     }
   };
 
@@ -406,10 +423,15 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
             <div className="rounded-3xl border border-white/10 bg-black/90 p-4 backdrop-blur-xl sm:bg-white/5 sm:border sm:p-6">
               <Button
                 onClick={handleProceedToPayment}
-                className="w-full rounded-2xl bg-[#0B62FF] py-6 text-base font-semibold hover:bg-[#0A5AE6]"
+                disabled={isPaying}
+                className="w-full rounded-2xl bg-[#0B62FF] py-6 text-base font-semibold hover:bg-[#0A5AE6] disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Continue to Payment
-                <ArrowRight size={20} className="ml-2" />
+                {isPaying ? "Processing..." : (
+                  <>
+                    Continue to Payment
+                    <ArrowRight size={20} className="ml-2" />
+                  </>
+                )}
               </Button>
               <p className="mt-3 text-center text-xs text-slate-400">
                 Your payment will be processed securely

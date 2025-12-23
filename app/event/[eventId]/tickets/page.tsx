@@ -27,6 +27,7 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
   const [selectedShow, setSelectedShow] = useState<ShowSelection | null>(null);
   const [selectedTickets, setSelectedTickets] = useState<Record<string, number>>({});
   const [stage, setStage] = useState<SelectionStage>("location-venue");
+  const [isPaying, setIsPaying] = useState(false);
 
   // Fetch full event data with schedule structure
   useEffect(() => {
@@ -221,6 +222,9 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
   };
 
   const handleProceed = async () => {
+    // Prevent duplicate clicks
+    if (isPaying) return;
+
     if (selectedTicketsArray.length === 0 || !selectedShow) {
       return;
     }
@@ -239,6 +243,10 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
     }
 
     if (!data) return;
+
+    // Disable button immediately and track start time
+    setIsPaying(true);
+    const startTime = Date.now();
 
     try {
       // Create pending booking and redirect directly to Cashfree
@@ -299,12 +307,20 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
       if (!bookingResponse.ok || !bookingResult.bookingId) {
         console.error("Failed to create pending booking:", bookingResult);
         alert("Failed to create booking. Please try again.");
+        setIsPaying(false);
         return;
       }
 
       console.log("Pending booking created:", bookingResult.bookingId);
 
+      // Minimum 2 seconds loader to prevent panic clicks
+      const elapsed = Date.now() - startTime;
+      if (elapsed < 2000) {
+        await new Promise((resolve) => setTimeout(resolve, 2000 - elapsed));
+      }
+
       // Redirect directly to Cashfree payment page
+      // Do NOT reset isPaying - Cashfree will take over
       const paymentParams = new URLSearchParams({
         bookingId: bookingResult.bookingId,
         amount: total.toString(),
@@ -317,6 +333,7 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
     } catch (error: any) {
       console.error("Error creating booking:", error);
       alert("Failed to create booking. Please try again.");
+      setIsPaying(false);
     }
   };
 
@@ -567,10 +584,10 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
                 </div>
                 <Button
                   onClick={handleProceed}
-                  disabled={selectedTicketsArray.length === 0}
+                  disabled={selectedTicketsArray.length === 0 || isPaying}
                   className="rounded-full bg-[#0B62FF] px-6 py-3 text-base font-semibold shadow-lg transition hover:bg-[#0A5AE6] disabled:opacity-50 disabled:cursor-not-allowed sm:rounded-2xl"
                 >
-                  Proceed to Review
+                  {isPaying ? "Processing..." : "Proceed to Review"}
                 </Button>
               </div>
             </div>
