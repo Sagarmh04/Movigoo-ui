@@ -14,7 +14,7 @@ const DialogClose = DialogPrimitive.Close;
 const DialogOverlay = ({ className, ...props }: DialogPrimitive.DialogOverlayProps) => (
   <DialogPrimitive.Overlay
     className={cn(
-      "fixed inset-0 z-[9999] flex items-center justify-center bg-black/45 backdrop-blur-sm p-3",
+      "fixed inset-0 z-40 flex items-center justify-center bg-black/45 backdrop-blur-sm p-3",
       className
     )}
     {...props}
@@ -31,10 +31,10 @@ const DialogContent = ({ className, children, ...props }: ContentProps) => (
     <DialogPrimitive.Content
       {...props}
       className={cn(
-        "relative z-[10000] w-full max-w-[360px] max-h-[85vh] overflow-y-auto overflow-x-hidden rounded-2xl border border-white/10 bg-slate-900/95 p-4 shadow-2xl backdrop-blur-3xl",
+        "fixed left-1/2 top-1/2 z-50 w-[calc(100%-24px)] max-w-[360px] max-h-[85vh] -translate-x-1/2 -translate-y-1/2 overflow-y-auto overflow-x-hidden rounded-2xl border border-white/10 bg-slate-900/95 p-4 shadow-2xl backdrop-blur-3xl",
         "box-border",
-        "sm:max-w-[420px] sm:p-6",
-        "max-[480px]:max-w-full max-[480px]:max-h-[90vh]",
+        "sm:max-w-[420px] sm:p-6 sm:w-[calc(100%-32px)]",
+        "max-[480px]:max-w-[calc(100%-24px)] max-[480px]:max-h-[90vh]",
         "[&>*]:max-w-full [&>*]:box-border [&>*]:break-words",
         className
       )}
