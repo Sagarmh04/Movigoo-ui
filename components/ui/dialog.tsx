@@ -31,46 +31,44 @@ const DialogContent = ({ className, children, ...props }: ContentProps) => (
     <DialogPrimitive.Content
       {...props}
       className={cn(
-        // Mobile-first: Fixed positioning with safe margins
-        "fixed z-50",
-        // Mobile: Full width minus safe margins, centered
-        "left-4 right-4 top-[50%] -translate-y-1/2",
+        // High z-index to ensure visibility
+        "fixed z-[100]",
+        // Mobile: Centered with safe margins
+        "inset-x-4 top-1/2 -translate-y-1/2",
         "w-[calc(100vw-2rem)]",
-        "max-w-none",
-        "max-h-[85vh]",
-        "overflow-y-auto",
+        "max-h-[90vh]",
+        "overflow-y-auto overflow-x-hidden",
         "rounded-2xl",
         "border border-white/10",
-        "bg-slate-900/95",
-        "p-4",
+        "bg-slate-900/98",
+        "p-5",
         "shadow-2xl",
         "backdrop-blur-3xl",
         // Desktop: Centered with fixed width
-        "sm:left-1/2 sm:right-auto sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2",
-        "sm:w-[420px] sm:max-w-[420px]",
-        "sm:max-h-[85vh]",
+        "sm:inset-x-auto sm:left-1/2 sm:right-auto sm:-translate-x-1/2",
+        "sm:w-[440px] sm:max-w-[440px]",
+        "sm:max-h-[88vh]",
         "sm:p-6",
-        // Prevent overflow
+        // Ensure visibility
         "box-border",
+        "transform",
         className
       )}
-      asChild
     >
       <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: -10 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: -10 }}
+        initial={{ opacity: 0, scale: 0.96 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.96 }}
         transition={{ duration: 0.2, ease: "easeOut" }}
-        onClick={(e) => e.stopPropagation()}
-        className="w-full h-full flex flex-col relative"
+        className="w-full flex flex-col relative"
       >
         <DialogClose
-          className="absolute right-2 top-2 sm:right-3 sm:top-3 z-20 flex items-center justify-center rounded-full border border-white/10 bg-slate-800/80 p-1.5 text-slate-200 transition hover:bg-white/10 hover:border-white/20 cursor-pointer touch-manipulation"
+          className="absolute right-3 top-3 z-10 flex items-center justify-center rounded-full border border-white/10 bg-slate-800/90 p-1.5 text-slate-200 transition hover:bg-white/10 hover:border-white/20 cursor-pointer"
           aria-label="Close dialog"
         >
-          <X size={16} className="sm:w-[18px] sm:h-[18px]" />
+          <X size={18} />
         </DialogClose>
-        <div className="w-full flex-1 overflow-hidden">
+        <div className="w-full">
           {children}
         </div>
       </motion.div>

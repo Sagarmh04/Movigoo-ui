@@ -153,13 +153,13 @@ const HomeLanding = ({ featuredEvents, searchQuery = "", isSearching = false }: 
       {/* Organizer Modal - Only opens on button click */}
       <Dialog open={isOrganizerModalOpen} onOpenChange={setIsOrganizerModalOpen}>
         <DialogContent>
-          <div className="space-y-4 pr-6 sm:pr-0">
+          <div className="space-y-4 pr-8">
             {/* Header */}
             <div className="space-y-2">
-              <DialogTitle className="text-base sm:text-xl font-bold text-white leading-tight pr-4">
+              <DialogTitle className="text-lg sm:text-xl font-bold text-white leading-tight">
                 Ready to host your first event?
               </DialogTitle>
-              <p className="text-slate-300 text-xs sm:text-sm leading-relaxed">
+              <p className="text-slate-300 text-sm leading-relaxed">
                 Everything you need to launch and manage events effortlessly.
               </p>
             </div>
