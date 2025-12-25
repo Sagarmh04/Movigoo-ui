@@ -29,7 +29,11 @@ function MyBookingsPageContent() {
 
   // Redirect to profile if not logged in
   if (!loading && !user) {
-    router.push("/profile?login=true");
+    const profileUrl = redirectUrl
+      ? `/profile?login=true&redirect=${encodeURIComponent(redirectUrl)}` 
+      : `/profile?login=true`;
+
+    router.push(profileUrl);
     return null;
   }
 

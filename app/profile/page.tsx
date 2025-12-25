@@ -21,6 +21,15 @@ function ProfilePageContent() {
   const { user, loading } = useAuth();
   const [showLoginModal, setShowLoginModal] = useState(false);
 
+  const redirectUrl = searchParams.get("redirect");
+
+  // Handle redirect after login
+  useEffect(() => {
+    if (user && redirectUrl) {
+      router.replace(redirectUrl);
+    }
+  }, [user, redirectUrl, router]);
+
   // Check if login modal should be shown
   useEffect(() => {
     if (searchParams?.get("login") === "true") {
