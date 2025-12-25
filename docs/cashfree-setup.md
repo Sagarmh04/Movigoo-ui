@@ -66,14 +66,33 @@ User → /payment → API creates session → Cashfree Checkout → Success/Fail
 3. No real money is charged
 4. All transactions are simulated
 
-## Webhook Integration (Future)
+## Webhook Integration ✅ IMPLEMENTED
 
-For production, you'll need to:
+**Webhook endpoint:** `/api/cashfree/webhook`
 
-1. Set up a webhook endpoint at `/api/payments/cashfree/webhook`
-2. Verify webhook signatures
-3. Update booking status based on webhook events
-4. Send confirmation emails only after webhook confirmation
+The webhook is now fully implemented and configured:
+
+1. ✅ Webhook endpoint created at `/api/cashfree/webhook/route.ts`
+2. ✅ `notify_url` configured in order creation API
+3. ✅ Booking status updated based on webhook events (`PAYMENT_SUCCESS` → `CONFIRMED`, `PAYMENT_FAILED` → `FAILED`)
+4. ✅ Confirmation emails sent only after webhook confirmation
+5. ✅ `orderId` stored in booking for webhook lookup
+
+**How it works:**
+- Frontend creates pending booking → Initiates payment
+- Cashfree processes payment → Calls webhook with payment status
+- Webhook updates booking status → Sends confirmation email
+- **CRITICAL:** Only webhook confirms payment, NOT frontend redirect
+
+**Webhook URL (Production):**
+```
+https://www.movigoo.in/api/cashfree/webhook
+```
+
+**Testing:**
+1. Make a test payment (₹1 in sandbox)
+2. Check Cashfree Dashboard → Payments → Webhook Attempts
+3. Verify status = 200 and booking updated correctly
 
 ## API Reference
 

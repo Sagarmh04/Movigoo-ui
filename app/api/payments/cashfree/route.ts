@@ -3,6 +3,8 @@
 // Creates a Cashfree payment session (server-side only)
 
 import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/firebaseServer";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 
 // ✅ STEP 1 — FORCE NODE RUNTIME (CRITICAL)
 // Vercel may run this route in Edge runtime
@@ -46,6 +48,21 @@ export async function POST(req: NextRequest) {
 
     const orderId = `order_${Date.now()}`;
 
+    // Store orderId in booking for webhook lookup
+    if (bookingId && db) {
+      try {
+        const bookingRef = doc(db, "bookings", bookingId);
+        await setDoc(bookingRef, {
+          orderId: orderId,
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
+        console.log("Updated booking with orderId:", orderId);
+      } catch (error) {
+        console.error("Failed to update booking with orderId:", error);
+        // Continue with payment creation even if this fails
+      }
+    }
+
     // ✅ STEP 3 — ENSURE CORRECT BASE URL
     // Confirm this line exists exactly (no trailing slash, no spaces, no quotes)
     const CASHFREE_BASE = process.env.CASHFREE_BASE_URL;
@@ -80,6 +97,7 @@ export async function POST(req: NextRequest) {
       },
       order_meta: {
         return_url: returnUrl,
+        notify_url: `${appUrl}/api/cashfree/webhook`,
       },
     };
     const response = await fetch(`${CASHFREE_BASE}/orders`, {

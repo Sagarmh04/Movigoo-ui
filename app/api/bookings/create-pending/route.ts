@@ -33,6 +33,7 @@ export async function POST(req: NextRequest) {
       venueId, // Venue ID for event bookings metadata
       showId, // Show ID for event bookings metadata
       showTime, // Show time
+      orderId, // Cashfree order ID (if already created)
     } = body;
 
     if (!userId || !eventId || !totalAmount) {
@@ -70,6 +71,7 @@ export async function POST(req: NextRequest) {
       bookingFee: bookingFee || 0,
       totalAmount,
       items: items || [],
+      orderId: orderId || null, // Store Cashfree order ID for webhook lookup
       paymentGateway: "cashfree",
       paymentStatus: "PENDING",
       bookingStatus: "PENDING_PAYMENT",
