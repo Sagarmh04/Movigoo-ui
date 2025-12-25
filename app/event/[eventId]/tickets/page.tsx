@@ -240,7 +240,7 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
       const pathname = window.location.pathname;
       const search = window.location.search;
       const currentUrl = pathname + search;
-      router.push(`/auth/login?redirect=${encodeURIComponent(currentUrl)}`);
+      router.push(`/my-bookings?redirect=${encodeURIComponent(currentUrl)}`);
       return;
     }
 

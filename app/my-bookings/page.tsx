@@ -3,8 +3,8 @@
 
 "use client";
 
-import { Suspense, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import LayoutWrapper from "@/components/LayoutWrapper";
 import BookingCard from "@/components/bookings/BookingCard";
 import { useAuth } from "@/hooks/useAuth";
@@ -13,9 +13,20 @@ import { Ticket } from "lucide-react";
 
 function MyBookingsPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, loading } = useAuth();
   const { bookings, loading: bookingsLoading, error } = useUserBookings(user?.uid || null);
   const [activeTab, setActiveTab] = useState<"upcoming" | "past">("upcoming");
+  
+  const redirectUrl = searchParams.get("redirect");
+
+  // Handle redirect after login
+  useEffect(() => {
+    if (user && redirectUrl) {
+      router.replace(redirectUrl);
+    }
+  }, [user, redirectUrl, router]);
+
   // Redirect to profile if not logged in
   if (!loading && !user) {
     router.push("/profile?login=true");

@@ -74,7 +74,7 @@ const BookingSidebar = ({ event, ticketTypes }: BookingSidebarProps) => {
     // Check if user is logged in - redirect to login if not
     if (!user || !user.uid) {
       const currentUrl = pathname + (searchParams.toString() ? `?${searchParams.toString()}` : "");
-      router.push(`/auth/login?redirect=${encodeURIComponent(currentUrl)}`);
+      router.push(`/my-bookings?redirect=${encodeURIComponent(currentUrl)}`);
       return;
     }
 

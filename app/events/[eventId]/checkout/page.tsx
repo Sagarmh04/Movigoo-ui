@@ -57,7 +57,7 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
 
     if (!user || !user.uid) {
       const currentUrl = pathname + (searchParams.toString() ? `?${searchParams.toString()}` : "");
-      router.push(`/auth/login?redirect=${encodeURIComponent(currentUrl)}`);
+      router.push(`/my-bookings?redirect=${encodeURIComponent(currentUrl)}`);
       return;
     }
 
@@ -182,7 +182,7 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
     // Check if user is logged in
     if (!user || !user.uid || !user.email) {
       const currentUrl = pathname + (searchParams.toString() ? `?${searchParams.toString()}` : "");
-      router.push(`/auth/login?redirect=${encodeURIComponent(currentUrl)}`);
+      router.push(`/my-bookings?redirect=${encodeURIComponent(currentUrl)}`);
       return;
     }
 

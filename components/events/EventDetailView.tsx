@@ -256,7 +256,7 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
     // 2. Now check if user actually exists
     if (!user || !user.uid) {
       const currentUrl = pathname + (searchParams.toString() ? `?${searchParams.toString()}` : "");
-      router.push(`/auth/login?redirect=${encodeURIComponent(currentUrl)}`);
+      router.push(`/my-bookings?redirect=${encodeURIComponent(currentUrl)}`);
       return;
     }
 
@@ -448,7 +448,7 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
               // Check if user is logged in
               if (!user || !user.uid) {
                 const currentUrl = pathname + (searchParams.toString() ? `?${searchParams.toString()}` : "");
-                router.push(`/auth/login?redirect=${encodeURIComponent(currentUrl)}`);
+                router.push(`/my-bookings?redirect=${encodeURIComponent(currentUrl)}`);
                 return;
               }
 
@@ -637,7 +637,7 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
                 // Check if user is logged in
                 if (!user || !user.uid) {
                   const currentUrl = pathname + (searchParams.toString() ? `?${searchParams.toString()}` : "");
-                  router.push(`/auth/login?redirect=${encodeURIComponent(currentUrl)}`);
+                  router.push(`/my-bookings?redirect=${encodeURIComponent(currentUrl)}`);
                   return;
                 }
 
