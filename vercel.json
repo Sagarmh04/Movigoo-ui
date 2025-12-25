@@ -1,9 +1,0 @@
-{
-  "crons": [
-    {
-      "path": "/api/cron/update-filling-fast",
-      "schedule": "0 */4 * * *"
-    }
-  ]
-}
-

@@ -9,7 +9,6 @@ import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebaseClient";
 import { Event } from "@/types/event";
 import HostedBadge from "@/components/HostedBadge";
-import FillingFastBadge from "@/components/FillingFastBadge";
 import { Button } from "@/components/ui/button";
 import { cn, currencyFormatter, truncate } from "@/lib/utils";
 import { useFakeUser } from "@/hooks/useFakeUser";
@@ -110,7 +109,6 @@ const EventCard = ({ event }: EventCardProps) => {
         <div className="absolute left-4 bottom-4 space-y-2">
           <div className="flex items-center gap-2 flex-wrap">
             {isHosted && <HostedBadge />}
-            {event.fillingFast && <FillingFastBadge />}
           </div>
           <p className="text-xs uppercase tracking-[0.3em] text-slate-300">{event.city}</p>
           <p className="text-2xl font-semibold text-white">{truncate(event.title, 50)}</p>
