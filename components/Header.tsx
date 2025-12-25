@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
 import { motion } from "framer-motion";
@@ -111,13 +112,15 @@ const Header = () => {
 			className="fixed left-0 right-0 top-0 z-40"
 		>
 			<div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-4 sm:px-6 lg:px-10">
-				<Link href="/" className="flex items-center gap-2 font-semibold text-white">
-					<motion.div
-						layoutId="logo-pill"
-						className="rounded-2xl bg-gradient-to-r from-gradient-indigo to-indigo-600 px-3 py-2 text-xs uppercase tracking-[0.3em]"
-					>
-						MOVIGOO
-					</motion.div>
+				<Link href="/" className="flex items-center">
+					<Image
+						src="/logo.png"
+						alt="Movigoo"
+						width={120}
+						height={40}
+						priority
+						className="object-contain h-8 w-auto md:h-9"
+					/>
 				</Link>
 
 
