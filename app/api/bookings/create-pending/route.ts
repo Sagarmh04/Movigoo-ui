@@ -1,6 +1,6 @@
 // app/api/bookings/create-pending/route.ts
 // POST /api/bookings/create-pending
-// Creates a pending booking before payment
+// Creates a pending booking before payment sure
 
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseServer";
