@@ -62,12 +62,15 @@ function PaymentPageContent() {
       console.log("Session ID length:", paymentSessionId?.length);
       console.log("Session ID type:", typeof paymentSessionId);
 
-      // CRITICAL: Mode must match backend CASHFREE_BASE_URL
-      // If backend uses sandbox.cashfree.com → mode: "sandbox"
-      // If backend uses api.cashfree.com → mode: "production"
-      // Default to sandbox to match backend default
-      const cashfreeMode = process.env.NEXT_PUBLIC_CASHFREE_MODE || "sandbox";
-      console.log("Cashfree SDK mode:", cashfreeMode);
+      // CRITICAL: Determine mode from backend base URL
+      // For LIVE: backend uses https://api.cashfree.com/pg → mode: "production"
+      // For SANDBOX: backend uses https://sandbox.cashfree.com/pg → mode: "sandbox"
+      // Check if we're on production domain to determine mode
+      const isProduction = typeof window !== "undefined" && 
+                          (window.location.hostname === "www.movigoo.in" || 
+                           window.location.hostname === "movigoo.in");
+      const cashfreeMode = isProduction ? "production" : "sandbox";
+      console.log("Cashfree SDK mode:", cashfreeMode, "(auto-detected from domain)");
 
       // @ts-ignore - Cashfree SDK types not available
       const cashfree = (window as any).Cashfree({
