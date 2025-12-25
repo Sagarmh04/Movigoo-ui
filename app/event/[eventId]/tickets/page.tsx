@@ -1,8 +1,8 @@
 // app/event/[eventId]/tickets/page.tsx - Ticket Selection with Location/Venue/Timing Selection
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useMemo } from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useEventById } from "@/hooks/useEventById";
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebaseClient";
@@ -237,8 +237,10 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
 
     // 2. Now check if user actually exists
     if (!user || !user.uid) {
-      alert("Please login to continue. You can login from the Profile page.");
-      router.push("/profile?login=true");
+      const pathname = window.location.pathname;
+      const search = window.location.search;
+      const currentUrl = pathname + search;
+      router.push(`/auth/login?redirect=${encodeURIComponent(currentUrl)}`);
       return;
     }
 

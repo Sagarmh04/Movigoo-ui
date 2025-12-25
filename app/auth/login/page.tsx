@@ -67,8 +67,16 @@ function LoginPageContent() {
           >
             MOVIGOO
           </motion.div>
-          <h1 className="text-3xl font-bold text-white mb-2">Login to continue your booking</h1>
-          <p className="text-sm text-slate-400">Login is required to proceed with booking</p>
+          <h1 className="text-3xl font-bold text-white mb-2">
+            {redirect && redirect !== "/" ? "Login to continue your booking" : "Welcome back"}
+          </h1>
+          {redirect && redirect !== "/" ? (
+            <p className="text-sm text-slate-400">
+              Please log in to continue your booking
+            </p>
+          ) : (
+            <p className="text-sm text-slate-400">Login to access your account</p>
+          )}
         </div>
 
         {/* Login Card */}

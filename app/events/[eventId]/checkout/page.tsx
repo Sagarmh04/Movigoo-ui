@@ -4,7 +4,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useEventById } from "@/hooks/useEventById";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -20,6 +20,8 @@ const BOOKING_FEE_PER_TICKET = 7;
 
 export default function CheckoutPage({ params }: { params: { eventId: string } }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { user, loading: authLoading } = useAuth();
   const [eventId, setEventId] = useState<string>("");
   const { data, isLoading, isError } = useEventById(eventId);
@@ -54,8 +56,8 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
     }
 
     if (!user || !user.uid) {
-      alert("Please login to continue. You can login from the Profile page.");
-      router.push("/profile?login=true");
+      const currentUrl = pathname + (searchParams.toString() ? `?${searchParams.toString()}` : "");
+      router.push(`/auth/login?redirect=${encodeURIComponent(currentUrl)}`);
       return;
     }
 
@@ -179,8 +181,8 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
 
     // Check if user is logged in
     if (!user || !user.uid || !user.email) {
-      alert("Please login to continue. You can login from the Profile page.");
-      router.push("/profile?login=true");
+      const currentUrl = pathname + (searchParams.toString() ? `?${searchParams.toString()}` : "");
+      router.push(`/auth/login?redirect=${encodeURIComponent(currentUrl)}`);
       return;
     }
 

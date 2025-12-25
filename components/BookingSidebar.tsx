@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Event, TicketType } from "@/types/event";
 import type { Booking } from "@/types/booking";
@@ -25,6 +25,8 @@ type BookingSidebarProps = {
 
 const BookingSidebar = ({ event, ticketTypes }: BookingSidebarProps) => {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
   const [selection, setSelection] = useState<Record<string, number>>({});
   const [coupon, setCoupon] = useState("");
@@ -69,10 +71,10 @@ const BookingSidebar = ({ event, ticketTypes }: BookingSidebarProps) => {
   }, [user, selection, ticketTypes, coupon, event.id, router]);
 
   const handleBooking = async () => {
-    // Check if user is logged in - redirect to profile if not
+    // Check if user is logged in - redirect to login if not
     if (!user || !user.uid) {
-      alert("Please login to continue. You can login from the Profile page.");
-      router.push("/profile?login=true");
+      const currentUrl = pathname + (searchParams.toString() ? `?${searchParams.toString()}` : "");
+      router.push(`/auth/login?redirect=${encodeURIComponent(currentUrl)}`);
       return;
     }
 

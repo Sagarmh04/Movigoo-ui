@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { Calendar, MapPin, ShieldCheck, Users, Plus, Minus, Share2 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebaseClient";
 import HostedBadge from "@/components/HostedBadge";
@@ -24,6 +24,8 @@ type EventDetailViewProps = {
 
 const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps) => {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [eventData, setEventData] = useState<any>(null);
   const [isLoadingPrice, setIsLoadingPrice] = useState(true);
   const isHosted = event.organizerId === organizer.id;
@@ -253,7 +255,8 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
 
     // 2. Now check if user actually exists
     if (!user || !user.uid) {
-      alert("Please login to continue");
+      const currentUrl = pathname + (searchParams.toString() ? `?${searchParams.toString()}` : "");
+      router.push(`/auth/login?redirect=${encodeURIComponent(currentUrl)}`);
       return;
     }
 
@@ -444,8 +447,8 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
 
               // Check if user is logged in
               if (!user || !user.uid) {
-                alert("Please login to continue. You can login from the Profile page.");
-                router.push("/profile?login=true");
+                const currentUrl = pathname + (searchParams.toString() ? `?${searchParams.toString()}` : "");
+                router.push(`/auth/login?redirect=${encodeURIComponent(currentUrl)}`);
                 return;
               }
 
@@ -633,8 +636,8 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
 
                 // Check if user is logged in
                 if (!user || !user.uid) {
-                  alert("Please login to continue. You can login from the Profile page.");
-                  router.push("/profile?login=true");
+                  const currentUrl = pathname + (searchParams.toString() ? `?${searchParams.toString()}` : "");
+                  router.push(`/auth/login?redirect=${encodeURIComponent(currentUrl)}`);
                   return;
                 }
 
