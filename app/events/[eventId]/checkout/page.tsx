@@ -15,7 +15,7 @@ import { useAuth } from "@/hooks/useAuth";
 import Image from "next/image";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebaseClient";
-import { useRef, useEffect } from "react";
+import { useRef } from "react";
 
 const BOOKING_FEE_PER_TICKET = 7;
 
