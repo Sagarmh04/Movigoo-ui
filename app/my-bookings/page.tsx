@@ -17,6 +17,7 @@ function MyBookingsPageContent() {
   const { user, loading } = useAuth();
   const { bookings, loading: bookingsLoading, error, refetch, reconcilePending } = useUserBookings(user?.uid || null);
   const [activeTab, setActiveTab] = useState<"upcoming" | "past">("upcoming");
+  const [isReconciling, setIsReconciling] = useState(true);
   
   const redirectUrl = searchParams.get("redirect");
 
@@ -28,26 +29,32 @@ function MyBookingsPageContent() {
   }, [user, redirectUrl, router]);
 
   useEffect(() => {
+    let mounted = true;
+
     if (loading) return;
-    if (!user) return;
 
-    let cancelled = false;
+    if (!user) {
+      setIsReconciling(false);
+      return;
+    }
 
-    (async () => {
+    setIsReconciling(true);
+
+    const runReconciliation = async () => {
       try {
         await reconcilePending(() => user.getIdToken());
-        if (!cancelled) {
-          await refetch();
-        }
-      } catch {
-        // ignore
+        await refetch();
+      } finally {
+        if (mounted) setIsReconciling(false);
       }
-    })();
+    };
+
+    runReconciliation();
 
     return () => {
-      cancelled = true;
+      mounted = false;
     };
-  }, [loading, user, reconcilePending, refetch]);
+  }, [loading, user]);
 
   // Redirect to profile if not logged in
   if (!loading && !user) {
@@ -59,7 +66,9 @@ function MyBookingsPageContent() {
     return null;
   }
 
-  if (loading || bookingsLoading) {
+  const isPageLoading = loading || bookingsLoading || isReconciling;
+
+  if (isPageLoading) {
     return (
       <LayoutWrapper>
         <div className="flex min-h-screen items-center justify-center">
