@@ -10,11 +10,12 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { currencyFormatter } from "@/lib/utils";
 import { motion } from "framer-motion";
-import { Calendar, MapPin, Ticket, ArrowRight, Clock, Users } from "lucide-react";
+import { Calendar, MapPin, Ticket, ArrowRight, Clock, Users, ChevronDown } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import Image from "next/image";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebaseClient";
+import { useRef, useEffect } from "react";
 
 const BOOKING_FEE_PER_TICKET = 7;
 
@@ -29,6 +30,8 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
   const [eventDetails, setEventDetails] = useState<any>(null);
   const [mounted, setMounted] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
+  const [showBreakup, setShowBreakup] = useState(false);
+  const breakupRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -93,6 +96,18 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
     }
   }, [mounted, eventId, authLoading, user, router]);
 
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (breakupRef.current && !breakupRef.current.contains(event.target as Node)) {
+        setShowBreakup(false);
+      }
+    }
+    if (showBreakup) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showBreakup]);
+
   // Show loading if not mounted, eventId not set, still loading, or booking data not ready
   if (!mounted || !eventId || isLoading || authLoading || !bookingData) {
     return (
@@ -146,6 +161,8 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
   const bookingFee = totalTickets * BOOKING_FEE_PER_TICKET;
   const discount = bookingData.promoCode ? subtotal * 0.05 : 0;
   const totalAmount = subtotal - discount + bookingFee;
+  const basePrice = subtotal;
+  const platformFee = totalAmount - basePrice;
 
   // Get event details
   const basic = eventDetails?.basicDetails || {};
@@ -407,7 +424,33 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
               </div>
               <Separator />
               <div className="flex items-center justify-between">
-                <span className="text-lg font-semibold text-white">Total Amount</span>
+                <div className="relative" ref={breakupRef}>
+                  <div
+                    className="flex items-center gap-1 cursor-pointer"
+                    onClick={() => setShowBreakup(!showBreakup)}
+                  >
+                    <span className="text-lg font-semibold text-white">Total Amount</span>
+                    <ChevronDown className={`h-4 w-4 opacity-70 transition-transform ${showBreakup ? 'rotate-180' : ''}`} />
+                  </div>
+                  {showBreakup && (
+                    <div className="absolute right-0 z-50 mt-2 rounded-lg border border-white/10 bg-white/5 p-3 shadow-lg backdrop-blur-xl min-w-[200px]">
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between text-slate-300">
+                          <span>Base Ticket Price</span>
+                          <span>{currencyFormatter.format(basePrice)}</span>
+                        </div>
+                        <div className="flex justify-between text-slate-300">
+                          <span>Platform Fee</span>
+                          <span>{currencyFormatter.format(platformFee)}</span>
+                        </div>
+                        <div className="mt-2 pt-2 border-t border-white/10 flex justify-between font-medium text-white">
+                          <span>Total</span>
+                          <span>{currencyFormatter.format(totalAmount)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
                 <span className="text-2xl font-bold text-[#0B62FF]">
                   {currencyFormatter.format(totalAmount)}
                 </span>
