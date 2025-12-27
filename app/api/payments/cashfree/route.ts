@@ -4,7 +4,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseServer";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp, getDoc } from "firebase/firestore";
 
 // ✅ STEP 1 — FORCE NODE RUNTIME (CRITICAL)
 // Vercel may run this route in Edge runtime
@@ -46,19 +46,61 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const orderId = `order_${Date.now()}`;
+    // Backend safety check: fetch booking status first
+    if (bookingId && db) {
+      try {
+        const bookingRef = doc(db, "bookings", bookingId);
+        const bookingSnap = await getDoc(bookingRef);
+        
+        if (bookingSnap.exists()) {
+          const booking = bookingSnap.data();
+          // If already confirmed, reject new order creation
+          if (booking.bookingStatus === "CONFIRMED" || booking.paymentStatus === "SUCCESS") {
+            console.log("Booking already confirmed, rejecting payment order creation");
+            return NextResponse.json(
+              { error: "Booking already confirmed" },
+              { status: 409 }
+            );
+          }
+
+          // Idempotency: reuse existing orderId if already set
+          if (booking.orderId) {
+            console.log("Reusing existing orderId:", booking.orderId);
+            // Don't create new order, but we could return existing session info if needed
+            // For now, proceed with new order creation since Cashfree sessions are short-lived
+          }
+        }
+      } catch (error) {
+        console.error("Failed to check booking status:", error);
+        // Continue with payment creation even if this check fails
+      }
+    }
+
+    let orderId = `order_${Date.now()}`;
 
     // Store orderId in booking for webhook lookup
     if (bookingId && db) {
       try {
         const bookingRef = doc(db, "bookings", bookingId);
-        await setDoc(bookingRef, {
-          orderId: orderId,
-          paymentStatus: "INITIATED",
-          bookingStatus: "PENDING",
-          updatedAt: serverTimestamp(),
-        }, { merge: true });
-        console.log("Updated booking with orderId:", orderId);
+        const bookingSnap = await getDoc(bookingRef);
+        
+        if (bookingSnap.exists()) {
+          const booking = bookingSnap.data();
+          // Idempotency: reuse existing orderId if already set
+          if (booking.orderId) {
+            orderId = booking.orderId;
+            console.log("Reusing existing orderId:", orderId);
+          } else {
+            // Store new orderId
+            await setDoc(bookingRef, {
+              orderId: orderId,
+              paymentStatus: "INITIATED",
+              bookingStatus: "PENDING",
+              updatedAt: serverTimestamp(),
+            }, { merge: true });
+            console.log("Updated booking with orderId:", orderId);
+          }
+        }
       } catch (error) {
         console.error("Failed to update booking with orderId:", error);
         // Continue with payment creation even if this fails

@@ -16,6 +16,38 @@ function PaymentPageContent() {
   const email = searchParams.get("email");
   const phone = searchParams.get("phone");
 
+  async function checkBookingAndStartPayment() {
+    if (!bookingId) {
+      console.error("Missing bookingId");
+      alert("Invalid payment link");
+      return;
+    }
+
+    try {
+      // Frontend guard: fetch booking status first
+      const bookingRes = await fetch(`/api/bookings/${bookingId}`);
+      if (!bookingRes.ok) {
+        console.error("Failed to fetch booking");
+        alert("Booking not found");
+        return;
+      }
+      const booking = await bookingRes.json();
+
+      // If already confirmed, redirect to My Bookings immediately
+      if (booking.bookingStatus === "CONFIRMED" || booking.paymentStatus === "SUCCESS") {
+        console.log("Booking already confirmed, redirecting to My Bookings");
+        window.location.href = "/my-bookings";
+        return;
+      }
+
+      // Proceed with payment initiation
+      await startPayment();
+    } catch (err: any) {
+      console.error("Error checking booking:", err);
+      alert("Failed to verify booking status");
+    }
+  }
+
   async function startPayment() {
     try {
       // STEP 3: Log domain for Vercel debugging
@@ -97,7 +129,7 @@ function PaymentPageContent() {
         strategy="afterInteractive"
         onLoad={() => {
           console.log("Cashfree SDK loaded");
-          startPayment();
+          checkBookingAndStartPayment();
         }}
         onError={() => {
           console.error("Cashfree SDK failed to load");
