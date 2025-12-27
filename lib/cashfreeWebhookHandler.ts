@@ -2,7 +2,7 @@ import crypto from "crypto";
 import { NextRequest } from "next/server";
 import { db } from "@/lib/firebaseServer";
 import { collection, doc, getDocs, limit, query, serverTimestamp, setDoc, where } from "firebase/firestore";
-import { sendTicketEmail } from "@/lib/sendTicketEmail";
+import { maybeSendBookingConfirmationEmail } from "@/lib/bookingConfirmationEmail";
 
 type CashfreeWebhookPayload = {
   order_id?: string;
@@ -140,53 +140,11 @@ export async function handleCashfreeWebhook(req: NextRequest) {
           : Promise.resolve(),
       ]);
 
-      try {
-        const userEmail = existing.userEmail || existing.email || null;
-        if (userEmail) {
-          const userName = existing.userName || existing.name || "Guest User";
-          const eventDate = existing.date || existing.eventDate || new Date().toISOString().split("T")[0];
-
-          let formattedEventDate: string;
-          try {
-            const eventDateObj = new Date(eventDate);
-            formattedEventDate = !isNaN(eventDateObj.getTime())
-              ? eventDateObj.toLocaleDateString("en-IN", {
-                  weekday: "long",
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                })
-              : eventDate;
-          } catch {
-            formattedEventDate = eventDate;
-          }
-
-          const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://movigoo.in";
-          const ticketLink = `${appUrl}/my-bookings?bookingId=${bookingId}`;
-
-          const showTime = existing.showTime || existing.time || null;
-          const showEndTime = existing.showEndTime || null;
-          const eventTime = showTime ? (showEndTime ? `${showTime} - ${showEndTime}` : showTime) : undefined;
-
-          const venueName = existing.venueName || existing.venue || "TBA";
-          const venueAddress = existing.venueAddress || null;
-          const venueDisplay = venueAddress ? `${venueName}, ${venueAddress}` : venueName;
-
-          await sendTicketEmail({
-            to: userEmail,
-            name: userName,
-            eventName: existing.eventTitle || "Event",
-            eventDate: formattedEventDate,
-            eventTime,
-            venue: venueDisplay,
-            ticketQty: existing.quantity || 1,
-            bookingId,
-            ticketLink,
-          });
-        }
-      } catch {
-        // ignore email errors
-      }
+      await maybeSendBookingConfirmationEmail({
+        firestore,
+        bookingId,
+        eventId: existing.eventId || null,
+      });
 
       return new Response("OK", { status: 200 });
     }

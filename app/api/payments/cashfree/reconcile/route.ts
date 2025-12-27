@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseServer";
 import { verifyAuthToken } from "@/lib/auth";
+import { maybeSendBookingConfirmationEmail } from "@/lib/bookingConfirmationEmail";
 import {
   collection,
   doc,
@@ -137,6 +138,12 @@ export async function POST(req: NextRequest) {
             ? setDoc(doc(db, "events", booking.eventId, "bookings", bookingId), updateData, { merge: true })
             : Promise.resolve(),
         ]);
+
+        await maybeSendBookingConfirmationEmail({
+          firestore: db,
+          bookingId,
+          eventId: booking.eventId || null,
+        });
 
         updated += 1;
         continue;
