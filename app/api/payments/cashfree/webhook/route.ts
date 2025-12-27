@@ -1,12 +1,6 @@
-// app/api/cashfree/webhook/route.ts
-// POST /api/cashfree/webhook
-// Cashfree webhook handler - PRODUCTION SAFE
-// This is the ONLY trusted source for payment confirmation
-
 import { NextRequest } from "next/server";
 import { handleCashfreeWebhook } from "@/lib/cashfreeWebhookHandler";
 
-// Force Node.js runtime
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {

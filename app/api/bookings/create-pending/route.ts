@@ -73,8 +73,8 @@ export async function POST(req: NextRequest) {
       items: items || [],
       orderId: orderId || null, // Store Cashfree order ID for webhook lookup
       paymentGateway: "cashfree",
-      paymentStatus: "PENDING",
-      bookingStatus: "PENDING_PAYMENT",
+      paymentStatus: "INITIATED",
+      bookingStatus: "PENDING",
       userEmail: userEmail || null, // Store user email for email sending
       userName: userName || null, // Store user name for email
       createdAt: serverTimestamp(),

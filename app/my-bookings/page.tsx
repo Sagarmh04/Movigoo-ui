@@ -15,7 +15,7 @@ function MyBookingsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, loading } = useAuth();
-  const { bookings, loading: bookingsLoading, error } = useUserBookings(user?.uid || null);
+  const { bookings, loading: bookingsLoading, error, refetch, reconcilePending } = useUserBookings(user?.uid || null);
   const [activeTab, setActiveTab] = useState<"upcoming" | "past">("upcoming");
   
   const redirectUrl = searchParams.get("redirect");
@@ -26,6 +26,28 @@ function MyBookingsPageContent() {
       router.replace(redirectUrl);
     }
   }, [user, redirectUrl, router]);
+
+  useEffect(() => {
+    if (loading) return;
+    if (!user) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        await reconcilePending(() => user.getIdToken());
+        if (!cancelled) {
+          await refetch();
+        }
+      } catch {
+        // ignore
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, user, reconcilePending, refetch]);
 
   // Redirect to profile if not logged in
   if (!loading && !user) {

@@ -54,6 +54,8 @@ export async function POST(req: NextRequest) {
         const bookingRef = doc(db, "bookings", bookingId);
         await setDoc(bookingRef, {
           orderId: orderId,
+          paymentStatus: "INITIATED",
+          bookingStatus: "PENDING",
           updatedAt: serverTimestamp(),
         }, { merge: true });
         console.log("Updated booking with orderId:", orderId);
@@ -97,7 +99,7 @@ export async function POST(req: NextRequest) {
       },
       order_meta: {
         return_url: returnUrl,
-        notify_url: `${appUrl}/api/cashfree/webhook`,
+        notify_url: `${appUrl}/api/payments/cashfree/webhook`,
       },
     };
     const response = await fetch(`${CASHFREE_BASE}/orders`, {
