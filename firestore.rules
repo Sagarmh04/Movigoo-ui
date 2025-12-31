@@ -59,5 +59,18 @@ service cloud.firestore {
       allow read: if request.auth != null && request.auth.uid == uid;
       allow write: if request.auth != null && request.auth.uid == uid;
     }
+    
+    // Support tickets - user can read own tickets, create new tickets, but cannot modify status
+    match /supportTickets/{ticketId} {
+      // User can read their own tickets
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      // User can create tickets (server API handles this, but allow for direct creation)
+      allow create: if request.auth != null && 
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.status == "OPEN" &&
+        request.resource.data.priority == "NORMAL";
+      // User cannot update or delete tickets (only admin/server can)
+      allow update, delete: if false;
+    }
   }
 }
