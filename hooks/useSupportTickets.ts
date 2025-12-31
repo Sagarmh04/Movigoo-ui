@@ -25,7 +25,7 @@ export function useSupportTickets(userId: string | null) {
     const q = query(
       ticketsRef,
       where("userId", "==", userId),
-      orderBy("createdAt", "desc")
+      orderBy("updatedAt", "desc")
     );
 
     console.log("[useSupportTickets] Subscribing to tickets for userId:", userId);

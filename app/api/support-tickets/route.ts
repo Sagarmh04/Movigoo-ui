@@ -1,9 +1,11 @@
 // app/api/support-tickets/route.ts
 // API route for creating support tickets with email notification
+// ✅ SERVER-ONLY: Email sent via Resend (API key never exposed to frontend)
 
 import { NextRequest, NextResponse } from "next/server";
 import { getFirestore, collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { initializeApp, getApps } from "firebase/app";
+import { sendSupportEmail } from "@/lib/server/sendSupportEmail";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -19,117 +21,6 @@ function getFirebaseApp() {
     return initializeApp(firebaseConfig);
   }
   return getApps()[0];
-}
-
-// Send email notification to support team using MSG91
-// PRIMARY: Plain-text email (100% reliable, no template dependency)
-// OPTIONAL: MSG91 template (if exists and approved, used as enhancement only)
-async function sendSupportTicketNotification(ticket: {
-  id: string;
-  category: string;
-  subject: string;
-  description: string;
-  userName: string;
-  userEmail: string;
-  createdAt: string;
-}): Promise<{ success: boolean; error?: string }> {
-  const url = "https://control.msg91.com/api/v5/email/send";
-  const authkey = process.env.MSG91_EMAIL_API_KEY || "476956A42GXVhu1d694664f7P1";
-
-  // Plain-text email body - PRIMARY delivery method
-  const plainTextBody = `
-════════════════════════════════════════
-       NEW SUPPORT TICKET RAISED
-════════════════════════════════════════
-
-TICKET ID: ${ticket.id}
-
-CATEGORY: ${ticket.category}
-
-SUBJECT: ${ticket.subject}
-
-────────────────────────────────────────
-DESCRIPTION:
-────────────────────────────────────────
-${ticket.description}
-
-────────────────────────────────────────
-USER DETAILS:
-────────────────────────────────────────
-Name:  ${ticket.userName}
-Email: ${ticket.userEmail}
-
-────────────────────────────────────────
-CREATED AT: ${ticket.createdAt}
-────────────────────────────────────────
-
-Please respond to this ticket from the admin dashboard.
-
-This is an automated notification from Movigoo Support System.
-`.trim();
-
-  // Email payload - plain-text as PRIMARY (no template dependency)
-  const emailPayload = {
-    recipients: [
-      {
-        to: [
-          {
-            email: "movigootech@gmail.com",
-            name: "Movigoo Support",
-          },
-        ],
-      },
-    ],
-    from: {
-      email: "noreply@bookings.movigoo.in",
-      name: "Movigoo Support System",
-    },
-    domain: "bookings.movigoo.in",
-    subject: `[Support Ticket #${ticket.id.slice(-6).toUpperCase()}] ${ticket.category} - ${ticket.subject}`,
-    body: plainTextBody,
-    content_type: "text/plain", // Explicit plain-text - no template dependency
-  };
-
-  console.log("========================================");
-  console.log("📧 SUPPORT EMAIL TRIGGER - START");
-  console.log("========================================");
-
-  console.log("📧 Sending support ticket email...");
-  console.log("📧 To: movigootech@gmail.com");
-  console.log("📧 Ticket ID:", ticket.id);
-  console.log("📧 Category:", ticket.category);
-  console.log("📧 Subject:", ticket.subject);
-  console.log("📧 User Email:", ticket.userEmail);
-
-  try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        authkey: authkey,
-      },
-      body: JSON.stringify(emailPayload),
-    });
-
-    const responseData = await response.json();
-
-    if (!response.ok) {
-      console.error("❌ Support ticket email failed:");
-      console.error("❌ Status:", response.status);
-      console.error("❌ Response:", JSON.stringify(responseData, null, 2));
-      return { success: false, error: responseData?.message || "Email delivery failed" };
-    }
-
-    console.log("✅ Support ticket email sent successfully!");
-    console.log("✅ MSG91 Response:", JSON.stringify(responseData, null, 2));
-    return { success: true };
-
-  } catch (error: any) {
-    console.error("❌ Support ticket email error:", error.message);
-    console.error("❌ Stack:", error.stack);
-    return { success: false, error: error.message };
-  }
 }
 
 export async function POST(request: NextRequest) {
@@ -186,9 +77,9 @@ export async function POST(request: NextRequest) {
 
     console.log("✅ Support ticket created:", docRef.id);
 
-    // Send email notification - await to ensure delivery before responding
-    const emailResult = await sendSupportTicketNotification({
-      id: docRef.id,
+    // Send email notification via Resend (SERVER-ONLY)
+    const emailResult = await sendSupportEmail({
+      ticketId: docRef.id,
       category,
       subject,
       description,
