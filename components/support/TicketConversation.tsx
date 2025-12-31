@@ -3,9 +3,9 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Send, Clock, CheckCircle, AlertCircle, ArrowLeft, MessageSquare } from "lucide-react";
+import { Send, Clock, CheckCircle, AlertCircle, ArrowLeft, MessageSquare, Bot } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SupportTicket, SupportTicketStatus } from "@/types/supportTicket";
 
@@ -60,9 +60,19 @@ function formatDate(dateString: string): string {
 export default function TicketConversation({ ticket, onBack, showBackButton = false }: TicketConversationProps) {
   const [replyMessage, setReplyMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [showBotMessage, setShowBotMessage] = useState(false);
 
   const status = statusConfig[ticket.status];
   const isTicketClosed = ticket.status === "CLOSED" || ticket.status === "RESOLVED";
+
+  // Show bot message for new tickets (OPEN status with no messages)
+  useEffect(() => {
+    if (ticket.status === "OPEN" && (!ticket.messages || ticket.messages.length === 0)) {
+      setShowBotMessage(true);
+    } else {
+      setShowBotMessage(false);
+    }
+  }, [ticket.id, ticket.status, ticket.messages]);
 
   const handleSendReply = async () => {
     if (!replyMessage.trim() || isTicketClosed) return;
@@ -131,6 +141,28 @@ export default function TicketConversation({ ticket, onBack, showBackButton = fa
           </div>
         </motion.div>
 
+        {/* Bot Message (UI-only, not stored in Firestore) */}
+        {showBotMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="flex justify-start"
+          >
+            <div className="max-w-[85%] rounded-2xl rounded-tl-sm bg-slate-800/50 border border-white/5 p-4">
+              <div className="mb-2 flex items-center gap-2">
+                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-700/50">
+                  <Bot size={14} className="text-slate-400" />
+                </div>
+                <p className="text-xs font-medium text-slate-400">Movigoo Bot</p>
+              </div>
+              <p className="text-sm text-slate-300 leading-relaxed">
+                Thanks for reaching out! Please allow up to 2 working days for our team to review your request. Do check your email for updates. – Team Movigoo
+              </p>
+            </div>
+          </motion.div>
+        )}
+
         {/* Messages */}
         {ticket.messages && ticket.messages.length > 0 ? (
           ticket.messages.map((msg, index) => (
@@ -158,16 +190,7 @@ export default function TicketConversation({ ticket, onBack, showBackButton = fa
               </div>
             </motion.div>
           ))
-        ) : (
-          /* No replies yet */
-          <div className="flex flex-col items-center justify-center py-8 text-center">
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white/5">
-              <MessageSquare size={24} className="text-slate-500" />
-            </div>
-            <p className="text-sm text-slate-400">No replies yet</p>
-            <p className="text-xs text-slate-500">Our team will respond soon</p>
-          </div>
-        )}
+        ) : null}
 
         {/* Admin response (legacy field) */}
         {ticket.adminResponse && !ticket.messages?.length && (
