@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Send, Clock, CheckCircle, AlertCircle, ArrowLeft, MessageSquare, Bot } from "lucide-react";
+import { Send, Clock, CheckCircle, AlertCircle, ArrowLeft, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SupportTicket, SupportTicketStatus } from "@/types/supportTicket";
 
@@ -141,7 +141,7 @@ export default function TicketConversation({ ticket, onBack, showBackButton = fa
           </div>
         </motion.div>
 
-        {/* Bot Message (UI-only, not stored in Firestore) */}
+        {/* Movigoo Info Message (UI-only, not stored in Firestore) */}
         {showBotMessage && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -149,15 +149,10 @@ export default function TicketConversation({ ticket, onBack, showBackButton = fa
             transition={{ delay: 0.2 }}
             className="flex justify-start"
           >
-            <div className="max-w-[85%] rounded-2xl rounded-tl-sm bg-slate-800/50 border border-white/5 p-4">
-              <div className="mb-2 flex items-center gap-2">
-                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-700/50">
-                  <Bot size={14} className="text-slate-400" />
-                </div>
-                <p className="text-xs font-medium text-slate-400">Movigoo Bot</p>
-              </div>
-              <p className="text-sm text-slate-300 leading-relaxed">
-                Thanks for reaching out! Please allow up to 2 working days for our team to review your request. Do check your email for updates. – Team Movigoo
+            <div className="max-w-[85%] rounded-2xl rounded-tl-sm bg-white/10 p-4">
+              <p className="mb-1 text-xs font-medium text-[#0B62FF]">Movigoo</p>
+              <p className="text-sm text-white leading-relaxed">
+                Thanks for reaching out! Please allow up to 2 working days for our team to review your request. Do check your email for updates.
               </p>
             </div>
           </motion.div>
