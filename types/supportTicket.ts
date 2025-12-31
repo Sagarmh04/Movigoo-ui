@@ -13,6 +13,15 @@ export type SupportTicketStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED"
 
 export type SupportTicketPriority = "LOW" | "NORMAL" | "HIGH" | "URGENT";
 
+export type TicketMessage = {
+  id: string;
+  ticketId: string;
+  message: string;
+  senderType: "user" | "support";
+  senderName: string;
+  createdAt: string;
+};
+
 export type SupportTicket = {
   id: string;
   category: SupportTicketCategory;
@@ -28,6 +37,8 @@ export type SupportTicket = {
   // Optional fields for admin responses
   adminResponse?: string;
   resolvedAt?: string;
+  // Conversation messages
+  messages?: TicketMessage[];
 };
 
 export const SUPPORT_TICKET_CATEGORIES: SupportTicketCategory[] = [

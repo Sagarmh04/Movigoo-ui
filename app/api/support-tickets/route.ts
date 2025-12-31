@@ -21,7 +21,9 @@ function getFirebaseApp() {
   return getApps()[0];
 }
 
-// Send email notification to support team using MSG91 (existing email service)
+// Send email notification to support team using MSG91
+// PRIMARY: Plain-text email (100% reliable, no template dependency)
+// OPTIONAL: MSG91 template (if exists and approved, used as enhancement only)
 async function sendSupportTicketNotification(ticket: {
   id: string;
   category: string;
@@ -30,11 +32,44 @@ async function sendSupportTicketNotification(ticket: {
   userName: string;
   userEmail: string;
   createdAt: string;
-}): Promise<void> {
+}): Promise<{ success: boolean; error?: string }> {
   const url = "https://control.msg91.com/api/v5/email/send";
   const authkey = process.env.MSG91_EMAIL_API_KEY || "476956A42GXVhu1d694664f7P1";
 
-  const body = {
+  // Plain-text email body - PRIMARY delivery method
+  const plainTextBody = `
+════════════════════════════════════════
+       NEW SUPPORT TICKET RAISED
+════════════════════════════════════════
+
+TICKET ID: ${ticket.id}
+
+CATEGORY: ${ticket.category}
+
+SUBJECT: ${ticket.subject}
+
+────────────────────────────────────────
+DESCRIPTION:
+────────────────────────────────────────
+${ticket.description}
+
+────────────────────────────────────────
+USER DETAILS:
+────────────────────────────────────────
+Name:  ${ticket.userName}
+Email: ${ticket.userEmail}
+
+────────────────────────────────────────
+CREATED AT: ${ticket.createdAt}
+────────────────────────────────────────
+
+Please respond to this ticket from the admin dashboard.
+
+This is an automated notification from Movigoo Support System.
+`.trim();
+
+  // Email payload - plain-text as PRIMARY (no template dependency)
+  const emailPayload = {
     recipients: [
       {
         to: [
@@ -43,43 +78,24 @@ async function sendSupportTicketNotification(ticket: {
             name: "Movigoo Support",
           },
         ],
-        variables: {
-          ticketId: ticket.id,
-          category: ticket.category,
-          subject: ticket.subject,
-          description: ticket.description,
-          userName: ticket.userName,
-          userEmail: ticket.userEmail,
-          createdAt: ticket.createdAt,
-        },
       },
     ],
     from: {
       email: "noreply@bookings.movigoo.in",
+      name: "Movigoo Support System",
     },
     domain: "bookings.movigoo.in",
-    template_id: "support_ticket_notification",
-    // Fallback: send plain text if template doesn't exist
-    body: `
-New Support Ticket Raised
-
-Ticket ID: ${ticket.id}
-Category: ${ticket.category}
-Subject: ${ticket.subject}
-
-Description:
-${ticket.description}
-
-User Details:
-Name: ${ticket.userName}
-Email: ${ticket.userEmail}
-
-Created At: ${ticket.createdAt}
-
-Please respond to this ticket from the admin dashboard.
-    `.trim(),
-    subject: `[Support Ticket] ${ticket.category} - ${ticket.subject}`,
+    subject: `[Support Ticket #${ticket.id.slice(-6).toUpperCase()}] ${ticket.category} - ${ticket.subject}`,
+    body: plainTextBody,
+    // content_type defaults to text/plain which is what we want
   };
+
+  console.log("📧 Sending support ticket email...");
+  console.log("📧 To: movigootech@gmail.com");
+  console.log("📧 Ticket ID:", ticket.id);
+  console.log("📧 Category:", ticket.category);
+  console.log("📧 Subject:", ticket.subject);
+  console.log("📧 User Email:", ticket.userEmail);
 
   try {
     const response = await fetch(url, {
@@ -89,17 +105,26 @@ Please respond to this ticket from the admin dashboard.
         Accept: "application/json",
         authkey: authkey,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(emailPayload),
     });
 
+    const responseData = await response.json();
+
     if (!response.ok) {
-      const data = await response.json();
-      console.error("❌ Support ticket email failed:", data);
-    } else {
-      console.log("✅ Support ticket email sent to movigootech@gmail.com");
+      console.error("❌ Support ticket email failed:");
+      console.error("❌ Status:", response.status);
+      console.error("❌ Response:", JSON.stringify(responseData, null, 2));
+      return { success: false, error: responseData?.message || "Email delivery failed" };
     }
+
+    console.log("✅ Support ticket email sent successfully!");
+    console.log("✅ MSG91 Response:", JSON.stringify(responseData, null, 2));
+    return { success: true };
+
   } catch (error: any) {
     console.error("❌ Support ticket email error:", error.message);
+    console.error("❌ Stack:", error.stack);
+    return { success: false, error: error.message };
   }
 }
 
@@ -157,8 +182,8 @@ export async function POST(request: NextRequest) {
 
     console.log("✅ Support ticket created:", docRef.id);
 
-    // Send email notification (non-blocking)
-    sendSupportTicketNotification({
+    // Send email notification - await to ensure delivery before responding
+    const emailResult = await sendSupportTicketNotification({
       id: docRef.id,
       category,
       subject,
@@ -166,12 +191,18 @@ export async function POST(request: NextRequest) {
       userName: ticketData.userName,
       userEmail,
       createdAt: now,
-    }).catch((err) => console.error("Email notification failed:", err));
+    });
+
+    if (!emailResult.success) {
+      console.error("⚠️ Ticket created but email notification failed:", emailResult.error);
+      // Still return success - ticket was created, email failure is logged
+    }
 
     return NextResponse.json({
       success: true,
       ticketId: docRef.id,
       message: "Support ticket created successfully",
+      emailSent: emailResult.success,
     });
   } catch (error: any) {
     console.error("❌ Support ticket creation error:", error);

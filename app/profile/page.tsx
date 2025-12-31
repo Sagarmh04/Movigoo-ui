@@ -10,7 +10,6 @@ import { User, Ticket, HelpCircle, LogOut, ChevronRight, Chrome, Mail, Phone } f
 import { Button } from "@/components/ui/button";
 import LayoutWrapper from "@/components/LayoutWrapper";
 import LoginModal from "@/components/auth/LoginModal";
-import SupportTicketModal from "@/components/support/SupportTicketModal";
 import { useAuth } from "@/hooks/useAuth";
 import { auth } from "@/lib/firebaseClient";
 import { signOut } from "firebase/auth";
@@ -21,7 +20,6 @@ function ProfilePageContent() {
   const searchParams = useSearchParams();
   const { user, loading } = useAuth();
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const [showSupportModal, setShowSupportModal] = useState(false);
 
   const redirectUrl = searchParams.get("redirect");
 
@@ -168,7 +166,7 @@ function ProfilePageContent() {
               </button>
 
               <button
-                onClick={() => setShowSupportModal(true)}
+                onClick={() => router.push("/support-tickets")}
                 className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/5 p-4 text-left transition hover:bg-white/10"
               >
                 <div className="flex items-center gap-3">
@@ -198,19 +196,6 @@ function ProfilePageContent() {
           onClose={() => setShowLoginModal(false)}
           onSuccess={handleLoginSuccess}
         />
-
-        {/* Support Ticket Modal */}
-        {user && (
-          <SupportTicketModal
-            isOpen={showSupportModal}
-            onClose={() => setShowSupportModal(false)}
-            user={{
-              uid: user.uid,
-              email: user.email,
-              displayName: user.displayName,
-            }}
-          />
-        )}
       </div>
     </LayoutWrapper>
   );

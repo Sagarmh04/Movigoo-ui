@@ -67,13 +67,15 @@ export function clearBookingState(): void {
   localStorage.removeItem(BOOKING_STATE_KEY);
 }
 
+const PLATFORM_FEE = 7; // ₹7 flat per booking (NOT per ticket)
+
 export function calculateTotals(tickets: BookingState["tickets"]): {
   subtotal: number;
   bookingFee: number;
   total: number;
 } {
   const subtotal = tickets.reduce((sum, ticket) => sum + ticket.price * ticket.quantity, 0);
-  const bookingFee = tickets.reduce((sum, ticket) => sum + 7 * ticket.quantity, 0); // ₹7 per ticket
+  const bookingFee = PLATFORM_FEE; // ₹7 flat per booking
   const total = subtotal + bookingFee;
   return { subtotal, bookingFee, total };
 }

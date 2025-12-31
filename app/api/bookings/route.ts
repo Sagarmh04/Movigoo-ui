@@ -8,7 +8,7 @@ import { db } from "@/lib/firebaseServer";
 import { v4 as uuidv4 } from "uuid";
 import { sendTicketEmail } from "@/lib/sendTicketEmail";
 
-const BOOKING_FEE_PER_TICKET = 7; // ₹7 per ticket
+const PLATFORM_FEE = 7; // ₹7 flat per booking (NOT per ticket)
 
 export async function POST(request: NextRequest) {
   try {
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
         ticketType: body.ticketTypeName,
         quantity: body.quantity,
         price: body.totalAmount || (body.pricePerTicket * body.quantity),
-        bookingFee: body.bookingFee || (body.quantity * BOOKING_FEE_PER_TICKET),
+        bookingFee: body.bookingFee || PLATFORM_FEE,
         totalAmount: body.finalAmount || body.totalAmount,
       };
     } else if (body.items && Array.isArray(body.items)) {
@@ -150,10 +150,10 @@ export async function POST(request: NextRequest) {
         return `${ticketName} (${item.quantity})`;
       });
 
-      // Calculate totals
+      // Calculate totals - Platform fee is ₹7 FLAT per booking (NOT per ticket)
       const subtotal = body.items.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
       const totalTickets = body.items.reduce((sum: number, item: any) => sum + item.quantity, 0);
-      const bookingFee = totalTickets * BOOKING_FEE_PER_TICKET;
+      const bookingFee = PLATFORM_FEE; // ₹7 flat
       const discount = body.promoCode ? subtotal * 0.05 : 0;
       const totalAmount = subtotal - discount + bookingFee;
 

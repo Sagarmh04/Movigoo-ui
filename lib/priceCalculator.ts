@@ -4,7 +4,7 @@
 import { db } from "@/lib/firebaseServer";
 import { doc, getDoc } from "firebase/firestore";
 
-const BOOKING_FEE_PER_TICKET = 7; // ₹7 per ticket
+const PLATFORM_FEE = 7; // ₹7 flat per booking (NOT per ticket)
 
 export type TicketPriceInfo = {
   ticketTypeId: string;
@@ -87,9 +87,8 @@ export async function calculateBookingPrice(
     subtotal += lineTotal;
   }
 
-  // Calculate booking fee (₹7 per ticket)
-  const totalTickets = ticketPriceInfos.reduce((sum, t) => sum + t.quantity, 0);
-  const bookingFee = totalTickets * BOOKING_FEE_PER_TICKET;
+  // Platform fee is ₹7 FLAT per booking (NOT per ticket)
+  const bookingFee = PLATFORM_FEE;
 
   // Calculate total
   const total = subtotal + bookingFee;

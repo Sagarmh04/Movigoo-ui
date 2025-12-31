@@ -17,7 +17,7 @@ import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebaseClient";
 import { useRef } from "react";
 
-const BOOKING_FEE_PER_TICKET = 7;
+const PLATFORM_FEE = 7; // ₹7 flat per booking (NOT per ticket)
 
 export default function CheckoutPage({ params }: { params: { eventId: string } }) {
   const router = useRouter();
@@ -155,14 +155,13 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
     );
   }
 
-  // Calculate totals
+  // Calculate totals - Platform fee is ₹7 FLAT per booking (NOT per ticket)
   const subtotal = bookingData.items.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
   const totalTickets = bookingData.items.reduce((sum: number, item: any) => sum + item.quantity, 0);
-  const bookingFee = totalTickets * BOOKING_FEE_PER_TICKET;
+  const platformFee = PLATFORM_FEE; // ₹7 flat
   const discount = bookingData.promoCode ? subtotal * 0.05 : 0;
-  const totalAmount = subtotal - discount + bookingFee;
+  const totalAmount = subtotal - discount + platformFee;
   const basePrice = subtotal;
-  const platformFee = totalAmount - basePrice;
 
   // Get event details
   const basic = eventDetails?.basicDetails || {};
@@ -246,7 +245,7 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
         }).join(", "),
         quantity: totalTickets,
         price: subtotal,
-        bookingFee: bookingFee,
+        bookingFee: platformFee,
         totalAmount: totalAmount,
         items: bookingData.items.map((item: any) => ({
           ticketTypeId: item.ticketTypeId,
@@ -419,8 +418,8 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
                 </div>
               )}
               <div className="flex justify-between text-slate-300">
-                <span>Movigoo Booking Fee (₹{BOOKING_FEE_PER_TICKET} × {totalTickets})</span>
-                <span>{currencyFormatter.format(bookingFee)}</span>
+                <span>Platform Fee</span>
+                <span>{currencyFormatter.format(platformFee)}</span>
               </div>
               <Separator />
               <div className="flex items-center justify-between">

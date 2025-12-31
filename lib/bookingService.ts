@@ -29,10 +29,11 @@ export type BookingData = {
   qrCodeData: string;
 };
 
-const BOOKING_FEE_PER_TICKET = 7; // ₹7 per ticket
+const PLATFORM_FEE = 7; // ₹7 flat per booking (NOT per ticket)
 
 /**
  * Calculate booking totals
+ * Platform fee is ₹7 FLAT per booking (NOT per ticket)
  */
 export function calculateBookingTotals(tickets: TicketSelection[]): {
   subtotal: number;
@@ -40,8 +41,7 @@ export function calculateBookingTotals(tickets: TicketSelection[]): {
   total: number;
 } {
   const subtotal = tickets.reduce((sum, ticket) => sum + ticket.price * ticket.quantity, 0);
-  const totalTickets = tickets.reduce((sum, ticket) => sum + ticket.quantity, 0);
-  const bookingFee = totalTickets * BOOKING_FEE_PER_TICKET;
+  const bookingFee = PLATFORM_FEE; // ₹7 flat per booking
   const total = subtotal + bookingFee;
 
   return { subtotal, bookingFee, total };
