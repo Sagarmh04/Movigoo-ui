@@ -28,12 +28,16 @@ export function useSupportTickets(userId: string | null) {
       orderBy("createdAt", "desc")
     );
 
+    console.log("[useSupportTickets] Subscribing to tickets for userId:", userId);
+
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
+        console.log("[useSupportTickets] Snapshot received, docs count:", snapshot.size);
         const ticketList: SupportTicket[] = [];
         snapshot.forEach((doc) => {
           const data = doc.data();
+          console.log("[useSupportTickets] Ticket found:", doc.id, "status:", data.status);
           ticketList.push({
             id: doc.id,
             category: data.category,
@@ -51,11 +55,14 @@ export function useSupportTickets(userId: string | null) {
             messages: data.messages || [],
           });
         });
+        console.log("[useSupportTickets] Total tickets loaded:", ticketList.length);
         setTickets(ticketList);
         setLoading(false);
       },
       (err) => {
-        console.error("Error fetching support tickets:", err);
+        console.error("[useSupportTickets] Error fetching support tickets:", err);
+        console.error("[useSupportTickets] Error code:", err.code);
+        console.error("[useSupportTickets] This may require a Firestore index. Check console for index creation link.");
         setError(err.message);
         setLoading(false);
       }

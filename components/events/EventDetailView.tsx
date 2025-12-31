@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { Calendar, MapPin, ShieldCheck, Users, Plus, Minus, Share2 } from "lucide-react";
+import { Calendar, MapPin, ShieldCheck, Users, Plus, Minus, Share2, ChevronDown } from "lucide-react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebaseClient";
@@ -28,6 +28,8 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
   const searchParams = useSearchParams();
   const [eventData, setEventData] = useState<any>(null);
   const [isLoadingPrice, setIsLoadingPrice] = useState(true);
+  const [showPriceBreakup, setShowPriceBreakup] = useState(false);
+  const priceBreakupRef = useRef<HTMLDivElement>(null);
   const isHosted = event.organizerId === organizer.id;
 
   // Fetch full event data to calculate lowest price
@@ -50,6 +52,19 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
 
     fetchEventData();
   }, [event.id]);
+
+  // Handle click outside to close price breakup dropdown
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (priceBreakupRef.current && !priceBreakupRef.current.contains(event.target as Node)) {
+        setShowPriceBreakup(false);
+      }
+    }
+    if (showPriceBreakup) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [showPriceBreakup]);
 
   // Calculate lowest price from all ticket types
   const lowestPrice = useMemo(() => {
@@ -691,18 +706,53 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
             ) : (
               // Multiple ticket types: total on left, checkout button on right (disabled if no selection)
               <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <span className="text-sm text-slate-300">Total</span>
-                  <span className="text-xl font-bold text-[#0B62FF]">
-                    {currencyFormatter.format(total)}
-                  </span>
-                </div>
+                {/* Only show total and dropdown when tickets are selected */}
+                {selectedTicketsArray.length > 0 ? (
+                  <div className="relative" ref={priceBreakupRef}>
+                    <div
+                      className="flex items-center gap-2 cursor-pointer"
+                      onClick={() => setShowPriceBreakup(!showPriceBreakup)}
+                    >
+                      <span className="text-sm text-slate-300">Total</span>
+                      <span className="text-xl font-bold text-[#0B62FF]">
+                        {currencyFormatter.format(total)}
+                      </span>
+                      <ChevronDown
+                        className={`h-4 w-4 text-slate-400 transition-transform ${showPriceBreakup ? "rotate-180" : ""}`}
+                      />
+                    </div>
+                    {/* Price breakup dropdown - opens upward (drop-up) */}
+                    {showPriceBreakup && (
+                      <div className="absolute bottom-full left-0 mb-2 z-50 rounded-xl border border-white/10 bg-slate-900/95 p-4 shadow-xl backdrop-blur-xl min-w-[220px]">
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between text-slate-300">
+                            <span>Base Ticket Price</span>
+                            <span>{currencyFormatter.format(subtotal)}</span>
+                          </div>
+                          <div className="flex justify-between text-slate-300">
+                            <span>Platform Fee</span>
+                            <span>{currencyFormatter.format(bookingFee)}</span>
+                          </div>
+                          <div className="mt-2 pt-2 border-t border-white/10 flex justify-between font-semibold text-white">
+                            <span>Total</span>
+                            <span>{currencyFormatter.format(total)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm text-slate-300">Total</span>
+                    <span className="text-xl font-bold text-slate-500">₹0</span>
+                  </div>
+                )}
                 <Button
                   onClick={handleProceedToPayment}
                   disabled={selectedTicketsArray.length === 0}
                   className="rounded-full bg-[#0B62FF] px-6 py-3 text-base font-semibold shadow-lg transition hover:bg-[#0A5AE6] disabled:opacity-50 disabled:cursor-not-allowed sm:rounded-2xl"
                 >
-                  Checkout {currencyFormatter.format(total)}
+                  Checkout {selectedTicketsArray.length > 0 ? currencyFormatter.format(total) : ""}
                 </Button>
               </div>
             )}

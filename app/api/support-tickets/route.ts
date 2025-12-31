@@ -87,8 +87,12 @@ This is an automated notification from Movigoo Support System.
     domain: "bookings.movigoo.in",
     subject: `[Support Ticket #${ticket.id.slice(-6).toUpperCase()}] ${ticket.category} - ${ticket.subject}`,
     body: plainTextBody,
-    // content_type defaults to text/plain which is what we want
+    content_type: "text/plain", // Explicit plain-text - no template dependency
   };
+
+  console.log("========================================");
+  console.log("📧 SUPPORT EMAIL TRIGGER - START");
+  console.log("========================================");
 
   console.log("📧 Sending support ticket email...");
   console.log("📧 To: movigootech@gmail.com");
