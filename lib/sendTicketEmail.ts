@@ -1,6 +1,6 @@
 // lib/sendTicketEmail.ts
 // MSG91 Email API integration for ticket confirmations
-// Server-side only - never expose keys to client
+// Server-side only - never expose keys to clients
 
 type TicketEmailPayload = {
   to: string;
