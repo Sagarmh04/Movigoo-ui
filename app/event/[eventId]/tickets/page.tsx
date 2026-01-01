@@ -131,10 +131,10 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
       setIsLoadingBookings(true);
       try {
         const bookingsRef = collection(db, "events", params.eventId, "bookings");
+        // Fetch all bookings for the show - we'll filter for CONFIRMED status client-side
         const q = query(
           bookingsRef,
-          where("showId", "==", selectedShow.showId),
-          where("paymentStatus", "==", "confirmed")
+          where("showId", "==", selectedShow.showId)
         );
         const snapshot = await getDocs(q);
         setBookings(snapshot.docs.map(doc => doc.data()));
@@ -149,11 +149,32 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
     fetchBookings();
   }, [selectedShow, params.eventId]);
 
-  // Calculate booked quantities per ticket type
+  // Filter confirmed bookings (paymentStatus === "confirmed" OR bookingStatus === "CONFIRMED")
+  const confirmedBookings = useMemo(() => {
+    return bookings.filter((booking: any) => {
+      const paymentStatus = (booking.paymentStatus || "").toLowerCase();
+      const bookingStatus = (booking.bookingStatus || "").toUpperCase();
+      return paymentStatus === "confirmed" || bookingStatus === "CONFIRMED";
+    });
+  }, [bookings]);
+
+  // Calculate total tickets sold (sum of all confirmed booking quantities)
+  const totalTicketsSold = useMemo(() => {
+    return confirmedBookings.reduce((total: number, booking: any) => {
+      const quantity = typeof booking.quantity === "number" ? booking.quantity : 0;
+      return total + quantity;
+    }, 0);
+  }, [confirmedBookings]);
+
+  // Check if event is sold out
+  const maxTickets = typeof eventData?.maxTickets === "number" ? eventData.maxTickets : null;
+  const isSoldOut = maxTickets !== null && totalTicketsSold >= maxTickets;
+
+  // Calculate booked quantities per ticket type (only from confirmed bookings)
   const bookedQuantities = useMemo(() => {
     const booked: Record<string, number> = {};
     
-    bookings.forEach((booking: any) => {
+    confirmedBookings.forEach((booking: any) => {
       if (booking.items && Array.isArray(booking.items)) {
         booking.items.forEach((item: any) => {
           if (item.ticketTypeId && item.quantity) {
@@ -164,7 +185,7 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
     });
     
     return booked;
-  }, [bookings]);
+  }, [confirmedBookings]);
 
   // Filter tickets by selected venue and calculate availability
   const tickets = useMemo((): TicketTypeCard[] => {
@@ -224,6 +245,12 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
   const handleProceed = async () => {
     // Prevent duplicate clicks
     if (isPaying) return;
+
+    // Prevent checkout if event is sold out
+    if (isSoldOut) {
+      alert("This event is sold out.");
+      return;
+    }
 
     if (selectedTicketsArray.length === 0 || !selectedShow) {
       return;
@@ -554,7 +581,12 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
 
             {/* Ticket Selection */}
             <div className="space-y-4">
-              <h3 className="text-xl font-semibold text-white">Select Tickets</h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-semibold text-white">Select Tickets</h3>
+                {isSoldOut && (
+                  <span className="text-lg font-semibold text-red-400">SOLD OUT</span>
+                )}
+              </div>
               {tickets.length === 0 ? (
                 <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center">
                   <p className="text-slate-400">No tickets available for this venue.</p>
@@ -584,13 +616,19 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
                     {currencyFormatter.format(total)}
                   </span>
                 </div>
-                <Button
-                  onClick={handleProceed}
-                  disabled={selectedTicketsArray.length === 0 || isPaying}
-                  className="rounded-full bg-[#0B62FF] px-6 py-3 text-base font-semibold shadow-lg transition hover:bg-[#0A5AE6] disabled:opacity-50 disabled:cursor-not-allowed sm:rounded-2xl"
-                >
-                  {isPaying ? "Processing..." : "Proceed to Review"}
-                </Button>
+                {isSoldOut ? (
+                  <div className="flex-1 text-center">
+                    <span className="text-lg font-semibold text-red-400">SOLD OUT</span>
+                  </div>
+                ) : (
+                  <Button
+                    onClick={handleProceed}
+                    disabled={selectedTicketsArray.length === 0 || isPaying || isSoldOut}
+                    className="rounded-full bg-[#0B62FF] px-6 py-3 text-base font-semibold shadow-lg transition hover:bg-[#0A5AE6] disabled:opacity-50 disabled:cursor-not-allowed sm:rounded-2xl"
+                  >
+                    {isPaying ? "Processing..." : "Proceed to Review"}
+                  </Button>
+                )}
               </div>
             </div>
           </div>

@@ -32,6 +32,7 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
   const [isPaying, setIsPaying] = useState(false);
   const [showBreakup, setShowBreakup] = useState(false);
   const breakupRef = useRef<HTMLDivElement>(null);
+  const [bookings, setBookings] = useState<any[]>([]);
 
   useEffect(() => {
     setMounted(true);
@@ -195,8 +196,7 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
     // Wait for auth to fully load - no race conditions
     if (authLoading) {
       console.log("Auth is still initializing...");
-      setIsPaying(false); // Reset since we're not proceeding
-      return;
+      return; // DO NOT reset isPaying - let it stay true to show Processing state
     }
 
     // Check if user is logged in
@@ -281,7 +281,7 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
       if (!bookingResponse.ok || !bookingResult.bookingId) {
         console.error("Failed to create pending booking:", bookingResult);
         alert("Failed to create booking. Please try again.");
-        setIsPaying(false);
+        // DO NOT reset isPaying - let navigation handle state cleanup
         return;
       }
 
@@ -307,7 +307,7 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
     } catch (error: any) {
       console.error("Error creating booking:", error);
       alert("Failed to create booking. Please try again.");
-      setIsPaying(false);
+      // DO NOT reset isPaying - let navigation handle state cleanup
     }
   };
 

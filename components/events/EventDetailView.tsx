@@ -158,10 +158,10 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
         const show = date.shows[0];
 
         const bookingsRef = collection(db, "events", event.id, "bookings");
+        // Fetch all bookings for the show - we'll filter for CONFIRMED status client-side
         const q = query(
           bookingsRef,
-          where("showId", "==", show.id),
-          where("paymentStatus", "==", "confirmed")
+          where("showId", "==", show.id)
         );
         const snapshot = await getDocs(q);
         setBookings(snapshot.docs.map(doc => doc.data()));
@@ -174,10 +174,31 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
     fetchBookings();
   }, [hasSingleShow, event.id, eventData]);
 
-  // Calculate booked quantities
+  // Filter confirmed bookings (paymentStatus === "confirmed" OR bookingStatus === "CONFIRMED")
+  const confirmedBookings = useMemo(() => {
+    return bookings.filter((booking: any) => {
+      const paymentStatus = (booking.paymentStatus || "").toLowerCase();
+      const bookingStatus = (booking.bookingStatus || "").toUpperCase();
+      return paymentStatus === "confirmed" || bookingStatus === "CONFIRMED";
+    });
+  }, [bookings]);
+
+  // Calculate total tickets sold (sum of all confirmed booking quantities)
+  const totalTicketsSold = useMemo(() => {
+    return confirmedBookings.reduce((total: number, booking: any) => {
+      const quantity = typeof booking.quantity === "number" ? booking.quantity : 0;
+      return total + quantity;
+    }, 0);
+  }, [confirmedBookings]);
+
+  // Check if event is sold out
+  const maxTickets = typeof eventData?.maxTickets === "number" ? eventData.maxTickets : null;
+  const isSoldOut = maxTickets !== null && totalTicketsSold >= maxTickets;
+
+  // Calculate booked quantities per ticket type (only from confirmed bookings)
   const bookedQuantities = useMemo(() => {
     const booked: Record<string, number> = {};
-    bookings.forEach((booking: any) => {
+    confirmedBookings.forEach((booking: any) => {
       if (booking.items && Array.isArray(booking.items)) {
         booking.items.forEach((item: any) => {
           if (item.ticketTypeId && item.quantity) {
@@ -187,7 +208,7 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
       }
     });
     return booked;
-  }, [bookings]);
+  }, [confirmedBookings]);
 
   // Get tickets for single location
   const availableTickets = useMemo((): TicketTypeCard[] => {
@@ -257,6 +278,12 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
   }, [selectedTicketsArray]);
 
   const handleProceedToPayment = async () => {
+    // Prevent checkout if event is sold out
+    if (isSoldOut) {
+      alert("This event is sold out.");
+      return;
+    }
+
     if (selectedTicketsArray.length === 0) {
       alert("Please select at least one ticket");
       return;
@@ -674,33 +701,40 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
             {hasSingleTicketType ? (
               // Single ticket type: quantity selector on left, checkout button on right
               <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <span className="text-sm text-slate-300">Quantity</span>
-                  <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 p-1">
-                    <button
-                      onClick={() => handleQuantityChangeSingle(-1)}
-                      disabled={(selectedTickets[availableTickets[0]?.id] || 1) <= 1}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-white transition hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <Minus size={14} />
-                    </button>
-                    <span className="min-w-[2rem] text-center text-base font-semibold text-white">
-                      {selectedTickets[availableTickets[0]?.id] || 1}
-                    </span>
-                    <button
-                      onClick={() => handleQuantityChangeSingle(1)}
-                      disabled={(selectedTickets[availableTickets[0]?.id] || 1) >= (availableTickets[0]?.maxPerOrder || 10)}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-white transition hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <Plus size={14} />
-                    </button>
+                {isSoldOut ? (
+                  <div className="flex-1 text-center">
+                    <span className="text-lg font-semibold text-red-400">SOLD OUT</span>
                   </div>
-                </div>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm text-slate-300">Quantity</span>
+                    <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 p-1">
+                      <button
+                        onClick={() => handleQuantityChangeSingle(-1)}
+                        disabled={(selectedTickets[availableTickets[0]?.id] || 1) <= 1}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-white transition hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Minus size={14} />
+                      </button>
+                      <span className="min-w-[2rem] text-center text-base font-semibold text-white">
+                        {selectedTickets[availableTickets[0]?.id] || 1}
+                      </span>
+                      <button
+                        onClick={() => handleQuantityChangeSingle(1)}
+                        disabled={(selectedTickets[availableTickets[0]?.id] || 1) >= (availableTickets[0]?.maxPerOrder || 10)}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-white transition hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Plus size={14} />
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <Button
                   onClick={handleProceedToPayment}
-                  className="rounded-full bg-[#0B62FF] px-6 py-3 text-base font-semibold shadow-lg transition hover:bg-[#0A5AE6] sm:rounded-2xl"
+                  disabled={isSoldOut}
+                  className="rounded-full bg-[#0B62FF] px-6 py-3 text-base font-semibold shadow-lg transition hover:bg-[#0A5AE6] disabled:opacity-50 disabled:cursor-not-allowed sm:rounded-2xl"
                 >
-                  Checkout {currencyFormatter.format(total)}
+                  {isSoldOut ? "Sold Out" : `Checkout ${currencyFormatter.format(total)}`}
                 </Button>
               </div>
             ) : (
@@ -747,13 +781,19 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
                     <span className="text-xl font-bold text-slate-500">₹0</span>
                   </div>
                 )}
-                <Button
-                  onClick={handleProceedToPayment}
-                  disabled={selectedTicketsArray.length === 0}
-                  className="rounded-full bg-[#0B62FF] px-6 py-3 text-base font-semibold shadow-lg transition hover:bg-[#0A5AE6] disabled:opacity-50 disabled:cursor-not-allowed sm:rounded-2xl"
-                >
-                  Checkout {selectedTicketsArray.length > 0 ? currencyFormatter.format(total) : ""}
-                </Button>
+                {isSoldOut ? (
+                  <div className="flex-1 text-center">
+                    <span className="text-lg font-semibold text-red-400">SOLD OUT</span>
+                  </div>
+                ) : (
+                  <Button
+                    onClick={handleProceedToPayment}
+                    disabled={selectedTicketsArray.length === 0 || isSoldOut}
+                    className="rounded-full bg-[#0B62FF] px-6 py-3 text-base font-semibold shadow-lg transition hover:bg-[#0A5AE6] disabled:opacity-50 disabled:cursor-not-allowed sm:rounded-2xl"
+                  >
+                    {isSoldOut ? "Sold Out" : `Checkout ${selectedTicketsArray.length > 0 ? currencyFormatter.format(total) : ""}`}
+                  </Button>
+                )}
               </div>
             )}
           </div>
