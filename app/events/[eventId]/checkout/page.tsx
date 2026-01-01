@@ -186,24 +186,28 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
   const ageLimit = basic.ageLimit || "All Ages";
 
   const handleProceedToPayment = async () => {
-    // Prevent duplicate clicks
+    // Prevent duplicate clicks - CRITICAL: Check FIRST before any other logic
     if (isPaying) return;
+
+    // Set processing state IMMEDIATELY to prevent double clicks
+    setIsPaying(true);
 
     // Wait for auth to fully load - no race conditions
     if (authLoading) {
       console.log("Auth is still initializing...");
+      setIsPaying(false); // Reset since we're not proceeding
       return;
     }
 
     // Check if user is logged in
     if (!user || !user.uid || !user.email) {
       const currentUrl = pathname + (searchParams.toString() ? `?${searchParams.toString()}` : "");
+      setIsPaying(false); // Reset since we're redirecting to login
       router.push(`/my-bookings?redirect=${encodeURIComponent(currentUrl)}`);
       return;
     }
 
-    // Disable button immediately and track start time
-    setIsPaying(true);
+    // Track start time for minimum loader duration
     const startTime = Date.now();
 
     try {
@@ -468,9 +472,9 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
               <Button
                 onClick={handleProceedToPayment}
                 disabled={isPaying}
-                className="w-full rounded-2xl bg-[#0B62FF] py-6 text-base font-semibold hover:bg-[#0A5AE6] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full rounded-2xl bg-[#0B62FF] py-6 text-base font-semibold hover:bg-[#0A5AE6] disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
               >
-                {isPaying ? "Processing..." : (
+                {isPaying ? "Processing…" : (
                   <>
                     Continue to Payment
                     <ArrowRight size={20} className="ml-2" />
@@ -478,7 +482,7 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
                 )}
               </Button>
               <p className="mt-3 text-center text-xs text-slate-400">
-                Your payment will be processed securely
+                {isPaying ? "Redirecting to secure payment…" : "Your payment will be processed securely"}
               </p>
             </div>
           </motion.div>
