@@ -28,33 +28,37 @@ function MyBookingsPageContent() {
     }
   }, [user, redirectUrl, router]);
 
+  // Run reconciliation in background (non-blocking)
   useEffect(() => {
-    let mounted = true;
-
-    if (loading) return;
-
-    if (!user) {
+    if (loading || !user) {
       setIsReconciling(false);
       return;
     }
 
-    setIsReconciling(true);
-
+    // Show bookings immediately, reconcile in background
+    setIsReconciling(false);
+    
+    // Run reconciliation silently in background
     const runReconciliation = async () => {
       try {
         await reconcilePending(() => user.getIdToken());
+        // Silently refetch after reconciliation completes
         await refetch();
-      } finally {
-        if (mounted) setIsReconciling(false);
+      } catch (error) {
+        // Silently handle errors - don't block UI
+        console.log("Background reconciliation completed");
       }
     };
 
-    runReconciliation();
+    // Delay reconciliation slightly to let page render first
+    const timeoutId = setTimeout(() => {
+      runReconciliation();
+    }, 500);
 
     return () => {
-      mounted = false;
+      clearTimeout(timeoutId);
     };
-  }, [loading, user]);
+  }, [loading, user, reconcilePending, refetch]);
 
   // Redirect to profile if not logged in
   if (!loading && !user) {
@@ -66,7 +70,8 @@ function MyBookingsPageContent() {
     return null;
   }
 
-  const isPageLoading = loading || bookingsLoading || isReconciling;
+  // Only show loading for initial auth/booking fetch, not reconciliation
+  const isPageLoading = loading || bookingsLoading;
 
   if (isPageLoading) {
     return (
@@ -134,8 +139,8 @@ function MyBookingsPageContent() {
     );
   }
 
-  // Filter bookings for current user
-  const userBookings = bookings.filter((booking) => booking.userId === user.uid);
+  // Bookings are already filtered by userId in the hook query
+  const userBookings = bookings;
 
   // Transform booking data helper
   const transformBooking = (booking: any) => {

@@ -32,20 +32,24 @@ export function useUserBookings(userId: string | null) {
       let globalSnapshot;
 
       try {
+        // Try optimized query with bookingStatus filter (requires composite index)
         const globalQ = query(
           globalBookingsRef,
           where("userId", "==", userId),
+          where("bookingStatus", "==", "CONFIRMED"),
           orderBy("createdAt", "desc")
         );
         globalSnapshot = await getDocs(globalQ);
       } catch (indexError: any) {
         if (indexError.code === "failed-precondition" || indexError.message?.includes("index")) {
-          console.warn("Firestore index not ready, fetching without orderBy:", indexError);
-          const globalQWithoutOrder = query(
+          console.warn("Firestore index not ready, fetching without status filter:", indexError);
+          // Fallback: fetch all user bookings, filter client-side
+          const globalQWithoutStatus = query(
             globalBookingsRef,
-            where("userId", "==", userId)
+            where("userId", "==", userId),
+            orderBy("createdAt", "desc")
           );
-          globalSnapshot = await getDocs(globalQWithoutOrder);
+          globalSnapshot = await getDocs(globalQWithoutStatus);
 
           const docs = globalSnapshot.docs.map((doc) => ({
             bookingId: doc.id,
@@ -72,17 +76,30 @@ export function useUserBookings(userId: string | null) {
         }
       }
 
-      const globalBookings = globalSnapshot.docs.map((doc) => ({
-        bookingId: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
-      })) as any[];
+      // Map bookings (already filtered by query, but check paymentStatus too)
+      const confirmedBookings = globalSnapshot.docs
+        .map((doc) => {
+          const data = doc.data();
+          // Double-check payment status (webhook sets both bookingStatus and paymentStatus)
+          const bookingStatus = data.bookingStatus || data.status;
+          const paymentStatus = data.paymentStatus;
+          
+          // Only include if confirmed and payment successful
+          if (
+            (bookingStatus === "CONFIRMED" || bookingStatus === "confirmed") &&
+            (paymentStatus === "SUCCESS" || paymentStatus === "confirmed" || !paymentStatus)
+          ) {
+            return {
+              bookingId: doc.id,
+              ...data,
+              createdAt: data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+            };
+          }
+          return null;
+        })
+        .filter((b) => b !== null) as any[];
 
-      const confirmedBookings = globalBookings.filter((booking) => {
-        const status = booking.bookingStatus || booking.status;
-        return status === "CONFIRMED" || status === "confirmed";
-      });
-
+      // Already sorted by query, but ensure descending order
       confirmedBookings.sort((a, b) => {
         const dateA = new Date(a.createdAt).getTime();
         const dateB = new Date(b.createdAt).getTime();
