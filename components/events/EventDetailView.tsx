@@ -677,7 +677,7 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
                         onQuantityChange={(id, qty) => {
                           setSelectedTickets((prev) => ({ ...prev, [id]: qty }));
                         }}
-                        disabled={isSoldOut}
+                        disabled={isSoldOut || (ticket.available ?? 0) === 0}
                       />
                     ))}
                   </div>

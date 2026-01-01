@@ -601,7 +601,7 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
                     ticket={ticket}
                     quantity={selectedTickets[ticket.id] || 0}
                     onQuantityChange={handleQuantityChange}
-                    disabled={isSoldOut}
+                    disabled={isSoldOut || (ticket.available ?? 0) === 0}
                   />
                 ))
               )}
