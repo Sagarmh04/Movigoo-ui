@@ -235,8 +235,28 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
       const venueName = showSelection?.venueName || firstVenue.name || data.event.venue || "TBA";
       const selectedDate = showSelection?.date || eventDate;
       
+      // Get Firebase ID token for authentication
+      if (!user || typeof user.getIdToken !== "function") {
+        console.error("User object is invalid or getIdToken is not available");
+        alert("Authentication error. Please log in again.");
+        setIsPaying(false);
+        return;
+      }
+
+      let token: string;
+      try {
+        token = await user.getIdToken();
+        if (!token) {
+          throw new Error("Token is null");
+        }
+      } catch (tokenError: any) {
+        console.error("Failed to get ID token:", tokenError);
+        alert("Authentication error. Please log in again.");
+        setIsPaying(false);
+        return;
+      }
+
       const bookingPayload = {
-        userId: user.uid,
         eventId: eventId,
         eventTitle: data.event.title,
         coverUrl: data.event.coverPortrait[0] || data.event.coverWide || "",
@@ -270,18 +290,26 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
       };
 
       console.log("Creating pending booking...");
+      console.log("Token retrieved:", token ? `${token.substring(0, 20)}...` : "NULL");
+      
       const bookingResponse = await fetch("/api/bookings/create-pending", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
         body: JSON.stringify(bookingPayload),
       });
+
+      console.log("Booking response status:", bookingResponse.status);
 
       const bookingResult = await bookingResponse.json();
 
       if (!bookingResponse.ok || !bookingResult.bookingId) {
         console.error("Failed to create pending booking:", bookingResult);
-        alert("Failed to create booking. Please try again.");
-        // DO NOT reset isPaying - let navigation handle state cleanup
+        const errorMessage = bookingResult.error || "Failed to create booking. Please try again.";
+        alert(errorMessage);
+        setIsPaying(false);
         return;
       }
 
@@ -306,8 +334,9 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
       router.push(`/payment?${paymentParams.toString()}`);
     } catch (error: any) {
       console.error("Error creating booking:", error);
-      alert("Failed to create booking. Please try again.");
-      // DO NOT reset isPaying - let navigation handle state cleanup
+      const errorMessage = error.message || "Failed to create booking. Please try again.";
+      alert(errorMessage);
+      setIsPaying(false);
     }
   };
 

@@ -293,9 +293,29 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
         endTime: selectedShow.endTime,
       };
 
+      // Get Firebase ID token for authentication
+      if (!user || typeof user.getIdToken !== "function") {
+        console.error("User object is invalid or getIdToken is not available");
+        alert("Authentication error. Please log in again.");
+        setIsPaying(false);
+        return;
+      }
+
+      let token: string;
+      try {
+        token = await user.getIdToken();
+        if (!token) {
+          throw new Error("Token is null");
+        }
+      } catch (tokenError: any) {
+        console.error("Failed to get ID token:", tokenError);
+        alert("Authentication error. Please log in again.");
+        setIsPaying(false);
+        return;
+      }
+
       const userDisplayName = (user as any).displayName || (user as any).email?.split("@")[0] || "Guest";
       const bookingPayload = {
-        userId: user.uid,
         userName: userDisplayName,
         eventId: data.event.id,
         eventTitle: data.event.title,
@@ -327,7 +347,10 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
       console.log("Creating pending booking...");
       const bookingResponse = await fetch("/api/bookings/create-pending", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
         body: JSON.stringify(bookingPayload),
       });
 
@@ -335,7 +358,8 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
 
       if (!bookingResponse.ok || !bookingResult.bookingId) {
         console.error("Failed to create pending booking:", bookingResult);
-        alert("Failed to create booking. Please try again.");
+        const errorMessage = bookingResult.error || "Failed to create booking. Please try again.";
+        alert(errorMessage);
         setIsPaying(false);
         return;
       }

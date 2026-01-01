@@ -13,16 +13,24 @@ export const runtime = "nodejs";
 export async function POST(req: NextRequest) {
   try {
     // Verify authentication
-    const authHeader = req.headers.get("authorization");
+    const authHeader = req.headers.get("authorization") || req.headers.get("Authorization");
+    console.log("Auth header present:", !!authHeader);
+    
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      console.error("Missing or invalid Authorization header");
+      return NextResponse.json({ error: "Unauthorized: Missing or invalid Authorization header" }, { status: 401 });
     }
 
     const token = authHeader.substring(7);
+    console.log("Token extracted:", token ? `${token.substring(0, 20)}...` : "NULL");
+    
     const user = await verifyAuthToken(token);
     if (!user) {
+      console.error("Token verification failed");
       return NextResponse.json({ error: "Invalid token" }, { status: 401 });
     }
+    
+    console.log("User authenticated:", user.uid);
 
     const body = await req.json();
     const {

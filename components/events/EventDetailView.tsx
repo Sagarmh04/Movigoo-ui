@@ -310,9 +310,27 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
     const show = date.shows[0];
 
     try {
+      // Get Firebase ID token for authentication
+      if (!user || typeof user.getIdToken !== "function") {
+        console.error("User object is invalid or getIdToken is not available");
+        alert("Authentication error. Please log in again.");
+        return;
+      }
+
+      let token: string;
+      try {
+        token = await user.getIdToken();
+        if (!token) {
+          throw new Error("Token is null");
+        }
+      } catch (tokenError: any) {
+        console.error("Failed to get ID token:", tokenError);
+        alert("Authentication error. Please log in again.");
+        return;
+      }
+
       // Create pending booking
       const bookingPayload = {
-        userId: user.uid,
         userName: (user as any).displayName || (user as any).email?.split("@")[0] || "Guest",
         eventId: event.id,
         eventTitle: event.title,
@@ -343,14 +361,18 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
 
       const bookingResponse = await fetch("/api/bookings/create-pending", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
         body: JSON.stringify(bookingPayload),
       });
 
       const bookingResult = await bookingResponse.json();
 
       if (!bookingResponse.ok || !bookingResult.bookingId) {
-        alert("Failed to create booking. Please try again.");
+        const errorMessage = bookingResult.error || "Failed to create booking. Please try again.";
+        alert(errorMessage);
         return;
       }
 
