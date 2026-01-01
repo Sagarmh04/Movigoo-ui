@@ -109,6 +109,11 @@ const EventCard = ({ event }: EventCardProps) => {
         <div className="absolute left-4 bottom-4 space-y-2">
           <div className="flex items-center gap-2 flex-wrap">
             {isHosted && <HostedBadge />}
+            {(event as any).isSoldOut && (
+              <span className="inline-flex items-center rounded-full bg-red-500/20 px-3 py-1 text-xs font-semibold text-red-400 border border-red-500/40">
+                SOLD OUT
+              </span>
+            )}
           </div>
           <p className="text-xs uppercase tracking-[0.3em] text-slate-300">{event.city}</p>
           <p className="text-2xl font-semibold text-white">{truncate(event.title, 50)}</p>
@@ -146,9 +151,25 @@ const EventCard = ({ event }: EventCardProps) => {
             <Link href={`/events/${event.id}/manage`}>Manage Event</Link>
           </Button>
         )}
-        <Button variant="default" size="sm" className="flex-1 rounded-2xl" asChild>
-          <Link href={`/events/${event.id}`}>Book Now</Link>
-        </Button>
+        {(event as any).isSoldOut ? (
+          <Button 
+            variant="default" 
+            size="sm" 
+            className="flex-1 rounded-2xl opacity-50 cursor-not-allowed" 
+            disabled
+          >
+            Sold Out
+          </Button>
+        ) : (
+          <Button 
+            variant="default" 
+            size="sm" 
+            className="flex-1 rounded-2xl" 
+            asChild
+          >
+            <Link href={`/events/${event.id}`}>Book Now</Link>
+          </Button>
+        )}
       </div>
     </motion.article>
   );

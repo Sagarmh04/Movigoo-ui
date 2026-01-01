@@ -422,7 +422,14 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
             </Button>
           </div>
           <div className="relative z-10 flex h-full flex-col justify-center gap-3 p-6 text-white sm:gap-4 sm:p-10">
-            {isHosted && <HostedBadge />}
+            <div className="flex items-center gap-2 flex-wrap">
+              {isHosted && <HostedBadge />}
+              {isSoldOut && (
+                <span className="inline-flex items-center rounded-full bg-red-500/20 px-4 py-1.5 text-sm font-semibold text-red-400 border border-red-500/40">
+                  SOLD OUT
+                </span>
+              )}
+            </div>
             <p className="text-xs uppercase tracking-[0.5em] text-slate-300">{locationDisplay}</p>
             <h1 className="text-2xl font-semibold sm:text-4xl">{event.title}</h1>
             <p className="max-w-2xl text-sm text-slate-200 sm:text-lg">{event.description}</p>
@@ -455,14 +462,17 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
         </div>
       </motion.section>
 
-      {/* Mobile Order: Ticket Selection (if single location) or Book Now Button → Details */}
+        {/* Mobile Order: Ticket Selection (if single location) or Book Now Button → Details */}
       <div className="block lg:hidden space-y-4">
         {/* 2. Ticket Selection (if single location) or Book Now Button (Mobile) */}
         {hasSingleShow && availableTickets.length > 0 ? (
           <>
             {availableTickets.length > 1 && (
-              <section className="space-y-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+              <section className={`space-y-4 rounded-2xl border border-white/10 bg-white/5 p-4 ${isSoldOut ? "opacity-60 pointer-events-none" : ""}`}>
                 <h3 className="text-lg font-semibold text-white">Select Tickets</h3>
+                {isSoldOut && (
+                  <p className="text-sm text-red-400 font-medium">All tickets have been booked</p>
+                )}
                 <div className="space-y-3">
                   {availableTickets.map((ticket) => (
                     <TicketSelectionCard
@@ -472,6 +482,7 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
                       onQuantityChange={(id, qty) => {
                         setSelectedTickets((prev) => ({ ...prev, [id]: qty }));
                       }}
+                      disabled={isSoldOut}
                     />
                   ))}
                 </div>
@@ -481,6 +492,7 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
         ) : (
           <Button
             onClick={async () => {
+              if (isSoldOut) return;
               // Wait for auth to fully load - no race conditions
               if (authLoading) {
                 console.log("Auth is still initializing...");
@@ -497,9 +509,10 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
               // User is logged in, proceed to tickets page
               router.push(`/event/${event.id}/tickets`);
             }}
-            className="w-full rounded-2xl bg-[#0B62FF] py-6 text-base font-semibold hover:bg-[#0A5AE6]"
+            disabled={isSoldOut}
+            className="w-full rounded-2xl bg-[#0B62FF] py-6 text-base font-semibold hover:bg-[#0A5AE6] disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Book Now
+            {isSoldOut ? "Sold Out" : "Book Now"}
           </Button>
         )}
 
@@ -650,8 +663,11 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
           {hasSingleShow && availableTickets.length > 0 ? (
             <>
               {availableTickets.length > 1 && (
-                <section className="space-y-4 rounded-2xl border border-white/10 bg-white/5 p-6 sticky top-20">
+                <section className={`space-y-4 rounded-2xl border border-white/10 bg-white/5 p-6 sticky top-20 ${isSoldOut ? "opacity-60 pointer-events-none" : ""}`}>
                   <h3 className="text-lg font-semibold text-white">Select Tickets</h3>
+                  {isSoldOut && (
+                    <p className="text-sm text-red-400 font-medium">All tickets have been booked</p>
+                  )}
                   <div className="space-y-3">
                     {availableTickets.map((ticket) => (
                       <TicketSelectionCard
@@ -661,6 +677,7 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
                         onQuantityChange={(id, qty) => {
                           setSelectedTickets((prev) => ({ ...prev, [id]: qty }));
                         }}
+                        disabled={isSoldOut}
                       />
                     ))}
                   </div>
@@ -670,6 +687,7 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
           ) : (
             <Button
               onClick={async () => {
+                if (isSoldOut) return;
                 // Wait for auth to fully load - no race conditions
                 if (authLoading) {
                   console.log("Auth is still initializing...");
@@ -686,9 +704,10 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
                 // User is logged in, proceed to tickets page
                 router.push(`/event/${event.id}/tickets`);
               }}
-              className="w-full rounded-2xl bg-[#0B62FF] py-6 text-lg font-semibold hover:bg-[#0A5AE6] sticky top-20"
+              disabled={isSoldOut}
+              className="w-full rounded-2xl bg-[#0B62FF] py-6 text-lg font-semibold hover:bg-[#0A5AE6] sticky top-20 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Book Now
+              {isSoldOut ? "Sold Out" : "Book Now"}
             </Button>
           )}
         </div>
@@ -732,7 +751,7 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
                 <Button
                   onClick={handleProceedToPayment}
                   disabled={isSoldOut}
-                  className="rounded-full bg-[#0B62FF] px-6 py-3 text-base font-semibold shadow-lg transition hover:bg-[#0A5AE6] disabled:opacity-50 disabled:cursor-not-allowed sm:rounded-2xl"
+                  className="rounded-full bg-[#0B62FF] px-6 py-3 text-base font-semibold shadow-lg transition hover:bg-[#0A5AE6] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#0B62FF] sm:rounded-2xl"
                 >
                   {isSoldOut ? "Sold Out" : `Checkout ${currencyFormatter.format(total)}`}
                 </Button>
@@ -789,7 +808,7 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
                   <Button
                     onClick={handleProceedToPayment}
                     disabled={selectedTicketsArray.length === 0 || isSoldOut}
-                    className="rounded-full bg-[#0B62FF] px-6 py-3 text-base font-semibold shadow-lg transition hover:bg-[#0A5AE6] disabled:opacity-50 disabled:cursor-not-allowed sm:rounded-2xl"
+                    className="rounded-full bg-[#0B62FF] px-6 py-3 text-base font-semibold shadow-lg transition hover:bg-[#0A5AE6] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#0B62FF] sm:rounded-2xl"
                   >
                     {isSoldOut ? "Sold Out" : `Checkout ${selectedTicketsArray.length > 0 ? currencyFormatter.format(total) : ""}`}
                   </Button>

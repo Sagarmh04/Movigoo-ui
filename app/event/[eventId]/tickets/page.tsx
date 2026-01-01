@@ -580,13 +580,16 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
             </div>
 
             {/* Ticket Selection */}
-            <div className="space-y-4">
+            <div className={`space-y-4 ${isSoldOut ? "opacity-60 pointer-events-none" : ""}`}>
               <div className="flex items-center justify-between">
                 <h3 className="text-xl font-semibold text-white">Select Tickets</h3>
                 {isSoldOut && (
                   <span className="text-lg font-semibold text-red-400">SOLD OUT</span>
                 )}
               </div>
+              {isSoldOut && (
+                <p className="text-sm text-red-400 font-medium">All tickets have been booked</p>
+              )}
               {tickets.length === 0 ? (
                 <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center">
                   <p className="text-slate-400">No tickets available for this venue.</p>
@@ -598,6 +601,7 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
                     ticket={ticket}
                     quantity={selectedTickets[ticket.id] || 0}
                     onQuantityChange={handleQuantityChange}
+                    disabled={isSoldOut}
                   />
                 ))
               )}
@@ -616,19 +620,13 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
                     {currencyFormatter.format(total)}
                   </span>
                 </div>
-                {isSoldOut ? (
-                  <div className="flex-1 text-center">
-                    <span className="text-lg font-semibold text-red-400">SOLD OUT</span>
-                  </div>
-                ) : (
-                  <Button
-                    onClick={handleProceed}
-                    disabled={selectedTicketsArray.length === 0 || isPaying || isSoldOut}
-                    className="rounded-full bg-[#0B62FF] px-6 py-3 text-base font-semibold shadow-lg transition hover:bg-[#0A5AE6] disabled:opacity-50 disabled:cursor-not-allowed sm:rounded-2xl"
-                  >
-                    {isPaying ? "Processing..." : "Proceed to Review"}
-                  </Button>
-                )}
+                <Button
+                  onClick={handleProceed}
+                  disabled={selectedTicketsArray.length === 0 || isPaying || isSoldOut}
+                  className="rounded-full bg-[#0B62FF] px-6 py-3 text-base font-semibold shadow-lg transition hover:bg-[#0A5AE6] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#0B62FF] sm:rounded-2xl"
+                >
+                  {isSoldOut ? "Sold Out" : isPaying ? "Processing..." : "Proceed to Review"}
+                </Button>
               </div>
             </div>
           </div>
