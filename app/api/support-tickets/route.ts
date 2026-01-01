@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getFirestore, collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { initializeApp, getApps } from "firebase/app";
 import { sendSupportEmail } from "@/lib/server/sendSupportEmail";
+import { verifyAuthToken } from "@/lib/auth";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -25,11 +26,34 @@ function getFirebaseApp() {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { category, subject, description, userId, userEmail, userName } = body;
+    // Verify authentication
+    const authHeader = request.headers.get("authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-    // Validate required fields
-    if (!category || !subject || !description || !userId || !userEmail) {
+    const token = authHeader.substring(7);
+    const user = await verifyAuthToken(token);
+    if (!user) {
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+    }
+
+    // Get userId and email from verified token (ignore from request body)
+    const userId = user.uid;
+    const userEmail = user.email;
+
+    if (!userEmail) {
+      return NextResponse.json(
+        { error: "User email not found in token" },
+        { status: 400 }
+      );
+    }
+
+    const body = await request.json();
+    const { category, subject, description, userName } = body;
+
+    // Validate required fields (userId and userEmail come from token, not body)
+    if (!category || !subject || !description) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
