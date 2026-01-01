@@ -4,16 +4,28 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseServer";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { v4 as uuidv4 } from "uuid";
+import { verifyAuthToken } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   try {
+    // Verify authentication
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const token = authHeader.substring(7);
+    const user = await verifyAuthToken(token);
+    if (!user) {
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+    }
+
     const body = await req.json();
     const {
-      userId,
       eventId,
       eventTitle,
       coverUrl,
@@ -36,9 +48,12 @@ export async function POST(req: NextRequest) {
       orderId, // Cashfree order ID (if already created)
     } = body;
 
-    if (!userId || !eventId || !totalAmount) {
+    // Use authenticated user ID - ignore userId from body
+    const userId = user.uid;
+
+    if (!eventId || !totalAmount) {
       return NextResponse.json(
-        { error: "Missing required fields: userId, eventId, totalAmount" },
+        { error: "Missing required fields: eventId, totalAmount" },
         { status: 400 }
       );
     }
@@ -50,15 +65,70 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Server-side inventory check: prevent overselling
+    try {
+      // Fetch event to get maxTickets
+      const eventRef = doc(db, "events", eventId);
+      const eventDoc = await getDoc(eventRef);
+      
+      if (!eventDoc.exists()) {
+        return NextResponse.json(
+          { error: "Event not found" },
+          { status: 404 }
+        );
+      }
+
+      const eventData = eventDoc.data();
+      const maxTickets = typeof eventData.maxTickets === "number" ? eventData.maxTickets : null;
+
+      // Only check inventory if maxTickets is set
+      if (maxTickets !== null && maxTickets > 0) {
+        // Query confirmed bookings for this event
+        const eventBookingsRef = collection(db, "events", eventId, "bookings");
+        const confirmedBookingsQuery = query(
+          eventBookingsRef,
+          where("bookingStatus", "==", "CONFIRMED"),
+          where("paymentStatus", "==", "SUCCESS")
+        );
+        
+        const confirmedBookingsSnapshot = await getDocs(confirmedBookingsQuery);
+        
+        // Sum up quantities from all confirmed bookings
+        let totalConfirmedTickets = 0;
+        confirmedBookingsSnapshot.docs.forEach((doc) => {
+          const bookingData = doc.data();
+          const bookingQuantity = typeof bookingData.quantity === "number" ? bookingData.quantity : 0;
+          totalConfirmedTickets += bookingQuantity;
+        });
+
+        // Calculate requested quantity
+        const requestedQuantity = quantity || (items ? items.reduce((sum: number, i: any) => sum + i.quantity, 0) : 0);
+
+        // Check if adding this booking would exceed maxTickets
+        if (totalConfirmedTickets + requestedQuantity > maxTickets) {
+          return NextResponse.json(
+            { error: "Event is sold out" },
+            { status: 409 }
+          );
+        }
+      }
+    } catch (inventoryError: any) {
+      // Log error but don't block booking if inventory check fails
+      // This is a safety measure - we want bookings to work even if inventory check has issues
+      console.error("Inventory check error:", inventoryError);
+      // Continue with booking creation
+    }
+
     console.log("Creating pending booking for userId:", userId, "eventId:", eventId);
 
     // Generate booking ID
     const bookingId = uuidv4();
 
     // Prepare booking data
+    // CRITICAL: userId comes from authenticated token, not request body
     const bookingData = {
       bookingId,
-      userId,
+      userId: user.uid, // Use authenticated user ID
       eventId,
       eventTitle: eventTitle || "Event",
       coverUrl: coverUrl || "",
