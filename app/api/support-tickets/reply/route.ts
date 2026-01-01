@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getFirestore, doc, updateDoc, arrayUnion, serverTimestamp, getDoc } from "firebase/firestore";
 import { initializeApp, getApps } from "firebase/app";
+import { verifyAuthToken } from "@/lib/auth";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -23,8 +24,20 @@ function getFirebaseApp() {
 
 export async function POST(request: NextRequest) {
   try {
+    // Verify authentication
+    const authHeader = request.headers.get("authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const token = authHeader.substring(7);
+    const user = await verifyAuthToken(token);
+    if (!user) {
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+    }
+
     const body = await request.json();
-    const { ticketId, message, userId } = body;
+    const { ticketId, message } = body;
 
     if (!ticketId || !message) {
       return NextResponse.json(
@@ -47,6 +60,14 @@ export async function POST(request: NextRequest) {
     }
 
     const ticketData = ticketSnap.data();
+
+    // Verify ticket ownership - user can only reply to their own tickets
+    if (ticketData.userId !== user.uid) {
+      return NextResponse.json(
+        { error: "Forbidden: You can only reply to your own tickets" },
+        { status: 403 }
+      );
+    }
 
     // Check if ticket is closed
     if (ticketData.status === "CLOSED" || ticketData.status === "RESOLVED") {
