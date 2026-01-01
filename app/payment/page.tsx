@@ -4,19 +4,27 @@
 // Payment page - Initiates Cashfree hosted checkout using JS SDK
 // SIMPLIFIED VERSION: No React state, direct usage of session ID
 
-import { Suspense } from "react";
+import { Suspense, useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import Script from "next/script";
 import { Loader2 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 function PaymentPageContent() {
   const searchParams = useSearchParams();
+  const { user, loading: authLoading } = useAuth();
+  const [sdkLoaded, setSdkLoaded] = useState(false);
   const bookingId = searchParams.get("bookingId");
   const amount = searchParams.get("amount");
   const email = searchParams.get("email");
   const phone = searchParams.get("phone");
 
-  async function checkBookingAndStartPayment() {
+  const checkBookingAndStartPayment = useCallback(async () => {
+    // Wait for auth to load
+    if (authLoading) {
+      console.log("Waiting for auth to load...");
+      return;
+    }
     if (!bookingId) {
       console.error("Missing bookingId");
       alert("Invalid payment link");
@@ -24,11 +32,43 @@ function PaymentPageContent() {
     }
 
     try {
-      // Frontend guard: fetch booking status first
-      const bookingRes = await fetch(`/api/bookings/${bookingId}`);
+      // Get Firebase ID token for authentication
+      if (!user || typeof user.getIdToken !== "function") {
+        console.error("User not authenticated");
+        alert("Please log in to continue with payment");
+        window.location.href = "/my-bookings";
+        return;
+      }
+
+      let token: string;
+      try {
+        token = await user.getIdToken();
+        if (!token) {
+          throw new Error("Token is null");
+        }
+      } catch (tokenError: any) {
+        console.error("Failed to get ID token:", tokenError);
+        alert("Authentication error. Please log in again.");
+        window.location.href = "/my-bookings";
+        return;
+      }
+
+      // Frontend guard: fetch booking status first with auth
+      const bookingRes = await fetch(`/api/bookings/${bookingId}`, {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+        },
+      });
+      
       if (!bookingRes.ok) {
-        console.error("Failed to fetch booking");
-        alert("Booking not found");
+        console.error("Failed to fetch booking, status:", bookingRes.status);
+        if (bookingRes.status === 401) {
+          alert("Authentication required. Please log in again.");
+          window.location.href = "/my-bookings";
+        } else {
+          alert("Booking not found");
+        }
         return;
       }
       const booking = await bookingRes.json();
@@ -46,7 +86,7 @@ function PaymentPageContent() {
       console.error("Error checking booking:", err);
       alert("Failed to verify booking status");
     }
-  }
+  }, [authLoading, bookingId, user]);
 
   async function startPayment() {
     try {
@@ -122,6 +162,13 @@ function PaymentPageContent() {
     }
   }
 
+  // Start payment when both SDK and auth are ready
+  useEffect(() => {
+    if (sdkLoaded && !authLoading) {
+      checkBookingAndStartPayment();
+    }
+  }, [sdkLoaded, authLoading, checkBookingAndStartPayment]);
+
   return (
     <>
       <Script
@@ -129,7 +176,7 @@ function PaymentPageContent() {
         strategy="afterInteractive"
         onLoad={() => {
           console.log("Cashfree SDK loaded");
-          checkBookingAndStartPayment();
+          setSdkLoaded(true);
         }}
         onError={() => {
           console.error("Cashfree SDK failed to load");

@@ -243,38 +243,43 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
   };
 
   const handleProceed = async () => {
-    // Prevent duplicate clicks
+    // Prevent duplicate clicks - CRITICAL: Check FIRST
     if (isPaying) return;
+
+    // Set processing state IMMEDIATELY to prevent double clicks
+    setIsPaying(true);
 
     // Prevent checkout if event is sold out
     if (isSoldOut) {
       alert("This event is sold out.");
+      setIsPaying(false);
       return;
     }
 
     if (selectedTicketsArray.length === 0 || !selectedShow) {
+      setIsPaying(false);
       return;
     }
 
-    // 1. Wait for auth to fully load - no race conditions
-    if (authLoading) {
-      console.log("Auth is still initializing...");
-      return;
-    }
+    // Note: isPaying is already true, button shows "Processing..."
+    // If auth is still loading, user check below will handle redirect
 
     // 2. Now check if user actually exists
     if (!user || !user.uid) {
       const pathname = window.location.pathname;
       const search = window.location.search;
       const currentUrl = pathname + search;
+      setIsPaying(false);
       router.push(`/my-bookings?redirect=${encodeURIComponent(currentUrl)}`);
       return;
     }
 
-    if (!data) return;
+    if (!data) {
+      setIsPaying(false);
+      return;
+    }
 
-    // Disable button immediately and track start time
-    setIsPaying(true);
+    // Track start time
     const startTime = Date.now();
 
     try {
