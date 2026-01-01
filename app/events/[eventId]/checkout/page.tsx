@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { currencyFormatter } from "@/lib/utils";
 import { motion } from "framer-motion";
-import { Calendar, MapPin, Ticket, ArrowRight, Clock, Users, ChevronDown } from "lucide-react";
+import { Calendar, MapPin, Ticket, ArrowRight, Clock, Users, ChevronDown, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import Image from "next/image";
 import { doc, getDoc } from "firebase/firestore";
@@ -32,6 +32,7 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
   const [isPaying, setIsPaying] = useState(false);
   const [showBreakup, setShowBreakup] = useState(false);
   const breakupRef = useRef<HTMLDivElement>(null);
+  const isProcessingRef = useRef(false); // Synchronous check to prevent double clicks
   const [bookings, setBookings] = useState<any[]>([]);
 
   useEffect(() => {
@@ -187,28 +188,30 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
   const ageLimit = basic.ageLimit || "All Ages";
 
   const handleProceedToPayment = async () => {
-    // Prevent duplicate clicks - CRITICAL: Check FIRST before any other logic
-    if (isPaying) return;
-
-    // Set processing state IMMEDIATELY to prevent double clicks
+    // Prevent duplicate clicks - Use ref for SYNCHRONOUS check (React state is async)
+    if (isProcessingRef.current || isPaying) return;
+    
+    // Set ref IMMEDIATELY (synchronous) to prevent double clicks
+    isProcessingRef.current = true;
     setIsPaying(true);
 
     // Wait for auth to fully load - no race conditions
     if (authLoading) {
       console.log("Auth is still initializing...");
-      return; // DO NOT reset isPaying - let it stay true to show Processing state
+      // Reset ref but keep state to show processing
+      isProcessingRef.current = false;
+      return;
     }
 
     // Check if user is logged in
     if (!user || !user.uid || !user.email) {
       const currentUrl = pathname + (searchParams.toString() ? `?${searchParams.toString()}` : "");
+      isProcessingRef.current = false; // Reset ref
       setIsPaying(false); // Reset since we're redirecting to login
       router.push(`/my-bookings?redirect=${encodeURIComponent(currentUrl)}`);
       return;
     }
 
-    // Track start time for minimum loader duration
-    const startTime = Date.now();
 
     try {
       // Extract show selection from sessionStorage if available
@@ -235,23 +238,25 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
       const venueName = showSelection?.venueName || firstVenue.name || data.event.venue || "TBA";
       const selectedDate = showSelection?.date || eventDate;
       
-      // Get Firebase ID token for authentication
+      // Get Firebase ID token for authentication (optimize by getting token early)
       if (!user || typeof user.getIdToken !== "function") {
         console.error("User object is invalid or getIdToken is not available");
         alert("Authentication error. Please log in again.");
+        isProcessingRef.current = false;
         setIsPaying(false);
         return;
       }
 
       let token: string;
       try {
-        token = await user.getIdToken();
+        token = await user.getIdToken(true); // Force refresh for faster token
         if (!token) {
           throw new Error("Token is null");
         }
       } catch (tokenError: any) {
         console.error("Failed to get ID token:", tokenError);
         alert("Authentication error. Please log in again.");
+        isProcessingRef.current = false;
         setIsPaying(false);
         return;
       }
@@ -309,20 +314,15 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
         console.error("Failed to create pending booking:", bookingResult);
         const errorMessage = bookingResult.error || "Failed to create booking. Please try again.";
         alert(errorMessage);
+        isProcessingRef.current = false;
         setIsPaying(false);
         return;
       }
 
       console.log("Pending booking created:", bookingResult.bookingId);
 
-      // Minimum 2 seconds loader to prevent panic clicks
-      const elapsed = Date.now() - startTime;
-      if (elapsed < 2000) {
-        await new Promise((resolve) => setTimeout(resolve, 2000 - elapsed));
-      }
-
-      // Redirect to Cashfree payment page with booking ID
-      // Do NOT reset isPaying - Cashfree will take over
+      // Redirect IMMEDIATELY to Cashfree payment page - don't wait for anything
+      // Do NOT reset isPaying or ref - Cashfree page will take over
       const paymentParams = new URLSearchParams({
         bookingId: bookingResult.bookingId,
         amount: totalAmount.toString(),
@@ -331,11 +331,13 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
         phone: user.phoneNumber || "",
       });
 
-      router.push(`/payment?${paymentParams.toString()}`);
+      // Use window.location for immediate redirect (faster than router.push)
+      window.location.href = `/payment?${paymentParams.toString()}`;
     } catch (error: any) {
       console.error("Error creating booking:", error);
       const errorMessage = error.message || "Failed to create booking. Please try again.";
       alert(errorMessage);
+      isProcessingRef.current = false;
       setIsPaying(false);
     }
   };
@@ -501,9 +503,14 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
               <Button
                 onClick={handleProceedToPayment}
                 disabled={isPaying}
-                className="w-full rounded-2xl bg-[#0B62FF] py-6 text-base font-semibold hover:bg-[#0A5AE6] disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
+                className="w-full rounded-2xl bg-[#0B62FF] py-6 text-base font-semibold hover:bg-[#0A5AE6] disabled:opacity-70 disabled:cursor-wait"
               >
-                {isPaying ? "Processing…" : (
+                {isPaying ? (
+                  <>
+                    <Loader2 size={20} className="mr-2 animate-spin" />
+                    Processing…
+                  </>
+                ) : (
                   <>
                     Continue to Payment
                     <ArrowRight size={20} className="ml-2" />

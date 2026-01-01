@@ -1,7 +1,7 @@
 // app/event/[eventId]/tickets/page.tsx - Ticket Selection with Location/Venue/Timing Selection
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useEventById } from "@/hooks/useEventById";
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
@@ -12,7 +12,7 @@ import TicketSelectionCard, { type TicketType as TicketTypeCard } from "@/compon
 import { Button } from "@/components/ui/button";
 import { currencyFormatter } from "@/lib/utils";
 import { calculateBookingTotals, type TicketSelection } from "@/lib/bookingService";
-import { MapPin, Building2, Edit2, Plus, Minus } from "lucide-react";
+import { MapPin, Building2, Edit2, Plus, Minus, Loader2 } from "lucide-react";
 
 type SelectionStage = "location-venue" | "timing" | "tickets";
 
@@ -28,6 +28,7 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
   const [selectedTickets, setSelectedTickets] = useState<Record<string, number>>({});
   const [stage, setStage] = useState<SelectionStage>("location-venue");
   const [isPaying, setIsPaying] = useState(false);
+  const isProcessingRef = useRef(false); // Synchronous check to prevent double clicks
 
   // Fetch full event data with schedule structure
   useEffect(() => {
@@ -243,44 +244,43 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
   };
 
   const handleProceed = async () => {
-    // Prevent duplicate clicks - CRITICAL: Check FIRST
-    if (isPaying) return;
-
-    // Set processing state IMMEDIATELY to prevent double clicks
+    // Prevent duplicate clicks - Use ref for SYNCHRONOUS check (React state is async)
+    if (isProcessingRef.current || isPaying) return;
+    
+    // Set ref IMMEDIATELY (synchronous) to prevent double clicks
+    isProcessingRef.current = true;
     setIsPaying(true);
 
     // Prevent checkout if event is sold out
     if (isSoldOut) {
       alert("This event is sold out.");
+      isProcessingRef.current = false;
       setIsPaying(false);
       return;
     }
 
     if (selectedTicketsArray.length === 0 || !selectedShow) {
+      isProcessingRef.current = false;
       setIsPaying(false);
       return;
     }
 
-    // Note: isPaying is already true, button shows "Processing..."
-    // If auth is still loading, user check below will handle redirect
-
-    // 2. Now check if user actually exists
+    // Check if user actually exists
     if (!user || !user.uid) {
       const pathname = window.location.pathname;
       const search = window.location.search;
       const currentUrl = pathname + search;
+      isProcessingRef.current = false;
       setIsPaying(false);
       router.push(`/my-bookings?redirect=${encodeURIComponent(currentUrl)}`);
       return;
     }
 
     if (!data) {
+      isProcessingRef.current = false;
       setIsPaying(false);
       return;
     }
-
-    // Track start time
-    const startTime = Date.now();
 
     try {
       // Create pending booking and redirect directly to Cashfree
@@ -298,23 +298,25 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
         endTime: selectedShow.endTime,
       };
 
-      // Get Firebase ID token for authentication
+      // Get Firebase ID token for authentication (optimize by getting token early)
       if (!user || typeof user.getIdToken !== "function") {
         console.error("User object is invalid or getIdToken is not available");
         alert("Authentication error. Please log in again.");
+        isProcessingRef.current = false;
         setIsPaying(false);
         return;
       }
 
       let token: string;
       try {
-        token = await user.getIdToken();
+        token = await user.getIdToken(true); // Force refresh for faster token
         if (!token) {
           throw new Error("Token is null");
         }
       } catch (tokenError: any) {
         console.error("Failed to get ID token:", tokenError);
         alert("Authentication error. Please log in again.");
+        isProcessingRef.current = false;
         setIsPaying(false);
         return;
       }
@@ -365,20 +367,15 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
         console.error("Failed to create pending booking:", bookingResult);
         const errorMessage = bookingResult.error || "Failed to create booking. Please try again.";
         alert(errorMessage);
+        isProcessingRef.current = false;
         setIsPaying(false);
         return;
       }
 
       console.log("Pending booking created:", bookingResult.bookingId);
 
-      // Minimum 2 seconds loader to prevent panic clicks
-      const elapsed = Date.now() - startTime;
-      if (elapsed < 2000) {
-        await new Promise((resolve) => setTimeout(resolve, 2000 - elapsed));
-      }
-
-      // Redirect directly to Cashfree payment page
-      // Do NOT reset isPaying - Cashfree will take over
+      // Redirect IMMEDIATELY to Cashfree payment page - don't wait for anything
+      // Do NOT reset isPaying or ref - Cashfree page will take over
       const paymentParams = new URLSearchParams({
         bookingId: bookingResult.bookingId,
         amount: total.toString(),
@@ -387,10 +384,12 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
         phone: (user as any).phoneNumber || "",
       });
 
-      router.push(`/payment?${paymentParams.toString()}`);
+      // Use window.location for immediate redirect (faster than router.push)
+      window.location.href = `/payment?${paymentParams.toString()}`;
     } catch (error: any) {
       console.error("Error creating booking:", error);
       alert("Failed to create booking. Please try again.");
+      isProcessingRef.current = false;
       setIsPaying(false);
     }
   };
@@ -652,9 +651,14 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
                 <Button
                   onClick={handleProceed}
                   disabled={selectedTicketsArray.length === 0 || isPaying || isSoldOut}
-                  className="rounded-full bg-[#0B62FF] px-6 py-3 text-base font-semibold shadow-lg transition hover:bg-[#0A5AE6] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#0B62FF] sm:rounded-2xl"
+                  className="rounded-full bg-[#0B62FF] px-6 py-3 text-base font-semibold shadow-lg transition hover:bg-[#0A5AE6] disabled:opacity-70 disabled:cursor-wait disabled:hover:bg-[#0B62FF] sm:rounded-2xl"
                 >
-                  {isSoldOut ? "Sold Out" : isPaying ? "Processing..." : "Proceed to Review"}
+                  {isSoldOut ? "Sold Out" : isPaying ? (
+                    <>
+                      <Loader2 size={18} className="mr-2 animate-spin" />
+                      Processing...
+                    </>
+                  ) : "Proceed to Review"}
                 </Button>
               </div>
             </div>
