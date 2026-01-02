@@ -16,6 +16,7 @@ import Image from "next/image";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebaseClient";
 import { useRef } from "react";
+import Breadcrumbs from "@/components/ui/breadcrumbs";
 
 const PLATFORM_FEE = 7; // ₹7 flat per booking (NOT per ticket)
 
@@ -345,6 +346,16 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#050016] via-[#0b0220] to-[#05010a] text-white">
       <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-4 pb-24 pt-20 sm:px-6 lg:px-8">
+        {/* Breadcrumbs */}
+        <div className="mb-6">
+          <Breadcrumbs
+            items={[
+              { label: "Events", href: "/events" },
+              { label: data.event.title || "Event", href: `/events/${eventId}` },
+              { label: "Checkout" },
+            ]}
+          />
+        </div>
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-white mb-2">Review Your Booking</h1>

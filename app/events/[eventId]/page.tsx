@@ -3,6 +3,7 @@
 import { useEventById } from "@/hooks/useEventById";
 import EventDetailView from "@/components/events/EventDetailView";
 import { notFound } from "next/navigation";
+import Breadcrumbs from "@/components/ui/breadcrumbs";
 
 export default function EventDetailPage({ params }: { params: { eventId: string } }) {
   // Handle params - could be Promise in Next.js 14
@@ -31,6 +32,15 @@ export default function EventDetailPage({ params }: { params: { eventId: string 
     <div className="mx-auto w-full max-w-6xl px-0 pb-0 sm:px-6 lg:px-10">
       {/* Add top padding to account for fixed navbar (pt-16 = 4rem = 64px) */}
       <div className="pt-16 sm:pt-20">
+        {/* Breadcrumbs */}
+        <div className="mb-6 px-4 sm:px-0">
+          <Breadcrumbs
+            items={[
+              { label: "Events", href: "/events" },
+              { label: data.event.title || "Event" },
+            ]}
+          />
+        </div>
         <EventDetailView
           event={data.event}
           ticketTypes={data.ticketTypes}

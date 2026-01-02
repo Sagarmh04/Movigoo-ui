@@ -15,6 +15,7 @@ import { Download, Calendar, MapPin, Ticket, X, Clock, Share2 } from "lucide-rea
 import { currencyFormatter } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
+import Breadcrumbs from "@/components/ui/breadcrumbs";
 
 function BookingSuccessPageContent() {
   const router = useRouter();
@@ -105,6 +106,7 @@ function BookingSuccessPageContent() {
 
                 bookingData = {
                   bookingId,
+                  eventId,
                   eventTitle: basic.title || bookingDocData.eventTitle || "Event",
                   coverUrl: basic.coverPortraitUrl || basic.coverWideUrl || bookingDocData.coverUrl || "/placeholder-event.jpg",
                   venueName: firstVenue.name || bookingDocData.venueName || "TBA",
@@ -119,6 +121,7 @@ function BookingSuccessPageContent() {
                 // Event not found, use booking data as fallback
                 bookingData = {
                   bookingId,
+                  eventId,
                   eventTitle: bookingDocData.eventTitle || "Event",
                   coverUrl: bookingDocData.coverUrl || "/placeholder-event.jpg",
                   venueName: bookingDocData.venueName || "TBA",
@@ -189,6 +192,7 @@ function BookingSuccessPageContent() {
 
                     bookingData = {
                       bookingId: bookingId || `booking-${Date.now()}`,
+                      eventId: eventIdFromStorage,
                       eventTitle: basic.title || parsed.eventTitle || "Event",
                       coverUrl: basic.coverPortraitUrl || basic.coverWideUrl || parsed.eventImage || parsed.coverUrl || "/placeholder-event.jpg",
                       venueName: firstVenue.name || parsed.venueName || "TBA",
@@ -209,6 +213,7 @@ function BookingSuccessPageContent() {
               if (!bookingData) {
                 bookingData = {
                   bookingId: bookingId || `booking-${Date.now()}`,
+                  eventId: eventIdFromStorage,
                   eventTitle: parsed.eventTitle || "Event",
                   coverUrl: parsed.eventImage || parsed.coverUrl || "/placeholder-event.jpg",
                   venueName: parsed.venueName || "TBA",
@@ -347,6 +352,16 @@ function BookingSuccessPageContent() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#050016] via-[#0b0220] to-[#05010a] text-white">
       <div className="mx-auto flex min-h-screen w-full max-w-md flex-col px-4 pb-6 pt-8 sm:px-6 lg:px-8">
+        {/* Breadcrumbs */}
+        <div className="mb-6">
+          <Breadcrumbs
+            items={[
+              { label: "My Bookings", href: "/my-bookings" },
+              { label: booking?.eventTitle || "Event", href: booking?.eventId ? `/events/${booking.eventId}` : undefined },
+              { label: "Ticket" },
+            ]}
+          />
+        </div>
         {/* Premium Booking Card - Wrapped for PDF */}
         <motion.div
           id="ticket-pdf"

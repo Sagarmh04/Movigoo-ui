@@ -9,6 +9,7 @@ import { useSearchParams } from "next/navigation";
 import Script from "next/script";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import Breadcrumbs from "@/components/ui/breadcrumbs";
 
 function PaymentPageContent() {
   const searchParams = useSearchParams();
@@ -184,7 +185,16 @@ function PaymentPageContent() {
         }}
       />
 
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-[#050016] via-[#0b0220] to-[#05010a]">
+      <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-[#050016] via-[#0b0220] to-[#05010a] px-4">
+        {/* Breadcrumbs */}
+        <div className="absolute top-20 left-0 right-0 max-w-3xl mx-auto px-4 sm:px-6">
+          <Breadcrumbs
+            items={[
+              { label: "Events", href: "/events" },
+              { label: "Payment" },
+            ]}
+          />
+        </div>
         <div className="text-center">
           <Loader2 className="mx-auto h-12 w-12 animate-spin text-[#0B62FF] mb-4" />
           <p className="text-white text-lg font-medium">Redirecting to secure payment…</p>
