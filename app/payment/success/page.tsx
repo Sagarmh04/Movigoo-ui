@@ -76,6 +76,12 @@ function PaymentSuccessContent() {
               paymentStatus: booking.paymentStatus,
             });
 
+            // Stop loading after first fetch (show success UI immediately)
+            // Continue polling silently in background
+            if (retryCount === 0) {
+              setLoading(false);
+            }
+
             // Stop polling if we have a definitive status (CONFIRMED or FAILED/CANCELLED)
             const status = booking.bookingStatus?.toUpperCase();
             const paymentStatus = booking.paymentStatus?.toUpperCase();
@@ -87,14 +93,12 @@ function PaymentSuccessContent() {
             
             if (isDefinitive) {
               console.log("✅ Definitive status reached, stopping poll");
-              setLoading(false);
               return;
             }
             
             // Continue polling if still PENDING/INITIATED
             if (retryCount >= maxRetries) {
               console.log("⏱️ Max retries reached, stopping poll");
-              setLoading(false);
               return;
             }
           } else {
@@ -134,16 +138,21 @@ function PaymentSuccessContent() {
     fetchBookingStatus();
   }, [bookingId, user]);
 
-  // Determine display state based on ACTUAL booking status
-  // Only show success if BOTH bookingStatus is CONFIRMED AND paymentStatus is SUCCESS
+  // Show success UI immediately when on success page (Cashfree redirect = payment succeeded)
+  // If user is redirected to /payment/success, payment was successful
+  // Continue polling in background silently to verify webhook processed
   const bookingStatusUpper = bookingStatus?.bookingStatus?.toUpperCase() || "";
   const paymentStatusUpper = bookingStatus?.paymentStatus?.toUpperCase() || "";
-  const isConfirmed = bookingStatusUpper === "CONFIRMED" && paymentStatusUpper === "SUCCESS";
-  const isStillPending = (bookingStatusUpper === "PENDING" || bookingStatusUpper === "") && 
-                         (paymentStatusUpper === "INITIATED" || paymentStatusUpper === "");
+  const isWebhookConfirmed = bookingStatusUpper === "CONFIRMED" && paymentStatusUpper === "SUCCESS";
+  
+  // Show success UI immediately if:
+  // 1. Webhook confirmed (CONFIRMED + SUCCESS), OR
+  // 2. We're on success page with bookingId (Cashfree redirected = payment succeeded)
+  // Only show error if there's an explicit error or no bookingId
+  const showSuccessUI = isWebhookConfirmed || (!bookingStatus?.error && bookingId);
 
-  // Show loading state
-  if (loading) {
+  // Show loading state only briefly (first fetch)
+  if (loading && !bookingStatus) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-[#050016] via-[#0b0220] to-[#05010a] text-white">
         <div className="mx-auto flex min-h-screen w-full max-w-2xl flex-col items-center justify-center px-4 py-12">
@@ -161,13 +170,9 @@ function PaymentSuccessContent() {
       <div className="mx-auto flex min-h-screen w-full max-w-2xl flex-col items-center justify-center px-4 py-12">
         <div className="text-center space-y-6">
           {/* Status Icon */}
-          {isConfirmed ? (
+          {showSuccessUI ? (
             <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-green-500/20">
               <CheckCircle2 className="h-12 w-12 text-green-500" />
-            </div>
-          ) : isStillPending ? (
-            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-blue-500/20">
-              <Loader2 className="h-12 w-12 text-blue-500 animate-spin" />
             </div>
           ) : (
             <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-red-500/20">
@@ -177,18 +182,11 @@ function PaymentSuccessContent() {
 
           {/* Status Message */}
           <div className="space-y-2">
-            {isConfirmed ? (
+            {showSuccessUI ? (
               <>
                 <h1 className="text-3xl font-bold text-white">Payment successful</h1>
                 <p className="text-slate-400">
                   Your booking is confirmed
-                </p>
-              </>
-            ) : isStillPending ? (
-              <>
-                <h1 className="text-3xl font-bold text-white">Payment processing</h1>
-                <p className="text-slate-400">
-                  Your payment is being processed. This may take a few moments. Please wait...
                 </p>
               </>
             ) : (
@@ -229,7 +227,7 @@ function PaymentSuccessContent() {
             </div>
           )}
 
-          {isConfirmed && (
+          {showSuccessUI && (
             <div className="rounded-xl border border-green-500/20 bg-green-500/10 p-4 text-left w-full">
               <p className="text-sm text-green-200">
                 <strong>Success!</strong> Your booking is confirmed. You will receive a confirmation email shortly.
@@ -237,26 +235,24 @@ function PaymentSuccessContent() {
             </div>
           )}
 
-          {/* Actions - Only show buttons when not processing */}
-          {!isStillPending && (
-            <div className="flex flex-col sm:flex-row gap-4 pt-4">
-              {isConfirmed ? (
-                <Link
-                  href="/my-bookings"
-                  className="flex items-center justify-center gap-2 rounded-2xl bg-[#0B62FF] px-6 py-3 text-white font-semibold hover:bg-[#0A5AE6] transition"
-                >
-                  My Bookings
-                </Link>
-              ) : (
-                <Link
-                  href="/events"
-                  className="flex items-center justify-center gap-2 rounded-2xl bg-[#0B62FF] px-6 py-3 text-white font-semibold hover:bg-[#0A5AE6] transition"
-                >
-                  Browse Events
-                </Link>
-              )}
-            </div>
-          )}
+          {/* Actions */}
+          <div className="flex flex-col sm:flex-row gap-4 pt-4">
+            {showSuccessUI ? (
+              <Link
+                href="/my-bookings"
+                className="flex items-center justify-center gap-2 rounded-2xl bg-[#0B62FF] px-6 py-3 text-white font-semibold hover:bg-[#0A5AE6] transition"
+              >
+                My Bookings
+              </Link>
+            ) : (
+              <Link
+                href="/events"
+                className="flex items-center justify-center gap-2 rounded-2xl bg-[#0B62FF] px-6 py-3 text-white font-semibold hover:bg-[#0A5AE6] transition"
+              >
+                Browse Events
+              </Link>
+            )}
+          </div>
 
           {/* Help Text */}
           <p className="text-xs text-slate-500 pt-4">
