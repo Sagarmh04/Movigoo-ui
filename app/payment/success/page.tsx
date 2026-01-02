@@ -25,37 +25,105 @@ function PaymentSuccessContent() {
   } | null>(null);
 
   // Fetch booking status ONLY (do not update/confirm)
+  // Poll for status updates since webhook might not have processed yet
   useEffect(() => {
     async function fetchBookingStatus() {
-      if (!bookingId || !user) {
+      if (!user) {
         setLoading(false);
         return;
       }
 
-      try {
-        const token = await user.getIdToken();
-        const response = await fetch(`/api/bookings/${bookingId}`, {
-          method: "GET",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
-        });
-
-        if (response.ok) {
-          const booking = await response.json();
-          setBookingStatus({
-            bookingStatus: booking.bookingStatus,
-            paymentStatus: booking.paymentStatus,
-          });
-        } else {
-          setBookingStatus({ error: "Booking not found" });
-        }
-      } catch (error) {
-        console.error("Error fetching booking status:", error);
-        setBookingStatus({ error: "Failed to fetch booking status" });
-      } finally {
+      // If no bookingId, we can't fetch - show error
+      if (!bookingId) {
+        console.error("No bookingId in URL params");
+        setBookingStatus({ error: "Booking ID not found in URL" });
         setLoading(false);
+        return;
       }
+
+      let retryCount = 0;
+      const maxRetries = 15; // Poll for up to 15 seconds (webhook might take time)
+      const pollInterval = 1000; // Check every 1 second
+
+      async function pollBookingStatus() {
+        try {
+          const token = await user.getIdToken();
+          console.log(`[Retry ${retryCount}] Fetching booking: ${bookingId}`);
+          
+          const response = await fetch(`/api/bookings/${bookingId}`, {
+            method: "GET",
+            headers: {
+              "Authorization": `Bearer ${token}`,
+            },
+          });
+
+          if (response.ok) {
+            const booking = await response.json();
+            console.log("✅ Booking status fetched:", {
+              bookingId,
+              bookingStatus: booking.bookingStatus,
+              paymentStatus: booking.paymentStatus,
+              retryCount,
+            });
+            
+            setBookingStatus({
+              bookingStatus: booking.bookingStatus,
+              paymentStatus: booking.paymentStatus,
+            });
+
+            // Stop polling if we have a definitive status (CONFIRMED or FAILED/CANCELLED)
+            const status = booking.bookingStatus?.toUpperCase();
+            const paymentStatus = booking.paymentStatus?.toUpperCase();
+            
+            const isDefinitive = 
+              (status === "CONFIRMED" && paymentStatus === "SUCCESS") ||
+              status === "CANCELLED" ||
+              paymentStatus === "FAILED";
+            
+            if (isDefinitive) {
+              console.log("✅ Definitive status reached, stopping poll");
+              setLoading(false);
+              return;
+            }
+            
+            // Continue polling if still PENDING/INITIATED
+            if (retryCount >= maxRetries) {
+              console.log("⏱️ Max retries reached, stopping poll");
+              setLoading(false);
+              return;
+            }
+          } else {
+            console.error(`❌ Failed to fetch booking (${response.status}):`, await response.text());
+            if (response.status === 404) {
+              setBookingStatus({ error: "Booking not found" });
+              setLoading(false);
+              return;
+            }
+            if (response.status === 403) {
+              setBookingStatus({ error: "Access denied to booking" });
+              setLoading(false);
+              return;
+            }
+          }
+        } catch (error) {
+          console.error("❌ Error fetching booking status:", error);
+          if (retryCount >= maxRetries) {
+            setBookingStatus({ error: "Failed to fetch booking status" });
+            setLoading(false);
+            return;
+          }
+        }
+
+        retryCount++;
+        if (retryCount < maxRetries) {
+          setTimeout(pollBookingStatus, pollInterval);
+        } else {
+          console.log("⏱️ Stopping poll after max retries");
+          setLoading(false);
+        }
+      }
+
+      pollBookingStatus();
     }
 
     fetchBookingStatus();
@@ -63,8 +131,21 @@ function PaymentSuccessContent() {
 
   // Determine display state based on ACTUAL booking status
   // Only show success if BOTH bookingStatus is CONFIRMED AND paymentStatus is SUCCESS
-  const isConfirmed = bookingStatus?.bookingStatus?.toUpperCase() === "CONFIRMED" && 
-                     bookingStatus?.paymentStatus?.toUpperCase() === "SUCCESS";
+  const bookingStatusUpper = bookingStatus?.bookingStatus?.toUpperCase() || "";
+  const paymentStatusUpper = bookingStatus?.paymentStatus?.toUpperCase() || "";
+  const isConfirmed = bookingStatusUpper === "CONFIRMED" && paymentStatusUpper === "SUCCESS";
+  
+  // Debug logging - always log when we have status
+  useEffect(() => {
+    if (bookingStatus && !loading) {
+      console.log("🔍 UI Status Check:", {
+        bookingStatus: bookingStatusUpper,
+        paymentStatus: paymentStatusUpper,
+        isConfirmed,
+        raw: bookingStatus,
+      });
+    }
+  }, [bookingStatus, loading, bookingStatusUpper, paymentStatusUpper, isConfirmed]);
 
   // Show loading state
   if (loading) {
