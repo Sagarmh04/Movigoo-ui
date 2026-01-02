@@ -1,89 +1,176 @@
 "use client";
 
 // app/payment/success/page.tsx
-// Payment success page - Verifies payment and confirms booking
+// Payment return page - INFORMATION ONLY (DO NOT CONFIRM)
+// Only webhook can confirm bookings
 
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { CheckCircle2, Loader2, AlertCircle, XCircle } from "lucide-react";
 import Link from "next/link";
+import { useAuth } from "@/hooks/useAuth";
 
 function PaymentSuccessContent() {
   const searchParams = useSearchParams();
+  const { user } = useAuth();
   const orderId = searchParams.get("order_id");
   const orderToken = searchParams.get("order_token");
   const bookingId = searchParams.get("bookingId") || searchParams.get("booking_id");
+  
+  const [loading, setLoading] = useState(true);
+  const [bookingStatus, setBookingStatus] = useState<{
+    bookingStatus?: string;
+    paymentStatus?: string;
+    error?: string;
+  } | null>(null);
 
-  // CRITICAL: Block access if no order_id from Cashfree redirect
-  if (!orderId) {
+  // Fetch booking status ONLY (do not update/confirm)
+  useEffect(() => {
+    async function fetchBookingStatus() {
+      if (!bookingId || !user) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const token = await user.getIdToken();
+        const response = await fetch(`/api/bookings/${bookingId}`, {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+          },
+        });
+
+        if (response.ok) {
+          const booking = await response.json();
+          setBookingStatus({
+            bookingStatus: booking.bookingStatus,
+            paymentStatus: booking.paymentStatus,
+          });
+        } else {
+          setBookingStatus({ error: "Booking not found" });
+        }
+      } catch (error) {
+        console.error("Error fetching booking status:", error);
+        setBookingStatus({ error: "Failed to fetch booking status" });
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchBookingStatus();
+  }, [bookingId, user]);
+
+  // Determine display state based on ACTUAL booking status
+  const isConfirmed = bookingStatus?.bookingStatus?.toUpperCase() === "CONFIRMED" && 
+                     bookingStatus?.paymentStatus?.toUpperCase() === "SUCCESS";
+  const hasError = !!bookingStatus?.error;
+  const isPending = !isConfirmed && !hasError && !loading;
+
+  // Show loading state
+  if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-[#050016] via-[#0b0220] to-[#05010a] text-white">
         <div className="mx-auto flex min-h-screen w-full max-w-2xl flex-col items-center justify-center px-4 py-12">
           <div className="text-center space-y-6">
-            <h1 className="text-2xl font-bold text-white mb-2">Invalid Access</h1>
-            <p className="text-slate-400 mb-6">
-              This page can only be accessed after completing payment through Cashfree.
-            </p>
-            <Link
-              href="/events"
-              className="inline-block rounded-2xl bg-[#0B62FF] px-6 py-3 text-white font-semibold hover:bg-[#0A5AE6] transition"
-            >
-              Browse Events
-            </Link>
+            <Loader2 className="h-12 w-12 animate-spin text-[#0B62FF] mx-auto" />
+            <p className="text-slate-400">Checking payment status...</p>
           </div>
         </div>
       </div>
     );
   }
 
-  // Show success state
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#050016] via-[#0b0220] to-[#05010a] text-white">
       <div className="mx-auto flex min-h-screen w-full max-w-2xl flex-col items-center justify-center px-4 py-12">
         <div className="text-center space-y-6">
-          {/* Success Icon */}
-          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-green-500/20">
-            <CheckCircle2 className="h-12 w-12 text-green-500" />
-          </div>
+          {/* Status Icon */}
+          {isConfirmed ? (
+            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-green-500/20">
+              <CheckCircle2 className="h-12 w-12 text-green-500" />
+            </div>
+          ) : isPending ? (
+            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-amber-500/20">
+              <AlertCircle className="h-12 w-12 text-amber-500" />
+            </div>
+          ) : (
+            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-red-500/20">
+              <XCircle className="h-12 w-12 text-red-500" />
+            </div>
+          )}
 
-          {/* Success Message */}
+          {/* Status Message */}
           <div className="space-y-2">
-            <h1 className="text-3xl font-bold text-white">Payment Successful</h1>
-            <p className="text-slate-400">
-              Your booking will appear in My Bookings once it is confirmed by our server.
-            </p>
+            {isConfirmed ? (
+              <>
+                <h1 className="text-3xl font-bold text-white">Payment Successful</h1>
+                <p className="text-slate-400">
+                  Your booking has been confirmed. You can view it in My Bookings.
+                </p>
+              </>
+            ) : isPending ? (
+              <>
+                <h1 className="text-3xl font-bold text-white">Payment Not Completed</h1>
+                <p className="text-slate-400">
+                  Your payment was not completed. The booking remains pending.
+                </p>
+              </>
+            ) : (
+              <>
+                <h1 className="text-3xl font-bold text-white">Unable to Verify Payment</h1>
+                <p className="text-slate-400">
+                  {bookingStatus?.error || "Could not verify booking status"}
+                </p>
+              </>
+            )}
           </div>
 
           {/* Order Details */}
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-left backdrop-blur-xl w-full">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Order ID</span>
-                <span className="font-mono text-sm text-white">{orderId}</span>
+          {(orderId || bookingId) && (
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-left backdrop-blur-xl w-full">
+              <div className="space-y-3">
+                {orderId && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Order ID</span>
+                    <span className="font-mono text-sm text-white">{orderId}</span>
+                  </div>
+                )}
+                {bookingId && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Booking ID</span>
+                    <span className="font-mono text-sm text-white">{bookingId}</span>
+                  </div>
+                )}
+                {bookingStatus && !hasError && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Status</span>
+                    <span className="text-sm font-medium text-white">
+                      {bookingStatus.bookingStatus || "PENDING"}
+                    </span>
+                  </div>
+                )}
               </div>
-              {bookingId && (
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Booking ID</span>
-                  <span className="font-mono text-sm text-white">{bookingId}</span>
-                </div>
-              )}
-              {orderToken && (
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Order Token</span>
-                  <span className="font-mono text-xs text-slate-300 truncate max-w-[200px]">
-                    {orderToken}
-                  </span>
-                </div>
-              )}
             </div>
-          </div>
+          )}
 
-          {/* Success Note */}
-          <div className="rounded-xl border border-green-500/20 bg-green-500/10 p-4 text-left w-full">
-            <p className="text-sm text-green-200">
-              <strong>Success!</strong> Payment received. If you closed the browser earlier, your booking will still be confirmed via Cashfree webhooks.
-            </p>
-          </div>
+          {/* Info Note */}
+          {isPending && (
+            <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-left w-full">
+              <p className="text-sm text-amber-200">
+                <strong>Payment not completed.</strong> Your booking will remain pending until payment is successful. 
+                You can retry payment from My Bookings.
+              </p>
+            </div>
+          )}
+
+          {isConfirmed && (
+            <div className="rounded-xl border border-green-500/20 bg-green-500/10 p-4 text-left w-full">
+              <p className="text-sm text-green-200">
+                <strong>Success!</strong> Your booking is confirmed. You will receive a confirmation email shortly.
+              </p>
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-4 pt-4">
