@@ -7,6 +7,7 @@ import { db } from "@/lib/firebaseServer";
 import { verifyAuthToken } from "@/lib/auth";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { maybeSendBookingConfirmationEmail } from "@/lib/bookingConfirmationEmail";
+import { updateAnalyticsOnBookingConfirmation } from "@/lib/analyticsUpdate";
 
 export const runtime = "nodejs";
 
@@ -157,6 +158,33 @@ export async function POST(
         ? setDoc(doc(db, "events", booking.eventId, "bookings", bookingId), eventBookingUpdate, { merge: true })
         : Promise.resolve(),
     ]);
+
+    // Update analytics (non-blocking - failures are logged but don't affect booking confirmation)
+    if (booking.eventId && booking.quantity && booking.totalAmount) {
+      // Extract date from booking (could be in 'date' field or parsed from dateTimeKey)
+      let bookingDate: string | null = booking.date || null;
+      if (!bookingDate && booking.dateTimeKey) {
+        // dateTimeKey format: "yyyy-mm-dd_HH:mm"
+        const datePart = booking.dateTimeKey.split("_")[0];
+        if (datePart && /^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+          bookingDate = datePart;
+        }
+      }
+
+      updateAnalyticsOnBookingConfirmation(db, {
+        eventId: booking.eventId,
+        quantity: typeof booking.quantity === "number" ? booking.quantity : 0,
+        totalAmount: typeof booking.totalAmount === "number" ? booking.totalAmount : 0,
+        locationId: booking.locationId || null,
+        venueId: booking.venueId || null,
+        date: bookingDate,
+        showId: booking.showId || null,
+      }).catch((error) => {
+        // Analytics failure must NEVER block booking confirmation
+        // Error is already logged in updateAnalyticsOnBookingConfirmation
+        console.error("[Manual Confirmation] Analytics update failed (non-fatal):", error);
+      });
+    }
 
     // Send confirmation email
     await maybeSendBookingConfirmationEmail({

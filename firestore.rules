@@ -72,5 +72,37 @@ service cloud.firestore {
       // User cannot update or delete tickets (only admin/server can)
       allow update, delete: if false;
     }
+    
+    // Host analytics - read-only for hosts (writes only from server)
+    match /host_analytics/{hostId} {
+      // Host can read their own analytics
+      allow read: if request.auth != null && request.auth.uid == hostId;
+      // No client writes - only server API can write
+      allow write: if false;
+    }
+    
+    // Event analytics - read-only for hosts (writes only from server)
+    match /event_analytics/{eventId} {
+      // Host can read analytics for their events
+      allow read: if request.auth != null && (
+        get(/databases/$(database)/documents/events/$(eventId)).data.organizerId == request.auth.uid ||
+        get(/databases/$(database)/documents/events/$(eventId)).data.hostUid == request.auth.uid ||
+        request.auth.token.admin == true
+      );
+      // No client writes - only server API can write
+      allow write: if false;
+      
+      // Event breakdown stats subcollection
+      match /stats/{statId} {
+        // Host can read stats for their events
+        allow read: if request.auth != null && (
+          get(/databases/$(database)/documents/events/$(eventId)).data.organizerId == request.auth.uid ||
+          get(/databases/$(database)/documents/events/$(eventId)).data.hostUid == request.auth.uid ||
+          request.auth.token.admin == true
+        );
+        // No client writes - only server API can write
+        allow write: if false;
+      }
+    }
   }
 }

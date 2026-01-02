@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/firebaseServer";
 import { collection, doc, getDocs, limit, query, serverTimestamp, setDoc, where } from "firebase/firestore";
 import { maybeSendBookingConfirmationEmail } from "@/lib/bookingConfirmationEmail";
+import { updateAnalyticsOnBookingConfirmation } from "@/lib/analyticsUpdate";
 
 type CashfreeWebhookPayload = {
   order_id?: string;
@@ -139,6 +140,33 @@ export async function handleCashfreeWebhook(req: NextRequest) {
           ? setDoc(doc(firestore, "events", existing.eventId, "bookings", bookingId), eventBookingUpdate, { merge: true })
           : Promise.resolve(),
       ]);
+
+      // Update analytics (non-blocking - failures are logged but don't affect booking confirmation)
+      if (existing.eventId && existing.quantity && existing.totalAmount) {
+        // Extract date from booking (could be in 'date' field or parsed from dateTimeKey)
+        let bookingDate: string | null = existing.date || null;
+        if (!bookingDate && existing.dateTimeKey) {
+          // dateTimeKey format: "yyyy-mm-dd_HH:mm"
+          const datePart = existing.dateTimeKey.split("_")[0];
+          if (datePart && /^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+            bookingDate = datePart;
+          }
+        }
+
+        updateAnalyticsOnBookingConfirmation(firestore, {
+          eventId: existing.eventId,
+          quantity: typeof existing.quantity === "number" ? existing.quantity : 0,
+          totalAmount: typeof existing.totalAmount === "number" ? existing.totalAmount : 0,
+          locationId: existing.locationId || null,
+          venueId: existing.venueId || null,
+          date: bookingDate,
+          showId: existing.showId || null,
+        }).catch((error) => {
+          // Analytics failure must NEVER block booking confirmation
+          // Error is already logged in updateAnalyticsOnBookingConfirmation
+          console.error("[Webhook] Analytics update failed (non-fatal):", error);
+        });
+      }
 
       await maybeSendBookingConfirmationEmail({
         firestore,
