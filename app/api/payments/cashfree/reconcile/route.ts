@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseServer";
 import { verifyAuthToken } from "@/lib/auth";
-import { maybeSendBookingConfirmationEmail } from "@/lib/bookingConfirmationEmail";
 import {
   collection,
-  doc,
   getDocs,
   limit,
   query,
-  serverTimestamp,
-  setDoc,
   where,
 } from "firebase/firestore";
 
@@ -76,10 +72,18 @@ export async function POST(req: NextRequest) {
     }
 
     if (docsToProcess.length === 0) {
-      return NextResponse.json({ ok: true, updated: 0 });
+      return NextResponse.json({ 
+        ok: true, 
+        checked: 0,
+        note: "Webhook will confirm payment if successful"
+      });
     }
 
-    let updated = 0;
+    const statusChecks: Array<{
+      bookingId: string;
+      gatewayStatus: "PAID" | "UNPAID" | "PENDING" | "UNKNOWN";
+      bookingStatus: string;
+    }> = [];
 
     for (const bookingDoc of docsToProcess) {
       const bookingId = bookingDoc.id;
@@ -87,91 +91,93 @@ export async function POST(req: NextRequest) {
 
       const existingBookingStatus = safeUpper(booking.bookingStatus);
       const existingPaymentStatus = safeUpper(booking.paymentStatus);
+      
+      // Skip if already confirmed
       if (existingBookingStatus === "CONFIRMED" && existingPaymentStatus === "SUCCESS") {
+        statusChecks.push({
+          bookingId,
+          gatewayStatus: "PAID",
+          bookingStatus: booking.bookingStatus || "CONFIRMED",
+        });
         continue;
       }
 
       const orderId = booking.orderId;
       if (!orderId || typeof orderId !== "string") {
-        continue;
-      }
-
-      const orderStatusUrl = `${process.env.CASHFREE_BASE_URL}/orders/${orderId}`;
-      const response = await fetch(orderStatusUrl, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          "x-client-id": process.env.CASHFREE_APP_ID,
-          "x-client-secret": process.env.CASHFREE_SECRET_KEY,
-          "x-api-version": "2023-08-01",
-        },
-      });
-
-      const orderData = await response.json();
-      if (!response.ok) {
-        continue;
-      }
-
-      const statusRaw = (orderData.payment_status || orderData.order_status || orderData.status || "") as string;
-      const receivedAmount = Number(orderData.order_amount);
-      const expectedAmount = Number(booking.totalAmount);
-      if (Number.isFinite(receivedAmount) && Number.isFinite(expectedAmount) && receivedAmount !== expectedAmount) {
-        continue;
-      }
-
-      if (isSuccessStatus(statusRaw)) {
-        const ticketId = booking.ticketId || `TKT-${Date.now()}-${Math.random().toString(36).slice(2, 11).toUpperCase()}`;
-        const updateData = {
-          orderId,
-          paymentGateway: "cashfree",
-          paymentStatus: "SUCCESS",
-          bookingStatus: "CONFIRMED",
-          ticketId,
-          confirmedAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-          reconciledAt: serverTimestamp(),
-        };
-
-        await Promise.all([
-          setDoc(doc(db, "bookings", bookingId), updateData, { merge: true }),
-          booking.eventId
-            ? setDoc(doc(db, "events", booking.eventId, "bookings", bookingId), updateData, { merge: true })
-            : Promise.resolve(),
-        ]);
-
-        await maybeSendBookingConfirmationEmail({
-          firestore: db,
+        statusChecks.push({
           bookingId,
-          eventId: booking.eventId || null,
+          gatewayStatus: "UNKNOWN",
+          bookingStatus: booking.bookingStatus || "PENDING",
+        });
+        continue;
+      }
+
+      try {
+        const orderStatusUrl = `${process.env.CASHFREE_BASE_URL}/orders/${orderId}`;
+        const response = await fetch(orderStatusUrl, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            "x-client-id": process.env.CASHFREE_APP_ID,
+            "x-client-secret": process.env.CASHFREE_SECRET_KEY,
+            "x-api-version": "2023-08-01",
+          },
         });
 
-        updated += 1;
-        continue;
-      }
+        if (!response.ok) {
+          statusChecks.push({
+            bookingId,
+            gatewayStatus: "UNKNOWN",
+            bookingStatus: booking.bookingStatus || "PENDING",
+          });
+          continue;
+        }
 
-      if (isFailureStatus(statusRaw)) {
-        const updateData = {
-          orderId,
-          paymentGateway: "cashfree",
-          paymentStatus: "FAILED",
-          bookingStatus: "CANCELLED",
-          updatedAt: serverTimestamp(),
-          reconciledAt: serverTimestamp(),
-          failureReason: statusRaw,
-        };
+        const orderData = await response.json();
+        const statusRaw = (orderData.payment_status || orderData.order_status || orderData.status || "") as string;
+        const receivedAmount = Number(orderData.order_amount);
+        const expectedAmount = Number(booking.totalAmount);
+        
+        // Amount mismatch indicates potential issue
+        if (Number.isFinite(receivedAmount) && Number.isFinite(expectedAmount) && receivedAmount !== expectedAmount) {
+          statusChecks.push({
+            bookingId,
+            gatewayStatus: "UNKNOWN",
+            bookingStatus: booking.bookingStatus || "PENDING",
+          });
+          continue;
+        }
 
-        await Promise.all([
-          setDoc(doc(db, "bookings", bookingId), updateData, { merge: true }),
-          booking.eventId
-            ? setDoc(doc(db, "events", booking.eventId, "bookings", bookingId), updateData, { merge: true })
-            : Promise.resolve(),
-        ]);
+        let gatewayStatus: "PAID" | "UNPAID" | "PENDING" | "UNKNOWN" = "UNKNOWN";
+        if (isSuccessStatus(statusRaw)) {
+          gatewayStatus = "PAID";
+        } else if (isFailureStatus(statusRaw)) {
+          gatewayStatus = "UNPAID";
+        } else {
+          gatewayStatus = "PENDING";
+        }
 
-        updated += 1;
+        statusChecks.push({
+          bookingId,
+          gatewayStatus,
+          bookingStatus: booking.bookingStatus || "PENDING",
+        });
+      } catch (error) {
+        // If Cashfree API call fails, return unknown status
+        statusChecks.push({
+          bookingId,
+          gatewayStatus: "UNKNOWN",
+          bookingStatus: booking.bookingStatus || "PENDING",
+        });
       }
     }
 
-    return NextResponse.json({ ok: true, updated });
+    return NextResponse.json({ 
+      ok: true, 
+      checked: statusChecks.length,
+      bookings: statusChecks,
+      note: "Webhook will confirm payment if successful. This endpoint is read-only."
+    });
   } catch (error: any) {
     return NextResponse.json({ error: error?.message || "Internal server error" }, { status: 500 });
   }
