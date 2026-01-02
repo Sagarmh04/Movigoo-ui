@@ -44,7 +44,7 @@ function PaymentFailedContent() {
           <div className="space-y-2">
             <h1 className="text-3xl font-bold text-white">Payment not completed</h1>
             <p className="text-slate-400">
-              Your payment was not completed,  booking was not confirmed. Please try booking the event again.
+              Your payment was not completed, so this booking was not confirmed. Please try booking the event again.
             </p>
           </div>
 

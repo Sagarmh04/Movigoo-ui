@@ -74,7 +74,7 @@ function PaymentSuccessContent() {
         <div className="mx-auto flex min-h-screen w-full max-w-2xl flex-col items-center justify-center px-4 py-12">
           <div className="text-center space-y-6">
             <Loader2 className="h-12 w-12 animate-spin text-[#0B62FF] mx-auto" />
-            <p className="text-slate-400">Checking payment status...</p>
+            <p className="text-slate-400">Checking payment status…</p>
           </div>
         </div>
       </div>
@@ -111,9 +111,9 @@ function PaymentSuccessContent() {
               </>
             ) : isPending ? (
               <>
-                <h1 className="text-3xl font-bold text-white">Payment Not Completed</h1>
+                <h1 className="text-3xl font-bold text-white">Payment not completed</h1>
                 <p className="text-slate-400">
-                  Your payment was not completed. The booking remains pending.
+                  Your payment was not completed, so this booking was not confirmed. Please try booking the event again.
                 </p>
               </>
             ) : (
@@ -154,16 +154,6 @@ function PaymentSuccessContent() {
             </div>
           )}
 
-          {/* Info Note */}
-          {isPending && (
-            <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-left w-full">
-              <p className="text-sm text-amber-200">
-                <strong>Payment not completed.</strong> Your booking will remain pending until payment is successful. 
-                You can retry payment from My Bookings.
-              </p>
-            </div>
-          )}
-
           {isConfirmed && (
             <div className="rounded-xl border border-green-500/20 bg-green-500/10 p-4 text-left w-full">
               <p className="text-sm text-green-200">
@@ -174,18 +164,21 @@ function PaymentSuccessContent() {
 
           {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-4 pt-4">
-            <Link
-              href="/my-bookings"
-              className="flex items-center justify-center gap-2 rounded-2xl bg-[#0B62FF] px-6 py-3 text-white font-semibold hover:bg-[#0A5AE6] transition"
-            >
-              View My Bookings
-            </Link>
-            <Link
-              href="/events"
-              className="flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-6 py-3 text-white font-semibold hover:bg-white/10 transition"
-            >
-              Browse More Events
-            </Link>
+            {isConfirmed ? (
+              <Link
+                href="/my-bookings"
+                className="flex items-center justify-center gap-2 rounded-2xl bg-[#0B62FF] px-6 py-3 text-white font-semibold hover:bg-[#0A5AE6] transition"
+              >
+                View My Bookings
+              </Link>
+            ) : (
+              <Link
+                href="/events"
+                className="flex items-center justify-center gap-2 rounded-2xl bg-[#0B62FF] px-6 py-3 text-white font-semibold hover:bg-[#0A5AE6] transition"
+              >
+                Browse Events
+              </Link>
+            )}
           </div>
 
           {/* Help Text */}
