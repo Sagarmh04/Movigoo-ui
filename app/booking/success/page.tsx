@@ -403,12 +403,13 @@ function BookingSuccessPageContent() {
           <div className="relative z-10 p-6 space-y-5">
             {/* Event Image - Premium Design */}
             <div className="relative h-40 w-full overflow-hidden rounded-2xl border-2 border-white/20 shadow-xl">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img 
-                src={booking.coverUrl || "/placeholder-event.jpg"} 
-                alt={booking.eventTitle || "Event"} 
-                crossOrigin="anonymous"
-                className="absolute inset-0 w-full h-full object-cover" 
+              <Image
+                src={booking.coverUrl || "/placeholder-event.jpg"}
+                alt={booking.eventTitle || "Event"}
+                fill
+                sizes="100vw"
+                className="object-cover"
+                priority
               />
               <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/50 to-transparent" />
               <div className="absolute bottom-0 left-0 right-0 p-4">
