@@ -157,8 +157,8 @@ function PaymentSuccessContent() {
           {/* Help Text */}
           <p className="text-xs text-slate-500 pt-4">
             If you have any questions, please contact{" "}
-            <a href="mailto:support@movigoo.in" className="text-[#0B62FF] hover:underline">
-              support@movigoo.in
+            <a href="mailto:movigootech@gmail.com" className="text-[#0B62FF] hover:underline">
+              movigootech@gmail.com
             </a>
           </p>
         </div>
