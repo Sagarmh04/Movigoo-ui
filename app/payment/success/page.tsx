@@ -6,7 +6,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { CheckCircle2, Loader2, AlertCircle, XCircle } from "lucide-react";
+import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -62,10 +62,9 @@ function PaymentSuccessContent() {
   }, [bookingId, user]);
 
   // Determine display state based on ACTUAL booking status
+  // Only show success if BOTH bookingStatus is CONFIRMED AND paymentStatus is SUCCESS
   const isConfirmed = bookingStatus?.bookingStatus?.toUpperCase() === "CONFIRMED" && 
                      bookingStatus?.paymentStatus?.toUpperCase() === "SUCCESS";
-  const hasError = !!bookingStatus?.error;
-  const isPending = !isConfirmed && !hasError && !loading;
 
   // Show loading state
   if (loading) {
@@ -90,10 +89,6 @@ function PaymentSuccessContent() {
             <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-green-500/20">
               <CheckCircle2 className="h-12 w-12 text-green-500" />
             </div>
-          ) : isPending ? (
-            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-amber-500/20">
-              <AlertCircle className="h-12 w-12 text-amber-500" />
-            </div>
           ) : (
             <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-red-500/20">
               <XCircle className="h-12 w-12 text-red-500" />
@@ -104,23 +99,16 @@ function PaymentSuccessContent() {
           <div className="space-y-2">
             {isConfirmed ? (
               <>
-                <h1 className="text-3xl font-bold text-white">Payment Successful</h1>
+                <h1 className="text-3xl font-bold text-white">Payment successful</h1>
                 <p className="text-slate-400">
-                  Your booking has been confirmed. You can view it in My Bookings.
-                </p>
-              </>
-            ) : isPending ? (
-              <>
-                <h1 className="text-3xl font-bold text-white">Payment not completed</h1>
-                <p className="text-slate-400">
-                  Your payment was not completed, so this booking was not confirmed. Please try booking the event again.
+                  Your booking is confirmed
                 </p>
               </>
             ) : (
               <>
-                <h1 className="text-3xl font-bold text-white">Unable to Verify Payment</h1>
+                <h1 className="text-3xl font-bold text-white">Payment not completed</h1>
                 <p className="text-slate-400">
-                  {bookingStatus?.error || "Could not verify booking status"}
+                  Your payment was not completed. Please browse events and try booking again.
                 </p>
               </>
             )}
@@ -142,7 +130,7 @@ function PaymentSuccessContent() {
                     <span className="font-mono text-sm text-white">{bookingId}</span>
                   </div>
                 )}
-                {bookingStatus && !hasError && (
+                {bookingStatus && !bookingStatus.error && (
                   <div className="flex items-center justify-between">
                     <span className="text-slate-400">Status</span>
                     <span className="text-sm font-medium text-white">
@@ -169,7 +157,7 @@ function PaymentSuccessContent() {
                 href="/my-bookings"
                 className="flex items-center justify-center gap-2 rounded-2xl bg-[#0B62FF] px-6 py-3 text-white font-semibold hover:bg-[#0A5AE6] transition"
               >
-                View My Bookings
+                My Bookings
               </Link>
             ) : (
               <Link
