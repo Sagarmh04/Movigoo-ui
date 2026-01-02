@@ -4,12 +4,11 @@
 // Payment failure page - Shows error after failed Cashfree payment
 
 import { useEffect, useState, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { XCircle, Loader2, ArrowLeft, RefreshCw } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { XCircle, Loader2 } from "lucide-react";
 import Link from "next/link";
 
 function PaymentFailedContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const orderId = searchParams.get("order_id");
@@ -43,9 +42,9 @@ function PaymentFailedContent() {
 
           {/* Error Message */}
           <div className="space-y-2">
-            <h1 className="text-3xl font-bold text-white">Payment Failed</h1>
+            <h1 className="text-3xl font-bold text-white">Payment Not Completed</h1>
             <p className="text-slate-400">
-              We couldn&apos;t process your payment. Please try again.
+              Payment was not completed. Your booking was not confirmed. You can explore events and make a new booking anytime.
             </p>
           </div>
 
@@ -81,19 +80,11 @@ function PaymentFailedContent() {
 
           {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-4 pt-4">
-            <button
-              onClick={() => router.back()}
-              className="flex items-center justify-center gap-2 rounded-2xl bg-[#0B62FF] px-6 py-3 text-white font-semibold hover:bg-[#0A5AE6] transition"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Try Again
-            </button>
             <Link
               href="/events"
-              className="flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-6 py-3 text-white font-semibold hover:bg-white/10 transition"
+              className="flex items-center justify-center gap-2 rounded-2xl bg-[#0B62FF] px-6 py-3 text-white font-semibold hover:bg-[#0A5AE6] transition"
             >
-              <ArrowLeft className="h-4 w-4" />
-              Back to Events
+              Explore Events
             </Link>
           </div>
 
