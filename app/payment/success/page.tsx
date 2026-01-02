@@ -80,6 +80,23 @@ function PaymentSuccessContent() {
             // Continue polling silently in background
             if (retryCount === 0) {
               setLoading(false);
+              
+              // If booking is still PENDING after first fetch, trigger manual confirmation check
+              const status = booking.bookingStatus?.toUpperCase();
+              const paymentStatus = booking.paymentStatus?.toUpperCase();
+              
+              if ((status === "PENDING" || status === "") && (paymentStatus === "INITIATED" || paymentStatus === "")) {
+                console.log("🔄 Booking still PENDING, triggering manual confirmation check...");
+                // Trigger manual confirmation in background (non-blocking)
+                fetch(`/api/bookings/${bookingId}/confirm-manual`, {
+                  method: "POST",
+                  headers: {
+                    "Authorization": `Bearer ${token}`,
+                  },
+                }).catch((err) => {
+                  console.error("Manual confirmation check failed:", err);
+                });
+              }
             }
 
             // Stop polling if we have a definitive status (CONFIRMED or FAILED/CANCELLED)
