@@ -42,7 +42,7 @@ function PaymentSuccessContent() {
       }
 
       let retryCount = 0;
-      const maxRetries = 15; // Poll for up to 15 seconds (webhook might take time)
+      const maxRetries = 30; // Poll for up to 30 seconds (webhook might take time)
       const pollInterval = 1000; // Check every 1 second
 
       async function pollBookingStatus() {
@@ -139,18 +139,8 @@ function PaymentSuccessContent() {
   const bookingStatusUpper = bookingStatus?.bookingStatus?.toUpperCase() || "";
   const paymentStatusUpper = bookingStatus?.paymentStatus?.toUpperCase() || "";
   const isConfirmed = bookingStatusUpper === "CONFIRMED" && paymentStatusUpper === "SUCCESS";
-  
-  // Debug logging - always log when we have status
-  useEffect(() => {
-    if (bookingStatus && !loading) {
-      console.log("🔍 UI Status Check:", {
-        bookingStatus: bookingStatusUpper,
-        paymentStatus: paymentStatusUpper,
-        isConfirmed,
-        raw: bookingStatus,
-      });
-    }
-  }, [bookingStatus, loading, bookingStatusUpper, paymentStatusUpper, isConfirmed]);
+  const isStillPending = (bookingStatusUpper === "PENDING" || bookingStatusUpper === "") && 
+                         (paymentStatusUpper === "INITIATED" || paymentStatusUpper === "");
 
   // Show loading state
   if (loading) {
@@ -175,6 +165,10 @@ function PaymentSuccessContent() {
             <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-green-500/20">
               <CheckCircle2 className="h-12 w-12 text-green-500" />
             </div>
+          ) : isStillPending ? (
+            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-blue-500/20">
+              <Loader2 className="h-12 w-12 text-blue-500 animate-spin" />
+            </div>
           ) : (
             <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-red-500/20">
               <XCircle className="h-12 w-12 text-red-500" />
@@ -188,6 +182,13 @@ function PaymentSuccessContent() {
                 <h1 className="text-3xl font-bold text-white">Payment successful</h1>
                 <p className="text-slate-400">
                   Your booking is confirmed
+                </p>
+              </>
+            ) : isStillPending ? (
+              <>
+                <h1 className="text-3xl font-bold text-white">Payment processing</h1>
+                <p className="text-slate-400">
+                  Your payment is being processed. This may take a few moments. Please wait...
                 </p>
               </>
             ) : (
@@ -236,24 +237,26 @@ function PaymentSuccessContent() {
             </div>
           )}
 
-          {/* Actions */}
-          <div className="flex flex-col sm:flex-row gap-4 pt-4">
-            {isConfirmed ? (
-              <Link
-                href="/my-bookings"
-                className="flex items-center justify-center gap-2 rounded-2xl bg-[#0B62FF] px-6 py-3 text-white font-semibold hover:bg-[#0A5AE6] transition"
-              >
-                My Bookings
-              </Link>
-            ) : (
-              <Link
-                href="/events"
-                className="flex items-center justify-center gap-2 rounded-2xl bg-[#0B62FF] px-6 py-3 text-white font-semibold hover:bg-[#0A5AE6] transition"
-              >
-                Browse Events
-              </Link>
-            )}
-          </div>
+          {/* Actions - Only show buttons when not processing */}
+          {!isStillPending && (
+            <div className="flex flex-col sm:flex-row gap-4 pt-4">
+              {isConfirmed ? (
+                <Link
+                  href="/my-bookings"
+                  className="flex items-center justify-center gap-2 rounded-2xl bg-[#0B62FF] px-6 py-3 text-white font-semibold hover:bg-[#0A5AE6] transition"
+                >
+                  My Bookings
+                </Link>
+              ) : (
+                <Link
+                  href="/events"
+                  className="flex items-center justify-center gap-2 rounded-2xl bg-[#0B62FF] px-6 py-3 text-white font-semibold hover:bg-[#0A5AE6] transition"
+                >
+                  Browse Events
+                </Link>
+              )}
+            </div>
+          )}
 
           {/* Help Text */}
           <p className="text-xs text-slate-500 pt-4">
