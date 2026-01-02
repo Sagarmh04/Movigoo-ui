@@ -63,6 +63,18 @@ export async function POST(req: NextRequest) {
             );
           }
 
+          // CRITICAL: Validate amount matches booking totalAmount
+          const expectedAmount = typeof booking.totalAmount === "number" ? booking.totalAmount : Number(booking.totalAmount);
+          const requestedAmount = Number(amount);
+          
+          if (Number.isFinite(expectedAmount) && Number.isFinite(requestedAmount) && expectedAmount !== requestedAmount) {
+            console.log("Amount mismatch:", { expectedAmount, requestedAmount });
+            return NextResponse.json(
+              { error: "Amount mismatch with booking total" },
+              { status: 400 }
+            );
+          }
+
           // Idempotency: reuse existing orderId if already set
           if (booking.orderId) {
             console.log("Reusing existing orderId:", booking.orderId);
