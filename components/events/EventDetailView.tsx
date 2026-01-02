@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { Calendar, MapPin, ShieldCheck, Users, Plus, Minus, Share2, ChevronDown } from "lucide-react";
+import { Calendar, MapPin, ShieldCheck, Users, Plus, Minus, Share2, ChevronDown, Loader2 } from "lucide-react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebaseClient";
@@ -30,6 +30,8 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
   const [isLoadingPrice, setIsLoadingPrice] = useState(true);
   const [showPriceBreakup, setShowPriceBreakup] = useState(false);
   const priceBreakupRef = useRef<HTMLDivElement>(null);
+  const [isPaying, setIsPaying] = useState(false);
+  const isProcessingRef = useRef(false); // Synchronous check to prevent double clicks
   const isHosted = event.organizerId === organizer.id;
 
   // Fetch full event data to calculate lowest price
@@ -278,26 +280,41 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
   }, [selectedTicketsArray]);
 
   const handleProceedToPayment = async () => {
+    // Prevent duplicate clicks - Use ref for SYNCHRONOUS check (React state is async)
+    if (isProcessingRef.current || isPaying) return;
+    
+    // Set ref IMMEDIATELY (synchronous) to prevent double clicks
+    isProcessingRef.current = true;
+    setIsPaying(true);
+
     // Prevent checkout if event is sold out
     if (isSoldOut) {
       alert("This event is sold out.");
+      isProcessingRef.current = false;
+      setIsPaying(false);
       return;
     }
 
     if (selectedTicketsArray.length === 0) {
       alert("Please select at least one ticket");
+      isProcessingRef.current = false;
+      setIsPaying(false);
       return;
     }
 
     // 1. If we are still checking the auth status, don't do anything
     if (authLoading) {
       console.log("Auth is still initializing...");
+      isProcessingRef.current = false;
+      setIsPaying(false);
       return;
     }
 
     // 2. Now check if user actually exists
     if (!user || !user.uid) {
       const currentUrl = pathname + (searchParams.toString() ? `?${searchParams.toString()}` : "");
+      isProcessingRef.current = false;
+      setIsPaying(false);
       router.push(`/my-bookings?redirect=${encodeURIComponent(currentUrl)}`);
       return;
     }
@@ -314,18 +331,22 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
       if (!user || typeof user.getIdToken !== "function") {
         console.error("User object is invalid or getIdToken is not available");
         alert("Authentication error. Please log in again.");
+        isProcessingRef.current = false;
+        setIsPaying(false);
         return;
       }
 
       let token: string;
       try {
-        token = await user.getIdToken();
+        token = await user.getIdToken(true); // Force refresh for faster token
         if (!token) {
           throw new Error("Token is null");
         }
       } catch (tokenError: any) {
         console.error("Failed to get ID token:", tokenError);
         alert("Authentication error. Please log in again.");
+        isProcessingRef.current = false;
+        setIsPaying(false);
         return;
       }
 
@@ -371,12 +392,18 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
       const bookingResult = await bookingResponse.json();
 
       if (!bookingResponse.ok || !bookingResult.bookingId) {
+        console.error("Failed to create pending booking:", bookingResult);
         const errorMessage = bookingResult.error || "Failed to create booking. Please try again.";
         alert(errorMessage);
+        isProcessingRef.current = false;
+        setIsPaying(false);
         return;
       }
 
-      // Redirect to Cashfree payment
+      console.log("Pending booking created:", bookingResult.bookingId);
+
+      // Redirect to Cashfree payment - booking ID and idempotency key are ready
+      // Do NOT reset isPaying or ref - Cashfree page will take over
       const paymentParams = new URLSearchParams({
         bookingId: bookingResult.bookingId,
         amount: total.toString(),
@@ -385,10 +412,14 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
         phone: (user as any).phoneNumber || "",
       });
 
-      router.push(`/payment?${paymentParams.toString()}`);
+      // Use window.location for immediate redirect (faster than router.push)
+      window.location.href = `/payment?${paymentParams.toString()}`;
     } catch (error: any) {
       console.error("Error creating booking:", error);
-      alert("Failed to create booking. Please try again.");
+      const errorMessage = error.message || "Failed to create booking. Please try again.";
+      alert(errorMessage);
+      isProcessingRef.current = false;
+      setIsPaying(false);
     }
   };
 
@@ -772,10 +803,17 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
                 )}
                 <Button
                   onClick={handleProceedToPayment}
-                  disabled={isSoldOut}
-                  className="rounded-full bg-[#0B62FF] px-6 py-3 text-base font-semibold shadow-lg transition hover:bg-[#0A5AE6] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#0B62FF] sm:rounded-2xl"
+                  disabled={isSoldOut || isPaying}
+                  className="rounded-full bg-[#0B62FF] px-6 py-3 text-base font-semibold shadow-lg transition hover:bg-[#0A5AE6] disabled:opacity-70 disabled:cursor-wait disabled:hover:bg-[#0B62FF] sm:rounded-2xl"
                 >
-                  {isSoldOut ? "Sold Out" : `Checkout ${currencyFormatter.format(total)}`}
+                  {isSoldOut ? "Sold Out" : isPaying ? (
+                    <>
+                      <Loader2 size={18} className="mr-2 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    `Checkout ${currencyFormatter.format(total)}`
+                  )}
                 </Button>
               </div>
             ) : (
@@ -829,10 +867,17 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
                 ) : (
                   <Button
                     onClick={handleProceedToPayment}
-                    disabled={selectedTicketsArray.length === 0 || isSoldOut}
-                    className="rounded-full bg-[#0B62FF] px-6 py-3 text-base font-semibold shadow-lg transition hover:bg-[#0A5AE6] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#0B62FF] sm:rounded-2xl"
+                    disabled={selectedTicketsArray.length === 0 || isSoldOut || isPaying}
+                    className="rounded-full bg-[#0B62FF] px-6 py-3 text-base font-semibold shadow-lg transition hover:bg-[#0A5AE6] disabled:opacity-70 disabled:cursor-wait disabled:hover:bg-[#0B62FF] sm:rounded-2xl"
                   >
-                    {isSoldOut ? "Sold Out" : `Checkout ${selectedTicketsArray.length > 0 ? currencyFormatter.format(total) : ""}`}
+                    {isSoldOut ? "Sold Out" : isPaying ? (
+                      <>
+                        <Loader2 size={18} className="mr-2 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      `Checkout ${selectedTicketsArray.length > 0 ? currencyFormatter.format(total) : ""}`
+                    )}
                   </Button>
                 )}
               </div>
