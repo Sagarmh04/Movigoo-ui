@@ -42,9 +42,9 @@ function PaymentFailedContent() {
 
           {/* Error Message */}
           <div className="space-y-2">
-            <h1 className="text-3xl font-bold text-white">Payment Not Completed</h1>
+            <h1 className="text-3xl font-bold text-white">Payment not completed</h1>
             <p className="text-slate-400">
-              Payment was not completed. Your booking was not confirmed. You can explore events and make a new booking anytime.
+              Your payment was not completed,  booking was not confirmed. Please try booking the event again.
             </p>
           </div>
 
@@ -84,7 +84,7 @@ function PaymentFailedContent() {
               href="/events"
               className="flex items-center justify-center gap-2 rounded-2xl bg-[#0B62FF] px-6 py-3 text-white font-semibold hover:bg-[#0A5AE6] transition"
             >
-              Explore Events
+              Browse Events
             </Link>
           </div>
 
