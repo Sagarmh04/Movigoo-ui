@@ -46,6 +46,11 @@ function PaymentSuccessContent() {
       const pollInterval = 1000; // Check every 1 second
 
       async function pollBookingStatus() {
+        if (!user) {
+          setLoading(false);
+          return;
+        }
+        
         try {
           const token = await user.getIdToken();
           console.log(`[Retry ${retryCount}] Fetching booking: ${bookingId}`);
