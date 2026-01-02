@@ -1,7 +1,7 @@
 "use client";
 
 // app/payment/failed/page.tsx
-// Payment failure page - Shows error after failed Cashfree payment
+// Payment failure page - Shows FAILED state
 
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
@@ -11,8 +11,6 @@ import Link from "next/link";
 function PaymentFailedContent() {
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
-  const orderId = searchParams.get("order_id");
-  const errorMessage = searchParams.get("error") || searchParams.get("message");
 
   useEffect(() => {
     // Simulate loading to allow redirect params to be read
@@ -40,42 +38,12 @@ function PaymentFailedContent() {
             <XCircle className="h-12 w-12 text-red-500" />
           </div>
 
-          {/* Error Message */}
+          {/* Error Message - EXACT COPY */}
           <div className="space-y-2">
-            <h1 className="text-3xl font-bold text-white">Payment not completed</h1>
+            <h1 className="text-3xl font-bold text-white">BOOKING FAILED</h1>
             <p className="text-slate-400">
-              Your payment was not completed, so this booking was not confirmed. Please try booking the event again.
+              BOOKING FAILED, RETRY BOOKING THE EVENT ONCE AGAIN
             </p>
-          </div>
-
-          {/* Error Details */}
-          {errorMessage && (
-            <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-left">
-              <p className="text-sm text-red-200">{errorMessage}</p>
-            </div>
-          )}
-
-          {/* Order ID if available */}
-          {orderId && (
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-left backdrop-blur-xl">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Order ID</span>
-                <span className="font-mono text-sm text-white">{orderId}</span>
-              </div>
-            </div>
-          )}
-
-          {/* Common Reasons */}
-          <div className="rounded-xl border border-white/10 bg-white/5 p-6 text-left backdrop-blur-xl">
-            <h3 className="text-sm font-semibold text-white mb-3">
-              Common reasons for payment failure:
-            </h3>
-            <ul className="space-y-2 text-sm text-slate-400 list-disc list-inside">
-              <li>Insufficient funds in your account</li>
-              <li>Incorrect card details or expiry date</li>
-              <li>Network connectivity issues</li>
-              <li>Bank transaction limits exceeded</li>
-            </ul>
           </div>
 
           {/* Actions */}
@@ -89,15 +57,12 @@ function PaymentFailedContent() {
           </div>
 
           {/* Help Text */}
-          <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-left">
-            <p className="text-sm text-amber-200">
-              <strong>Need help?</strong> If the problem persists, please contact{" "}
-              <a href="mailto:support@movigoo.in" className="underline">
-                support@movigoo.in
-              </a>{" "}
-              with your Order ID.
-            </p>
-          </div>
+          <p className="text-xs text-slate-500 pt-4">
+            If you have any questions, please contact{" "}
+            <a href="mailto:support@movigoo.in" className="text-[#0B62FF] hover:underline">
+              support@movigoo.in
+            </a>
+          </p>
         </div>
       </div>
     </div>
@@ -117,4 +82,3 @@ export default function PaymentFailedPage() {
     </Suspense>
   );
 }
-

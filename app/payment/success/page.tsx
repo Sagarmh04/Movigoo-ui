@@ -1,8 +1,8 @@
 "use client";
 
 // app/payment/success/page.tsx
-// Payment return page - INFORMATION ONLY (DO NOT CONFIRM)
-// Only webhook can confirm bookings
+// Payment return page - TWO STATES ONLY: CONFIRMED or FAILED
+// Backend booking status is the ONLY source of truth
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -13,8 +13,6 @@ import { useAuth } from "@/hooks/useAuth";
 function PaymentSuccessContent() {
   const searchParams = useSearchParams();
   const { user } = useAuth();
-  const orderId = searchParams.get("order_id");
-  const orderToken = searchParams.get("order_token");
   const bookingId = searchParams.get("bookingId") || searchParams.get("booking_id");
   
   const [loading, setLoading] = useState(true);
@@ -24,152 +22,71 @@ function PaymentSuccessContent() {
     error?: string;
   } | null>(null);
 
-  // Fetch booking status ONLY (do not update/confirm)
-  // Poll for status updates since webhook might not have processed yet
+  // Fetch booking status from backend (ONLY source of truth)
   useEffect(() => {
     async function fetchBookingStatus() {
       if (!user) {
         setLoading(false);
+        setBookingStatus({ error: "User not authenticated" });
         return;
       }
 
-      // If no bookingId, we can't fetch - show error
+      // If no bookingId, we can't fetch - show failed
       if (!bookingId) {
         console.error("No bookingId in URL params");
-        setBookingStatus({ error: "Booking ID not found in URL" });
+        setBookingStatus({ error: "Booking ID not found" });
         setLoading(false);
         return;
       }
 
-      let retryCount = 0;
-      const maxRetries = 30; // Poll for up to 30 seconds (webhook might take time)
-      const pollInterval = 1000; // Check every 1 second
-
-      async function pollBookingStatus() {
-        if (!user) {
-          setLoading(false);
-          return;
-        }
+      try {
+        const token = await user.getIdToken();
         
-        try {
-          const token = await user.getIdToken();
-          console.log(`[Retry ${retryCount}] Fetching booking: ${bookingId}`);
-          
-          const response = await fetch(`/api/bookings/${bookingId}`, {
-            method: "GET",
-            headers: {
-              "Authorization": `Bearer ${token}`,
-            },
+        const response = await fetch(`/api/bookings/${bookingId}`, {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+          },
+        });
+
+        if (response.ok) {
+          const booking = await response.json();
+          setBookingStatus({
+            bookingStatus: booking.bookingStatus,
+            paymentStatus: booking.paymentStatus,
           });
-
-          if (response.ok) {
-            const booking = await response.json();
-            console.log("✅ Booking status fetched:", {
-              bookingId,
-              bookingStatus: booking.bookingStatus,
-              paymentStatus: booking.paymentStatus,
-              retryCount,
-            });
-            
-            setBookingStatus({
-              bookingStatus: booking.bookingStatus,
-              paymentStatus: booking.paymentStatus,
-            });
-
-            // Stop loading after first fetch (show success UI immediately)
-            // Continue polling silently in background
-            if (retryCount === 0) {
-              setLoading(false);
-              
-              // If booking is still PENDING after first fetch, trigger manual confirmation check
-              const status = booking.bookingStatus?.toUpperCase();
-              const paymentStatus = booking.paymentStatus?.toUpperCase();
-              
-              if ((status === "PENDING" || status === "") && (paymentStatus === "INITIATED" || paymentStatus === "")) {
-                console.log("🔄 Booking still PENDING, triggering manual confirmation check...");
-                // Trigger manual confirmation in background (non-blocking)
-                fetch(`/api/bookings/${bookingId}/confirm-manual`, {
-                  method: "POST",
-                  headers: {
-                    "Authorization": `Bearer ${token}`,
-                  },
-                }).catch((err) => {
-                  console.error("Manual confirmation check failed:", err);
-                });
-              }
-            }
-
-            // Stop polling if we have a definitive status (CONFIRMED or FAILED/CANCELLED)
-            const status = booking.bookingStatus?.toUpperCase();
-            const paymentStatus = booking.paymentStatus?.toUpperCase();
-            
-            const isDefinitive = 
-              (status === "CONFIRMED" && paymentStatus === "SUCCESS") ||
-              status === "CANCELLED" ||
-              paymentStatus === "FAILED";
-            
-            if (isDefinitive) {
-              console.log("✅ Definitive status reached, stopping poll");
-              return;
-            }
-            
-            // Continue polling if still PENDING/INITIATED
-            if (retryCount >= maxRetries) {
-              console.log("⏱️ Max retries reached, stopping poll");
-              return;
-            }
-          } else {
-            console.error(`❌ Failed to fetch booking (${response.status}):`, await response.text());
-            if (response.status === 404) {
-              setBookingStatus({ error: "Booking not found" });
-              setLoading(false);
-              return;
-            }
-            if (response.status === 403) {
-              setBookingStatus({ error: "Access denied to booking" });
-              setLoading(false);
-              return;
-            }
-          }
-        } catch (error) {
-          console.error("❌ Error fetching booking status:", error);
-          if (retryCount >= maxRetries) {
-            setBookingStatus({ error: "Failed to fetch booking status" });
-            setLoading(false);
-            return;
-          }
-        }
-
-        retryCount++;
-        if (retryCount < maxRetries) {
-          setTimeout(pollBookingStatus, pollInterval);
         } else {
-          console.log("⏱️ Stopping poll after max retries");
-          setLoading(false);
+          if (response.status === 404) {
+            setBookingStatus({ error: "Booking not found" });
+          } else if (response.status === 403) {
+            setBookingStatus({ error: "Access denied" });
+          } else {
+            setBookingStatus({ error: "Failed to fetch booking status" });
+          }
         }
+      } catch (error) {
+        console.error("Error fetching booking status:", error);
+        setBookingStatus({ error: "Failed to fetch booking status" });
+      } finally {
+        setLoading(false);
       }
-
-      pollBookingStatus();
     }
 
     fetchBookingStatus();
   }, [bookingId, user]);
 
-  // Show success UI immediately when on success page (Cashfree redirect = payment succeeded)
-  // If user is redirected to /payment/success, payment was successful
-  // Continue polling in background silently to verify webhook processed
+  // STRICT DECISION LOGIC: Only two states
   const bookingStatusUpper = bookingStatus?.bookingStatus?.toUpperCase() || "";
   const paymentStatusUpper = bookingStatus?.paymentStatus?.toUpperCase() || "";
-  const isWebhookConfirmed = bookingStatusUpper === "CONFIRMED" && paymentStatusUpper === "SUCCESS";
   
-  // Show success UI immediately if:
-  // 1. Webhook confirmed (CONFIRMED + SUCCESS), OR
-  // 2. We're on success page with bookingId (Cashfree redirected = payment succeeded)
-  // Only show error if there's an explicit error or no bookingId
-  const showSuccessUI = isWebhookConfirmed || (!bookingStatus?.error && bookingId);
+  // STATE 1: CONFIRMED - Only if backend confirms
+  const isConfirmed = bookingStatusUpper === "CONFIRMED" && paymentStatusUpper === "SUCCESS";
+  
+  // STATE 2: FAILED - Everything else (pending, failed, cancelled, error, etc.)
+  const isFailed = !isConfirmed;
 
-  // Show loading state only briefly (first fetch)
-  if (loading && !bookingStatus) {
+  // Show loading only while fetching
+  if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-[#050016] via-[#0b0220] to-[#05010a] text-white">
         <div className="mx-auto flex min-h-screen w-full max-w-2xl flex-col items-center justify-center px-4 py-12">
@@ -187,7 +104,7 @@ function PaymentSuccessContent() {
       <div className="mx-auto flex min-h-screen w-full max-w-2xl flex-col items-center justify-center px-4 py-12">
         <div className="text-center space-y-6">
           {/* Status Icon */}
-          {showSuccessUI ? (
+          {isConfirmed ? (
             <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-green-500/20">
               <CheckCircle2 className="h-12 w-12 text-green-500" />
             </div>
@@ -199,62 +116,28 @@ function PaymentSuccessContent() {
 
           {/* Status Message */}
           <div className="space-y-2">
-            {showSuccessUI ? (
+            {isConfirmed ? (
               <>
-                <h1 className="text-3xl font-bold text-white">Payment successful</h1>
+                {/* STATE 1: CONFIRMED UI */}
+                <h1 className="text-3xl font-bold text-white">Payment Successful</h1>
                 <p className="text-slate-400">
-                  Your booking is confirmed
+                  Your booking is confirmed.
                 </p>
               </>
             ) : (
               <>
-                <h1 className="text-3xl font-bold text-white">Payment not completed</h1>
+                {/* STATE 2: FAILED UI */}
+                <h1 className="text-3xl font-bold text-white">BOOKING FAILED</h1>
                 <p className="text-slate-400">
-                  Your payment was not completed. Please browse events and try booking again.
+                  BOOKING FAILED, RETRY BOOKING THE EVENT ONCE AGAIN
                 </p>
               </>
             )}
           </div>
 
-          {/* Order Details */}
-          {(orderId || bookingId) && (
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-left backdrop-blur-xl w-full">
-              <div className="space-y-3">
-                {orderId && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-400">Order ID</span>
-                    <span className="font-mono text-sm text-white">{orderId}</span>
-                  </div>
-                )}
-                {bookingId && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-400">Booking ID</span>
-                    <span className="font-mono text-sm text-white">{bookingId}</span>
-                  </div>
-                )}
-                {bookingStatus && !bookingStatus.error && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-400">Status</span>
-                    <span className="text-sm font-medium text-white">
-                      {bookingStatus.bookingStatus || "PENDING"}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {showSuccessUI && (
-            <div className="rounded-xl border border-green-500/20 bg-green-500/10 p-4 text-left w-full">
-              <p className="text-sm text-green-200">
-                <strong>Success!</strong> Your booking is confirmed. You will receive a confirmation email shortly.
-              </p>
-            </div>
-          )}
-
           {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-4 pt-4">
-            {showSuccessUI ? (
+            {isConfirmed ? (
               <Link
                 href="/my-bookings"
                 className="flex items-center justify-center gap-2 rounded-2xl bg-[#0B62FF] px-6 py-3 text-white font-semibold hover:bg-[#0A5AE6] transition"
