@@ -311,36 +311,40 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
 
       const bookingResult = await bookingResponse.json();
 
-      if (!bookingResponse.ok || !bookingResult.bookingId) {
-        console.error("Failed to create pending booking:", bookingResult);
-        
-        // CRITICAL: Handle sold-out error (409) with user-friendly message
-        if (bookingResponse.status === 409 || bookingResult.error?.toLowerCase().includes("sold out")) {
-          alert("Sorry, tickets are sold out. This event has reached its maximum capacity.");
-        } else {
-          const errorMessage = bookingResult.error || "Failed to create booking. Please try again.";
-          alert(errorMessage);
-        }
-        
-        isProcessingRef.current = false;
-        setIsPaying(false);
-        return;
+      // CRITICAL: Redirect to payment ONLY if API returns HTTP 200 with bookingId
+      // This is the ONLY path that leads to payment redirect
+      if (bookingResponse.status === 200 && bookingResult.bookingId) {
+        console.log("Pending booking created:", bookingResult.bookingId);
+
+        // Redirect IMMEDIATELY to Cashfree payment page - don't wait for anything
+        // Do NOT reset isPaying or ref - Cashfree page will take over
+        const paymentParams = new URLSearchParams({
+          bookingId: bookingResult.bookingId,
+          amount: totalAmount.toString(),
+          email: user.email,
+          name: user.displayName || user.email.split("@")[0],
+          phone: user.phoneNumber || "",
+        });
+
+        // Use window.location for immediate redirect (faster than router.push)
+        window.location.href = `/payment?${paymentParams.toString()}`;
+        return; // CRITICAL: Exit immediately after redirect
       }
 
-      console.log("Pending booking created:", bookingResult.bookingId);
-
-      // Redirect IMMEDIATELY to Cashfree payment page - don't wait for anything
-      // Do NOT reset isPaying or ref - Cashfree page will take over
-      const paymentParams = new URLSearchParams({
-        bookingId: bookingResult.bookingId,
-        amount: totalAmount.toString(),
-        email: user.email,
-        name: user.displayName || user.email.split("@")[0],
-        phone: user.phoneNumber || "",
-      });
-
-      // Use window.location for immediate redirect (faster than router.push)
-      window.location.href = `/payment?${paymentParams.toString()}`;
+      // ALL OTHER CASES: No redirect, show error
+      console.error("Failed to create pending booking:", bookingResult);
+      
+      // CRITICAL: Handle sold-out error (409) with user-friendly message
+      if (bookingResponse.status === 409 || bookingResult.error?.toLowerCase().includes("sold out")) {
+        alert("Sorry, tickets are sold out. This event has reached its maximum capacity.");
+      } else {
+        const errorMessage = bookingResult.error || "Failed to create booking. Please try again.";
+        alert(errorMessage);
+      }
+      
+      isProcessingRef.current = false;
+      setIsPaying(false);
+      return;
     } catch (error: any) {
       console.error("Error creating booking:", error);
       const errorMessage = error.message || "Failed to create booking. Please try again.";
