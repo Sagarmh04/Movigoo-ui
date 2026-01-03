@@ -77,6 +77,26 @@ function PaymentSuccessContent() {
             return;
           }
           
+          // CRITICAL: Check for failed payment statuses immediately
+          // ACTIVE, FAILED, CANCELLED mean payment is not successful
+          const isFailedStatus = paymentStatusUpper === "ACTIVE" ||
+                                paymentStatusUpper === "FAILED" ||
+                                paymentStatusUpper === "CANCELLED" ||
+                                bookingStatusUpper === "CANCELLED";
+          
+          if (isFailedStatus) {
+            // Payment is clearly failed - show failed immediately
+            console.log("[Payment Success] Payment status indicates failure:", paymentStatusUpper);
+            setIsProcessing(false);
+            setBookingStatus({
+              bookingStatus: booking.bookingStatus,
+              paymentStatus: booking.paymentStatus,
+            });
+            setLoading(false);
+            if (pollInterval) clearInterval(pollInterval);
+            return;
+          }
+          
           // If booking is PENDING/INITIATED, we're still processing - don't show failed yet
           const isPending = bookingStatusUpper === "PENDING" || 
                            bookingStatusUpper === "" || 
@@ -120,7 +140,22 @@ function PaymentSuccessContent() {
                   if (pollInterval) clearInterval(pollInterval);
                   return;
                 } else {
-                  console.log("[Payment Success] Manual reconciliation returned:", reconcileData);
+                  // Manual reconciliation returned failure - payment is not successful
+                  console.log("[Payment Success] Manual reconciliation returned failure:", reconcileData);
+                  const reconcilePaymentStatus = (reconcileData.paymentStatus || "").toUpperCase();
+                  
+                  // If reconciliation says payment is not successful, show failed immediately
+                  if (!reconcileData.ok || reconcilePaymentStatus !== "SUCCESS") {
+                    console.log("[Payment Success] Payment not successful, showing failed immediately");
+                    setIsProcessing(false);
+                    setBookingStatus({
+                      bookingStatus: reconcileData.bookingStatus || booking.bookingStatus,
+                      paymentStatus: reconcileData.paymentStatus || booking.paymentStatus,
+                    });
+                    setLoading(false);
+                    if (pollInterval) clearInterval(pollInterval);
+                    return;
+                  }
                 }
               } else {
                 const errorData = await reconcileResponse.json().catch(() => ({}));
@@ -206,12 +241,16 @@ function PaymentSuccessContent() {
   // STATE 1: CONFIRMED - Only if backend confirms
   const isConfirmed = bookingStatusUpper === "CONFIRMED" && paymentStatusUpper === "SUCCESS";
   
-  // STATE 2: PROCESSING - Still verifying payment (PENDING/INITIATED)
+  // STATE 2: PROCESSING - Still verifying payment (PENDING/INITIATED only)
+  // NOT processing if payment status is ACTIVE, FAILED, or CANCELLED
   const isStillProcessing = isProcessing && (loading || 
-    bookingStatusUpper === "PENDING" || 
-    bookingStatusUpper === "" ||
-    paymentStatusUpper === "INITIATED" ||
-    paymentStatusUpper === "PENDING");
+    (bookingStatusUpper === "PENDING" || 
+     bookingStatusUpper === "" ||
+     paymentStatusUpper === "INITIATED" ||
+     paymentStatusUpper === "PENDING") &&
+    paymentStatusUpper !== "ACTIVE" &&
+    paymentStatusUpper !== "FAILED" &&
+    paymentStatusUpper !== "CANCELLED");
   
   // STATE 3: FAILED - Actually failed (CANCELLED, FAILED, or timeout after all attempts)
   const isFailed = !isConfirmed && !isStillProcessing;
