@@ -57,7 +57,7 @@ function MyBookingsPageContent() {
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [loading, user]); // Only depend on stable values
+  }, [loading, user, reconcilePending, refetch]); // Include all dependencies
 
   // Redirect to profile if not logged in
   if (!loading && !user) {

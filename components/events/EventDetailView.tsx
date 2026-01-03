@@ -354,21 +354,7 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
         // CRITICAL: Handle sold-out error (409) with user-friendly message
         if (bookingResponse.status === 409 || bookingResult.error?.toLowerCase().includes("sold out")) {
           alert("Sorry, tickets are sold out. This event has reached its maximum capacity.");
-          // Refresh bookings to update sold-out UI
-          if (hasSingleShow && event.id && db && eventData?.schedule?.locations) {
-            try {
-              const location = eventData.schedule.locations[0];
-              const venue = location.venues[0];
-              const date = venue.dates[0];
-              const show = date.shows[0];
-              const bookingsRef = collection(db, "events", event.id, "bookings");
-              const q = query(bookingsRef, where("showId", "==", show.id));
-              const snapshot = await getDocs(q);
-              setBookings(snapshot.docs.map(doc => doc.data()));
-            } catch (error) {
-              console.error("Error refreshing bookings:", error);
-            }
-          }
+          // Note: UI will automatically update via real-time listener on event document (ticketsSold counter)
         } else {
           const errorMessage = bookingResult.error || "Failed to create booking. Please try again.";
           alert(errorMessage);
