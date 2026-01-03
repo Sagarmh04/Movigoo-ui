@@ -95,22 +95,31 @@ export async function POST(req: NextRequest) {
     }
 
     const eventData = eventDoc.data();
-    const maxTickets = typeof eventData.maxTickets === "number" ? eventData.maxTickets : null;
 
-    // CRITICAL: Log event data for debugging
-    console.log("[Create-Pending] Event data:", { 
-      eventId, 
-      maxTickets, 
-      ticketsSold: eventData.ticketsSold,
-      hasTicketsSold: typeof eventData.ticketsSold === "number"
-    });
-
-    // CRITICAL: Validate requested quantity
+    // CRITICAL: Validate requested quantity and items
     if (requestedQuantity <= 0) {
       return NextResponse.json(
         { error: "Invalid quantity: must be greater than 0" },
         { status: 400 }
       );
+    }
+
+    // CRITICAL: Validate items array exists and has ticketTypeIds
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return NextResponse.json(
+        { error: "Missing required field: items array with ticketTypeId" },
+        { status: 400 }
+      );
+    }
+
+    // Validate each item has ticketTypeId and quantity
+    for (const item of items) {
+      if (!item.ticketTypeId || typeof item.quantity !== "number" || item.quantity <= 0) {
+        return NextResponse.json(
+          { error: "Invalid item: each item must have ticketTypeId and quantity > 0" },
+          { status: 400 }
+        );
+      }
     }
 
     // Helper function to prepare booking data
@@ -153,128 +162,182 @@ export async function POST(req: NextRequest) {
       dateTimeKey: date && (showTime || time) ? `${date}_${showTime || time}` : null,
     });
 
-    // CRITICAL: Use Firestore transaction for atomic inventory check + booking creation
-    // PERMANENT FIX: Use ticketsSold counter field on event document
-    // This prevents ALL race conditions by using atomic counter operations
+    // CRITICAL: Use Firestore transaction for atomic ticketType-level inventory check + booking creation
+    // PRODUCTION-READY: Inventory enforced at ticketType level (per venue/show/ticketType)
+    // This prevents ALL race conditions and supports multiple ticket types per event
     try {
-      console.log("[Create-Pending] Starting booking creation:", { maxTickets, requestedQuantity });
+      console.log("[Create-Pending] Starting booking creation with ticketType-level inventory:", { 
+        eventId, 
+        itemsCount: items.length,
+        requestedQuantity 
+      });
       
-      if (maxTickets !== null && maxTickets > 0) {
-        console.log("[Create-Pending] Event has maxTickets limit, using transaction");
-        // ATOMIC TRANSACTION: Check counter + increment + create booking in ONE transaction
-        // CRITICAL: Firestore automatically retries transactions on conflicts
-        // This ensures only ONE transaction succeeds when multiple users book simultaneously
-        await runTransaction(firestore, async (transaction) => {
-          // 1. Read event document inside transaction (atomic read)
-          // CRITICAL: This read is part of the transaction snapshot
-          // If another transaction modifies this document, Firestore will retry this transaction
-          const eventDocInTx = await transaction.get(eventRef);
-          if (!eventDocInTx.exists()) {
-            throw new Error("Event not found");
-          }
+      // ATOMIC TRANSACTION: Check ticketType inventory + increment + create booking in ONE transaction
+      // CRITICAL: Firestore automatically retries transactions on conflicts
+      // This ensures only ONE transaction succeeds when multiple users book simultaneously
+      await runTransaction(firestore, async (transaction) => {
+        // 1. Read event document inside transaction (atomic read)
+        // CRITICAL: This read is part of the transaction snapshot
+        // If another transaction modifies this document, Firestore will retry this transaction
+        const eventDocInTx = await transaction.get(eventRef);
+        if (!eventDocInTx.exists()) {
+          throw new Error("Event not found");
+        }
 
-          const eventDataInTx = eventDocInTx.data();
-          const maxTicketsInTx = typeof eventDataInTx.maxTickets === "number" ? eventDataInTx.maxTickets : null;
-
-          if (maxTicketsInTx === null || maxTicketsInTx <= 0) {
-            // No inventory limit - proceed without counter check
-            const bookingRef = doc(firestore, "bookings", bookingId);
-            const eventBookingRef = doc(firestore, "events", eventId, "bookings", bookingId);
-
-            const bookingData = prepareBookingData();
-            const eventBookingData = prepareEventBookingData(bookingData);
-
-            transaction.set(bookingRef, bookingData);
-            transaction.set(eventBookingRef, eventBookingData);
-            return; // Exit transaction early
-          }
-
-          // 2. Get current ticketsSold counter (defaults to 0 if not set)
-          // CRITICAL: This value is from the transaction snapshot
-          // If another transaction increments it, Firestore will retry and we'll see the new value
-          const currentTicketsSold = typeof eventDataInTx.ticketsSold === "number" ? eventDataInTx.ticketsSold : 0;
-
-          // 3. CRITICAL: Check if adding this booking would exceed maxTickets
-          // This check happens INSIDE the transaction, so it's atomic
-          // If two transactions run simultaneously:
-          //   - Both read ticketsSold = 0
-          //   - Both pass check (0 + 1 <= 1)
-          //   - Both try to increment
-          //   - Firestore detects conflict, retries one transaction
-          //   - Retried transaction reads ticketsSold = 1 (from first transaction)
-          //   - Retried transaction fails check (1 + 1 > 1) and throws error
-          console.log("[Create-Pending] Inventory check (transaction snapshot):", { 
-            currentTicketsSold, 
-            requestedQuantity, 
-            maxTicketsInTx, 
-            wouldExceed: currentTicketsSold + requestedQuantity > maxTicketsInTx,
-            available: maxTicketsInTx - currentTicketsSold
-          });
-          
-          // STRICT CHECK: Block if already sold out
-          if (currentTicketsSold >= maxTicketsInTx) {
-            console.log("[Create-Pending] Event already sold out (current:", currentTicketsSold, "max:", maxTicketsInTx, ")");
-            throw new Error("Event is sold out");
-          }
-          
-          // STRICT CHECK: Block if this booking would exceed max
-          if (currentTicketsSold + requestedQuantity > maxTicketsInTx) {
-            console.log("[Create-Pending] Booking would exceed max tickets (current:", currentTicketsSold, "requested:", requestedQuantity, "max:", maxTicketsInTx, ")");
-            throw new Error("Event is sold out");
-          }
-
-          // 4. ATOMIC: Increment ticketsSold counter (reserves tickets immediately)
-          // CRITICAL: increment() is applied atomically at commit time
-          // If another transaction also increments, Firestore detects conflict and retries
-          console.log("[Create-Pending] Incrementing ticketsSold by", requestedQuantity, "(current:", currentTicketsSold, "-> new:", currentTicketsSold + requestedQuantity, ")");
-          transaction.update(eventRef, {
-            ticketsSold: increment(requestedQuantity),
-          });
-
-          // 5. Create booking INSIDE same transaction (atomic write)
-          // CRITICAL: Booking is only created if increment succeeds
-          // If transaction retries due to conflict, this booking creation is also retried
+        const eventDataInTx = eventDocInTx.data();
+        
+        // 2. Get tickets structure
+        const tickets = eventDataInTx.tickets || {};
+        const venueConfigs = Array.isArray(tickets.venueConfigs) ? tickets.venueConfigs : [];
+        
+        if (venueConfigs.length === 0) {
+          // No ticket types configured - allow booking (backward compatibility)
+          console.log("[Create-Pending] No ticket types configured, allowing booking");
           const bookingRef = doc(firestore, "bookings", bookingId);
           const eventBookingRef = doc(firestore, "events", eventId, "bookings", bookingId);
 
           const bookingData = prepareBookingData();
           const eventBookingData = prepareEventBookingData(bookingData);
 
-          // Write both documents atomically
           transaction.set(bookingRef, bookingData);
           transaction.set(eventBookingRef, eventBookingData);
+          return; // Exit transaction early
+        }
+
+        // 3. CRITICAL: Validate and check inventory for EACH ticketType in items
+        // Build a map of ticketTypeId -> { venueConfigIndex, ticketTypeIndex, ticketType }
+        const ticketTypeMap = new Map<string, { venueConfigIndex: number; ticketTypeIndex: number; ticketType: any }>();
+        
+        for (let vcIdx = 0; vcIdx < venueConfigs.length; vcIdx++) {
+          const venueConfig = venueConfigs[vcIdx];
+          const ticketTypes = Array.isArray(venueConfig.ticketTypes) ? venueConfig.ticketTypes : [];
           
-          console.log("[Create-Pending] Transaction prepared (will commit if no conflicts):", {
-            bookingId,
-            ticketsSoldIncrement: requestedQuantity,
-            newTicketsSold: currentTicketsSold + requestedQuantity
+          for (let ttIdx = 0; ttIdx < ticketTypes.length; ttIdx++) {
+            const ticketType = ticketTypes[ttIdx];
+            if (ticketType.id) {
+              ticketTypeMap.set(ticketType.id, { venueConfigIndex: vcIdx, ticketTypeIndex: ttIdx, ticketType });
+            }
+          }
+        }
+
+        // 4. Validate all requested ticketTypes exist and check inventory
+        const inventoryUpdates: Array<{ venueConfigIndex: number; ticketTypeIndex: number; increment: number }> = [];
+        
+        for (const item of items) {
+          const ticketTypeInfo = ticketTypeMap.get(item.ticketTypeId);
+          
+          if (!ticketTypeInfo) {
+            throw new Error(`Ticket type not found: ${item.ticketTypeId}`);
+          }
+
+          const { ticketType } = ticketTypeInfo;
+          const totalQuantity = typeof ticketType.totalQuantity === "number" ? ticketType.totalQuantity : 0;
+          
+          // Initialize ticketsSold if missing (backward compatibility)
+          let ticketsSold = typeof ticketType.ticketsSold === "number" ? ticketType.ticketsSold : 0;
+          
+          // HARD ASSERT: Block if inventory is already invalid
+          if (ticketsSold > totalQuantity) {
+            console.error("[Create-Pending] HARD BLOCK — INVALID INVENTORY STATE:", {
+              ticketTypeId: item.ticketTypeId,
+              ticketsSold,
+              totalQuantity,
+              eventId,
+              message: "ticketsSold exceeds totalQuantity - illegal write detected"
+            });
+            throw new Error(`HARD BLOCK — INVALID INVENTORY STATE for ticketType ${item.ticketTypeId}`);
+          }
+
+          // Check if this ticketType has inventory limits
+          if (totalQuantity > 0) {
+            // STRICT CHECK: Block if already sold out
+            if (ticketsSold >= totalQuantity) {
+              console.log("[Create-Pending] Ticket type sold out:", {
+                ticketTypeId: item.ticketTypeId,
+                ticketsSold,
+                totalQuantity
+              });
+              throw new Error(`Ticket type ${ticketType.typeName || item.ticketTypeId} is sold out`);
+            }
+
+            // STRICT CHECK: Block if this booking would exceed capacity
+            if (ticketsSold + item.quantity > totalQuantity) {
+              console.log("[Create-Pending] Booking would exceed ticket type capacity:", {
+                ticketTypeId: item.ticketTypeId,
+                ticketsSold,
+                requestedQuantity: item.quantity,
+                totalQuantity,
+                available: totalQuantity - ticketsSold
+              });
+              throw new Error(`Ticket type ${ticketType.typeName || item.ticketTypeId} is sold out`);
+            }
+          }
+
+          // Track this ticketType for inventory update
+          inventoryUpdates.push({
+            venueConfigIndex: ticketTypeInfo.venueConfigIndex,
+            ticketTypeIndex: ticketTypeInfo.ticketTypeIndex,
+            increment: item.quantity
           });
+
+          console.log("[Create-Pending] Ticket type inventory check passed:", {
+            ticketTypeId: item.ticketTypeId,
+            ticketsSold,
+            requestedQuantity: item.quantity,
+            totalQuantity,
+            available: totalQuantity > 0 ? totalQuantity - ticketsSold : "unlimited"
+          });
+        }
+
+        // 5. ATOMIC: Update ticketsSold for all ticketTypes (modify nested arrays)
+        // CRITICAL: Since Firestore doesn't support updating nested array elements directly,
+        // we must read the entire document, modify in memory, and write back (still atomic in transaction)
+        const updatedVenueConfigs = [...venueConfigs];
+        
+        for (const update of inventoryUpdates) {
+          const venueConfig = updatedVenueConfigs[update.venueConfigIndex];
+          const ticketTypes = [...(venueConfig.ticketTypes || [])];
+          const ticketType = { ...ticketTypes[update.ticketTypeIndex] };
+          
+          // Initialize ticketsSold if missing, then increment
+          const currentTicketsSold = typeof ticketType.ticketsSold === "number" ? ticketType.ticketsSold : 0;
+          ticketType.ticketsSold = currentTicketsSold + update.increment;
+          
+          ticketTypes[update.ticketTypeIndex] = ticketType;
+          venueConfig.ticketTypes = ticketTypes;
+          updatedVenueConfigs[update.venueConfigIndex] = venueConfig;
+        }
+
+        // Write updated tickets structure back to event document
+        transaction.update(eventRef, {
+          tickets: {
+            ...tickets,
+            venueConfigs: updatedVenueConfigs
+          }
         });
 
-        console.log("[Create-Pending] Transaction committed successfully. Created pending booking:", bookingId);
-      } else {
-        // No maxTickets - create booking without transaction (no inventory constraint)
+        console.log("[Create-Pending] INVENTORY MUTATED FROM create-pending ONLY - updated", inventoryUpdates.length, "ticketType(s)");
+
+        // 6. Create booking INSIDE same transaction (atomic write)
+        // CRITICAL: Booking is only created if all inventory checks pass
+        // If transaction retries due to conflict, this booking creation is also retried
         const bookingRef = doc(firestore, "bookings", bookingId);
         const eventBookingRef = doc(firestore, "events", eventId, "bookings", bookingId);
 
         const bookingData = prepareBookingData();
         const eventBookingData = prepareEventBookingData(bookingData);
 
-        await Promise.all([
-          setDoc(bookingRef, bookingData),
-          setDoc(eventBookingRef, eventBookingData),
-        ]);
+        // Write both documents atomically
+        transaction.set(bookingRef, bookingData);
+        transaction.set(eventBookingRef, eventBookingData);
+        
+        console.log("[Create-Pending] Transaction prepared (will commit if no conflicts):", {
+          bookingId,
+          ticketTypesUpdated: inventoryUpdates.length
+        });
+      });
 
-        console.log("Created pending booking (no inventory limit):", bookingId);
-      }
-
-      // Verify the counter was updated (read event again to confirm)
-      const verifyEventDoc = await getDoc(eventRef);
-      if (verifyEventDoc.exists()) {
-        const verifyData = verifyEventDoc.data();
-        const verifyTicketsSold = typeof verifyData.ticketsSold === "number" ? verifyData.ticketsSold : 0;
-        console.log("[Create-Pending] Verification - ticketsSold after transaction:", verifyTicketsSold);
-      }
+      console.log("[Create-Pending] Transaction committed successfully. Created pending booking:", bookingId);
 
       return NextResponse.json({
         success: true,
@@ -293,10 +356,22 @@ export async function POST(req: NextRequest) {
         );
       }
       
-      if (transactionError.message === "Event is sold out") {
+      // Handle sold out errors (ticketType-level only)
+      if (transactionError.message?.includes("sold out") ||
+          (transactionError.message?.includes("Ticket type") && transactionError.message?.includes("sold out"))) {
         return NextResponse.json(
-          { error: "Event is sold out" },
+          { error: transactionError.message || "Tickets are sold out" },
           { status: 409 }
+        );
+      }
+      
+      // Handle invalid inventory state
+      if (transactionError.message?.includes("INVALID INVENTORY STATE") || 
+          transactionError.message?.includes("HARD BLOCK")) {
+        console.error("[Create-Pending] CRITICAL: Invalid inventory state detected");
+        return NextResponse.json(
+          { error: "Inventory error. Please contact support." },
+          { status: 500 }
         );
       }
       
@@ -304,7 +379,7 @@ export async function POST(req: NextRequest) {
       // CRITICAL: Firestore transactions automatically retry on conflicts
       // If we get here, it means the transaction failed after retries
       // This could be due to:
-      // 1. Event was sold out during retry (should have been caught above)
+      // 1. Ticket types were sold out during retry (should have been caught above)
       // 2. Network/connection issues
       // 3. Too many concurrent transactions (Firestore limit)
       console.error("[Create-Pending] Transaction failed after retries:", {
@@ -317,7 +392,7 @@ export async function POST(req: NextRequest) {
       // This prevents overselling if transaction retry logic fails
       if (transactionError.code === "aborted" || transactionError.message?.includes("concurrent")) {
         return NextResponse.json(
-          { error: "Event is sold out" },
+          { error: "Tickets are sold out" },
           { status: 409 }
         );
       }

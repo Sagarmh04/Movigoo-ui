@@ -12,6 +12,7 @@ export type TicketType = {
   totalQuantity: number;
   available?: number;
   maxPerOrder?: number;
+  isSoldOut?: boolean; // Per-ticketType sold out flag (from ticketType.ticketsSold >= ticketType.totalQuantity)
 };
 
 type TicketSelectionCardProps = {

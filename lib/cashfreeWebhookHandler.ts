@@ -223,19 +223,85 @@ export async function handleCashfreeWebhook(req: NextRequest) {
 
     const bookingRef = doc(firestore, "bookings", bookingId);
     
-    // CRITICAL: If payment fails, decrement ticketsSold counter to release reservation
+    // CRITICAL: If payment fails, decrement ticketType-level ticketsSold to release reservation
     // This ensures tickets are available again if payment fails
-    if (existing.eventId && existing.quantity) {
+    // PRODUCTION-READY: Decrement at ticketType level (not event level)
+    if (existing.eventId && existing.items && Array.isArray(existing.items) && existing.items.length > 0) {
       const eventRef = doc(firestore, "events", existing.eventId);
-      const bookingQuantity = typeof existing.quantity === "number" ? existing.quantity : 0;
       
-      // Use transaction to atomically decrement counter and update booking
+      // Use transaction to atomically decrement ticketType counters and update booking
       try {
         await runTransaction(firestore, async (transaction) => {
-          // Decrement ticketsSold counter (release reservation)
-          transaction.update(eventRef, {
-            ticketsSold: increment(-bookingQuantity),
-          });
+          // Read event document to get ticketTypes structure
+          const eventDoc = await transaction.get(eventRef);
+          if (!eventDoc.exists()) {
+            throw new Error("Event not found");
+          }
+
+          const eventData = eventDoc.data();
+          const tickets = eventData.tickets || {};
+          const venueConfigs = Array.isArray(tickets.venueConfigs) ? tickets.venueConfigs : [];
+
+          if (venueConfigs.length === 0) {
+            // No ticket types - just update booking status
+            transaction.set(bookingRef, updateData, { merge: true });
+            if (existing.eventId) {
+              const eventBookingRef = doc(firestore, "events", existing.eventId, "bookings", bookingId);
+              transaction.set(eventBookingRef, updateData, { merge: true });
+            }
+            return;
+          }
+
+          // Build ticketType map
+          const ticketTypeMap = new Map<string, { venueConfigIndex: number; ticketTypeIndex: number }>();
+          for (let vcIdx = 0; vcIdx < venueConfigs.length; vcIdx++) {
+            const venueConfig = venueConfigs[vcIdx];
+            const ticketTypes = Array.isArray(venueConfig.ticketTypes) ? venueConfig.ticketTypes : [];
+            for (let ttIdx = 0; ttIdx < ticketTypes.length; ttIdx++) {
+              const ticketType = ticketTypes[ttIdx];
+              if (ticketType.id) {
+                ticketTypeMap.set(ticketType.id, { venueConfigIndex: vcIdx, ticketTypeIndex: ttIdx });
+              }
+            }
+          }
+
+          // Decrement ticketsSold for each ticketType in booking items
+          const updatedVenueConfigs = [...venueConfigs];
+          let decrementsApplied = 0;
+
+          for (const item of existing.items) {
+            if (!item.ticketTypeId || typeof item.quantity !== "number" || item.quantity <= 0) continue;
+            
+            const ticketTypeInfo = ticketTypeMap.get(item.ticketTypeId);
+            if (!ticketTypeInfo) {
+              console.warn("[Webhook] Ticket type not found for decrement:", item.ticketTypeId);
+              continue;
+            }
+
+            const venueConfig = updatedVenueConfigs[ticketTypeInfo.venueConfigIndex];
+            const ticketTypes = [...(venueConfig.ticketTypes || [])];
+            const ticketType = { ...ticketTypes[ticketTypeInfo.ticketTypeIndex] };
+            
+            // Decrement ticketsSold (ensure it doesn't go below 0)
+            const currentTicketsSold = typeof ticketType.ticketsSold === "number" ? ticketType.ticketsSold : 0;
+            ticketType.ticketsSold = Math.max(0, currentTicketsSold - item.quantity);
+            
+            ticketTypes[ticketTypeInfo.ticketTypeIndex] = ticketType;
+            venueConfig.ticketTypes = ticketTypes;
+            updatedVenueConfigs[ticketTypeInfo.venueConfigIndex] = venueConfig;
+            decrementsApplied++;
+          }
+
+          // Write updated tickets structure back
+          if (decrementsApplied > 0) {
+            transaction.update(eventRef, {
+              tickets: {
+                ...tickets,
+                venueConfigs: updatedVenueConfigs
+              }
+            });
+            console.log("[Webhook] Payment failed - released ticketType reservations:", decrementsApplied, "ticketType(s)");
+          }
           
           // Update booking status
           transaction.set(bookingRef, updateData, { merge: true });
@@ -246,10 +312,9 @@ export async function handleCashfreeWebhook(req: NextRequest) {
             transaction.set(eventBookingRef, updateData, { merge: true });
           }
         });
-        console.log("[Webhook] Payment failed - released ticket reservation:", bookingQuantity);
       } catch (error) {
         // If transaction fails, still update booking status (non-blocking)
-        console.error("[Webhook] Failed to decrement ticketsSold counter:", error);
+        console.error("[Webhook] Failed to decrement ticketType ticketsSold counters:", error);
         await Promise.all([
           setDoc(bookingRef, updateData, { merge: true }),
           existing.eventId
@@ -258,7 +323,7 @@ export async function handleCashfreeWebhook(req: NextRequest) {
         ]);
       }
     } else {
-      // No eventId or quantity - just update booking status
+      // No eventId or items - just update booking status
       await Promise.all([
         setDoc(bookingRef, updateData, { merge: true }),
         existing.eventId

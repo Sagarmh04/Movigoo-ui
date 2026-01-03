@@ -34,13 +34,13 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
   const isProcessingRef = useRef(false); // Synchronous check to prevent double clicks
   const isHosted = event.organizerId === organizer.id;
 
-  // Fetch full event data with real-time listener to update ticketsSold counter immediately
+  // Fetch full event data with real-time listener to update ticketType-level inventory immediately
   useEffect(() => {
     if (!event.id || !db) return;
 
     const eventRef = doc(db, "events", event.id);
     
-    // Use real-time listener to update ticketsSold counter immediately when it changes
+    // Use real-time listener to update ticketType-level ticketsSold counters immediately when they change
     const unsubscribe = onSnapshot(
       eventRef,
       (snapshot) => {
@@ -149,33 +149,11 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
   const [selectedTickets, setSelectedTickets] = useState<Record<string, number>>({});
   const { user, loading: authLoading } = useAuth();
 
-  // PERMANENT FIX: Read ticketsSold counter from event document (single source of truth)
-  // This counter is atomically updated in transactions, preventing all race conditions
-  const ticketsSold = typeof eventData?.ticketsSold === "number" ? eventData.ticketsSold : 0;
-  const maxTickets = typeof eventData?.maxTickets === "number" ? eventData.maxTickets : null;
-  
-  // Check if event is sold out using counter (ticketsSold >= maxTickets)
-  // CRITICAL: Show sold out if ticketsSold >= maxTickets (including when equal)
-  const isSoldOut = maxTickets !== null && maxTickets > 0 && ticketsSold >= maxTickets;
-  
-  // Debug logging (remove in production)
-  if (maxTickets !== null && maxTickets > 0) {
-    console.log("[EventDetailView] Inventory state:", { ticketsSold, maxTickets, isSoldOut, available: maxTickets - ticketsSold });
-  }
-  
-  // Calculate available tickets from counter (total available, not per ticket type)
-  const totalAvailableTickets = maxTickets !== null && maxTickets > 0 ? maxTickets - ticketsSold : null;
+  // PRODUCTION-READY: Read ticketsSold from ticketType level (not event level)
+  // Each ticketType has its own ticketsSold counter, enforced atomically in transactions
+  // Frontend is READ-ONLY - availability computed from ticketType.ticketsSold and ticketType.totalQuantity
 
-  // Calculate booked quantities per ticket type (for per-type availability display)
-  // Note: This is for UI display only - the counter prevents total overselling
-  const bookedQuantities = useMemo(() => {
-    const booked: Record<string, number> = {};
-    // Note: We removed bookings state, so this will be empty for now
-    // Per-ticket-type availability can be added later if needed
-    return booked;
-  }, []);
-
-  // Get tickets for single location
+  // Get tickets for single location with ticketType-level inventory
   const availableTickets = useMemo((): TicketTypeCard[] => {
     if (!hasSingleShow || !eventData?.tickets?.venueConfigs) return [];
     
@@ -189,9 +167,16 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
 
     return venueConfig.ticketTypes.map((t: any): TicketTypeCard => {
       const totalQuantity = typeof t.totalQuantity === "number" ? t.totalQuantity : 0;
-      const booked = bookedQuantities[t.id] || 0;
-      const available = Math.max(0, totalQuantity - booked);
-      const maxPerOrder = Math.min(available, 10);
+      // CRITICAL: Read ticketsSold from ticketType (initialized to 0 if missing)
+      const ticketsSold = typeof t.ticketsSold === "number" ? t.ticketsSold : 0;
+      
+      // Calculate available tickets: totalQuantity - ticketsSold
+      // If totalQuantity is 0 or missing, treat as unlimited
+      const available = totalQuantity > 0 ? Math.max(0, totalQuantity - ticketsSold) : 999999;
+      const maxPerOrder = Math.min(available, t.maxPerOrder || 10);
+      
+      // Check if this ticketType is sold out
+      const isTicketTypeSoldOut = totalQuantity > 0 && ticketsSold >= totalQuantity;
 
       return {
         id: t.id,
@@ -200,9 +185,17 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
         totalQuantity,
         available,
         maxPerOrder,
+        isSoldOut: isTicketTypeSoldOut, // Per-ticketType sold out flag
       };
     });
-  }, [hasSingleShow, eventData, bookedQuantities]);
+  }, [hasSingleShow, eventData]);
+
+  // Check if ALL ticket types are sold out (derived from ticketType-level inventory only)
+  const isSoldOut = useMemo(() => {
+    if (availableTickets.length === 0) return false;
+    // All ticket types are sold out (computed from ticketType.ticketsSold >= ticketType.totalQuantity)
+    return availableTickets.every(ticket => ticket.isSoldOut === true);
+  }, [availableTickets]);
 
   // Set default quantity to 1 for single ticket type
   useEffect(() => {
@@ -380,7 +373,7 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
       // CRITICAL: Handle sold-out error (409) with user-friendly message
       if (bookingResponse.status === 409 || bookingResult.error?.toLowerCase().includes("sold out")) {
         alert("Sorry, tickets are sold out. This event has reached its maximum capacity.");
-        // Note: UI will automatically update via real-time listener on event document (ticketsSold counter)
+        // Note: UI will automatically update via real-time listener on event document (ticketType-level ticketsSold)
       } else {
         const errorMessage = bookingResult.error || "Failed to create booking. Please try again.";
         alert(errorMessage);

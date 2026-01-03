@@ -30,13 +30,13 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
   const [isPaying, setIsPaying] = useState(false);
   const isProcessingRef = useRef(false); // Synchronous check to prevent double clicks
 
-  // Fetch full event data with real-time listener to update ticketsSold counter immediately
+  // Fetch full event data with real-time listener to update ticketType-level inventory immediately
   useEffect(() => {
     if (!params.eventId || !db) return;
 
     const eventRef = doc(db, "events", params.eventId);
     
-    // Use real-time listener to update ticketsSold counter immediately when it changes
+    // Use real-time listener to update ticketType-level ticketsSold counters immediately when they change
     const unsubscribe = onSnapshot(
       eventRef,
       (snapshot) => {
@@ -123,92 +123,12 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
     setSelectedShow(null);
   };
 
-  // PERMANENT FIX: Read ticketsSold counter from event document (single source of truth)
-  // This counter is atomically updated in transactions, preventing all race conditions
-  // No need to count bookings - the counter is the authoritative source
-  const ticketsSold = typeof eventData?.ticketsSold === "number" ? eventData.ticketsSold : 0;
-  const maxTickets = typeof eventData?.maxTickets === "number" ? eventData.maxTickets : null;
-  
-  // Check if event is sold out using counter (ticketsSold >= maxTickets)
-  // CRITICAL: Show sold out if ticketsSold >= maxTickets (including when equal)
-  const isSoldOut = maxTickets !== null && maxTickets > 0 && ticketsSold >= maxTickets;
-  
-  // Debug logging (remove in production)
-  if (maxTickets !== null && maxTickets > 0) {
-    console.log("[TicketSelectionPage] Inventory state:", { ticketsSold, maxTickets, isSoldOut, available: maxTickets - ticketsSold });
-  }
-  
-  // Calculate available tickets from counter
-  const availableTickets = maxTickets !== null && maxTickets > 0 ? maxTickets - ticketsSold : null;
-  
-  // Note: For per-ticket-type availability, we still need to track bookings per type
-  // But the total overselling is prevented by the counter
-  const [bookings, setBookings] = useState<any[]>([]);
-  const [isLoadingBookings, setIsLoadingBookings] = useState(false);
+  // PRODUCTION-READY: Read ticketsSold from ticketType level (not event level)
+  // Each ticketType has its own ticketsSold counter, enforced atomically in transactions
+  // Frontend is READ-ONLY - availability computed from ticketType.ticketsSold and ticketType.totalQuantity
+  // NO NEED to count bookings - ticketsSold counter is the single source of truth
 
-  useEffect(() => {
-    if (!selectedShow || !params.eventId || !db) return;
-
-    if (!db || !selectedShow) return;
-    
-    setIsLoadingBookings(true);
-    
-    try {
-      const bookingsRef = collection(db, "events", params.eventId, "bookings");
-      // Use real-time listener for per-ticket-type availability (not for total sold-out check)
-      const q = query(
-        bookingsRef,
-        where("showId", "==", selectedShow.showId)
-      );
-      
-      const unsubscribe = onSnapshot(
-        q,
-        (snapshot) => {
-          setBookings(snapshot.docs.map(doc => doc.data()));
-          setIsLoadingBookings(false);
-        },
-        (error) => {
-          console.error("Error fetching bookings:", error);
-          setBookings([]);
-          setIsLoadingBookings(false);
-        }
-      );
-
-      return () => unsubscribe();
-    } catch (error) {
-      console.error("Error setting up bookings listener:", error);
-      setBookings([]);
-      setIsLoadingBookings(false);
-    }
-  }, [selectedShow, params.eventId]);
-
-  // Filter confirmed bookings for per-ticket-type availability calculation
-  const confirmedBookings = useMemo(() => {
-    return bookings.filter((booking: any) => {
-      const paymentStatus = (booking.paymentStatus || "").toUpperCase();
-      const bookingStatus = (booking.bookingStatus || "").toUpperCase();
-      return paymentStatus === "SUCCESS" && bookingStatus === "CONFIRMED";
-    });
-  }, [bookings]);
-
-  // Calculate booked quantities per ticket type (only from confirmed bookings)
-  const bookedQuantities = useMemo(() => {
-    const booked: Record<string, number> = {};
-    
-    confirmedBookings.forEach((booking: any) => {
-      if (booking.items && Array.isArray(booking.items)) {
-        booking.items.forEach((item: any) => {
-          if (item.ticketTypeId && item.quantity) {
-            booked[item.ticketTypeId] = (booked[item.ticketTypeId] || 0) + item.quantity;
-          }
-        });
-      }
-    });
-    
-    return booked;
-  }, [confirmedBookings]);
-
-  // Filter tickets by selected venue and calculate availability
+  // Filter tickets by selected venue and calculate availability from ticketType-level ticketsSold
   const tickets = useMemo((): TicketTypeCard[] => {
     if (!eventData?.tickets?.venueConfigs || !selectedShow) return [];
 
@@ -220,9 +140,16 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
 
     return venueConfig.ticketTypes.map((t: any): TicketTypeCard => {
       const totalQuantity = typeof t.totalQuantity === "number" ? t.totalQuantity : 0;
-      const booked = bookedQuantities[t.id] || 0;
-      const available = Math.max(0, totalQuantity - booked);
-      const maxPerOrder = Math.min(available, 10);
+      // CRITICAL: Read ticketsSold from ticketType (initialized to 0 if missing)
+      const ticketsSold = typeof t.ticketsSold === "number" ? t.ticketsSold : 0;
+      
+      // Calculate available tickets: totalQuantity - ticketsSold
+      // If totalQuantity is 0 or missing, treat as unlimited
+      const available = totalQuantity > 0 ? Math.max(0, totalQuantity - ticketsSold) : 999999;
+      const maxPerOrder = Math.min(available, t.maxPerOrder || 10);
+      
+      // Check if this ticketType is sold out
+      const isTicketTypeSoldOut = totalQuantity > 0 && ticketsSold >= totalQuantity;
 
       return {
         id: t.id,
@@ -231,9 +158,17 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
         totalQuantity,
         available,
         maxPerOrder,
+        isSoldOut: isTicketTypeSoldOut,
       };
     });
-  }, [eventData, selectedShow, bookedQuantities]);
+  }, [eventData, selectedShow]);
+
+  // Check if ALL ticket types are sold out (derived from ticketType-level inventory only)
+  const isSoldOut = useMemo(() => {
+    if (tickets.length === 0) return false;
+    // All ticket types are sold out (computed from ticketType.ticketsSold >= ticketType.totalQuantity)
+    return tickets.every(ticket => ticket.isSoldOut === true);
+  }, [tickets]);
 
   const selectedTicketsArray = useMemo(() => {
     return tickets
