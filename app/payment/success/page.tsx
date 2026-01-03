@@ -39,6 +39,8 @@ function PaymentSuccessContent() {
     const maxPolls = 15; // Poll for 30 seconds (15 * 2 seconds)
     let pollInterval: NodeJS.Timeout | null = null;
 
+    let hasTriedManualReconciliation = false;
+
     async function fetchBookingStatus() {
       if (!user) {
         setBookingStatus({ error: "User not authenticated" });
@@ -73,13 +75,11 @@ function PaymentSuccessContent() {
             return;
           }
           
-          // If still pending and we haven't reached max polls, continue polling
-          if (pollCount < maxPolls) {
-            pollCount++;
-            return; // Continue polling
-          } else {
-            // Max polls reached - try manual reconciliation as fallback
-            console.log("[Payment Success] Webhook didn't confirm, trying manual reconciliation");
+          // If still pending, try manual reconciliation after first check (pollCount === 0)
+          // or if we've polled a few times without success
+          if (!hasTriedManualReconciliation && (pollCount === 0 || pollCount >= 3)) {
+            hasTriedManualReconciliation = true;
+            console.log("[Payment Success] Booking still pending, trying manual reconciliation");
             try {
               if (!user) {
                 throw new Error("User not authenticated");
@@ -96,6 +96,7 @@ function PaymentSuccessContent() {
                 const reconcileData = await reconcileResponse.json();
                 if (reconcileData.ok && reconcileData.bookingStatus === "CONFIRMED") {
                   // Manual reconciliation succeeded!
+                  console.log("[Payment Success] Manual reconciliation succeeded!");
                   setBookingStatus({
                     bookingStatus: "CONFIRMED",
                     paymentStatus: "SUCCESS",
@@ -103,13 +104,25 @@ function PaymentSuccessContent() {
                   setLoading(false);
                   if (pollInterval) clearInterval(pollInterval);
                   return;
+                } else {
+                  console.log("[Payment Success] Manual reconciliation returned:", reconcileData);
                 }
+              } else {
+                const errorData = await reconcileResponse.json().catch(() => ({}));
+                console.error("[Payment Success] Manual reconciliation failed:", reconcileResponse.status, errorData);
               }
             } catch (reconcileError) {
-              console.error("[Payment Success] Manual reconciliation failed:", reconcileError);
+              console.error("[Payment Success] Manual reconciliation error:", reconcileError);
             }
-            
-            // Show current status (may still be pending if reconciliation failed)
+          }
+          
+          // If still pending and we haven't reached max polls, continue polling
+          if (pollCount < maxPolls) {
+            pollCount++;
+            return; // Continue polling
+          } else {
+            // Max polls reached - show current status
+            console.log("[Payment Success] Max polls reached, showing current status");
             setBookingStatus({
               bookingStatus: booking.bookingStatus,
               paymentStatus: booking.paymentStatus,

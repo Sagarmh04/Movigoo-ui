@@ -199,6 +199,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // CRITICAL: Use the order_id that Cashfree returns (may differ from what we sent)
+    const cashfreeOrderId = data.order_id || orderId;
+    
+    // Update booking with the actual Cashfree order_id for webhook lookup
+    if (bookingId && db && cashfreeOrderId) {
+      try {
+        const bookingRef = doc(db, "bookings", bookingId);
+        await setDoc(bookingRef, {
+          orderId: cashfreeOrderId, // Store the actual Cashfree order_id
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
+        console.log("Updated booking with Cashfree orderId:", cashfreeOrderId);
+      } catch (error) {
+        console.error("Failed to update booking with Cashfree orderId:", error);
+        // Continue even if this fails - orderId is still in response
+      }
+    }
+
     // ✅ ADD SAFETY LOG (TEMPORARY)
     // This log must NOT contain payment at the end
     console.log(
@@ -210,6 +228,7 @@ export async function POST(req: NextRequest) {
     // Use data.payment_session_id DIRECTLY - no variables, no concatenation, no mutation
     return NextResponse.json({
       paymentSessionId: data.payment_session_id,
+      orderId: cashfreeOrderId, // Also return orderId for frontend reference
     });
   } catch (err: any) {
     console.error("Server error:", err);
