@@ -1,5 +1,5 @@
 // app/events/[eventId]/checkout/page.tsx
-// Checkout page showing ticket summary before payment
+// Checkout page showing ticket summary before payments
 
 "use client";
 
