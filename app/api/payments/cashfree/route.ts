@@ -74,6 +74,15 @@ export async function POST(req: NextRequest) {
         if (bookingSnap.exists()) {
           const booking = bookingSnap.data();
           
+          // CRITICAL: Check if booking data exists (could be corrupted)
+          if (!booking) {
+            console.error("Booking document exists but data is null/undefined");
+            return NextResponse.json(
+              { error: "Booking data corrupted" },
+              { status: 500 }
+            );
+          }
+          
           // CRITICAL: Verify user owns this booking
           if (booking.userId !== user.uid) {
             return NextResponse.json(
@@ -135,8 +144,12 @@ export async function POST(req: NextRequest) {
         
         if (bookingSnap.exists()) {
           const booking = bookingSnap.data();
-          // Reuse existing orderId if present (prevents duplicate orders)
-          if (booking.orderId && typeof booking.orderId === "string") {
+          
+          // CRITICAL: Check if booking data exists
+          if (!booking) {
+            console.error("Booking document exists but data is null/undefined");
+            // Continue - will generate new orderId below
+          } else if (booking.orderId && typeof booking.orderId === "string") {
             orderId = booking.orderId;
             console.log("Reusing existing orderId from booking:", orderId);
           }

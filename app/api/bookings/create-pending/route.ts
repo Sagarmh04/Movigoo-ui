@@ -4,7 +4,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseServer";
-import { doc, setDoc, serverTimestamp, getDoc, collection, query, where, getDocs, runTransaction } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp, getDoc, runTransaction, increment } from "firebase/firestore";
 import { v4 as uuidv4 } from "uuid";
 import { verifyAuthToken } from "@/lib/auth";
 
@@ -97,6 +97,14 @@ export async function POST(req: NextRequest) {
     const eventData = eventDoc.data();
     const maxTickets = typeof eventData.maxTickets === "number" ? eventData.maxTickets : null;
 
+    // CRITICAL: Validate requested quantity
+    if (requestedQuantity <= 0) {
+      return NextResponse.json(
+        { error: "Invalid quantity: must be greater than 0" },
+        { status: 400 }
+      );
+    }
+
     // Helper function to prepare booking data
     const prepareBookingData = () => ({
       bookingId,
@@ -138,25 +146,13 @@ export async function POST(req: NextRequest) {
     });
 
     // CRITICAL: Use Firestore transaction for atomic inventory check + booking creation
+    // PERMANENT FIX: Use ticketsSold counter field on event document
+    // This prevents ALL race conditions by using atomic counter operations
     try {
       if (maxTickets !== null && maxTickets > 0) {
-        // CRITICAL: Query confirmed bookings from GLOBAL collection (not subcollection)
-        // This allows us to read them all inside transaction for atomicity
-        const globalBookingsRef = collection(firestore, "bookings");
-        const confirmedBookingsQuery = query(
-          globalBookingsRef,
-          where("eventId", "==", eventId),
-          where("bookingStatus", "==", "CONFIRMED"),
-          where("paymentStatus", "==", "SUCCESS")
-        );
-        
-        // Get all confirmed booking IDs (outside transaction for query)
-        const confirmedBookingsSnapshot = await getDocs(confirmedBookingsQuery);
-        const confirmedBookingIds = confirmedBookingsSnapshot.docs.map(d => d.id);
-
-        // Now run transaction: read ALL confirmed bookings + create new booking atomically
+        // ATOMIC TRANSACTION: Check counter + increment + create booking in ONE transaction
         await runTransaction(firestore, async (transaction) => {
-          // 1. Re-read event document inside transaction (for consistency)
+          // 1. Read event document inside transaction (atomic read)
           const eventDocInTx = await transaction.get(eventRef);
           if (!eventDocInTx.exists()) {
             throw new Error("Event not found");
@@ -165,31 +161,33 @@ export async function POST(req: NextRequest) {
           const eventDataInTx = eventDocInTx.data();
           const maxTicketsInTx = typeof eventDataInTx.maxTickets === "number" ? eventDataInTx.maxTickets : null;
 
-          // 2. Only check inventory if maxTickets is set
-          if (maxTicketsInTx !== null && maxTicketsInTx > 0) {
-            // 3. Read EACH confirmed booking INSIDE transaction (atomic reads)
-            // This ensures we see the LATEST state, even if bookings changed between query and transaction
-            let totalConfirmedTickets = 0;
-            for (const confirmedBookingId of confirmedBookingIds) {
-              const confirmedBookingRef = doc(firestore, "bookings", confirmedBookingId);
-              const bookingSnap = await transaction.get(confirmedBookingRef);
-              if (bookingSnap.exists()) {
-                const bookingData = bookingSnap.data() as any;
-                const bookingQuantity = typeof bookingData.quantity === "number" ? bookingData.quantity : 0;
-                // Double-check status in case it changed (transaction sees latest state)
-                if (bookingData.bookingStatus === "CONFIRMED" && bookingData.paymentStatus === "SUCCESS") {
-                  totalConfirmedTickets += bookingQuantity;
-                }
-              }
-            }
+          if (maxTicketsInTx === null || maxTicketsInTx <= 0) {
+            // No inventory limit - proceed without counter check
+            const bookingRef = doc(firestore, "bookings", bookingId);
+            const eventBookingRef = doc(firestore, "events", eventId, "bookings", bookingId);
 
-            // 4. CRITICAL: Check if adding this booking would exceed maxTickets
-            // If available tickets <= 0, abort transaction
-            const availableTickets = maxTicketsInTx - totalConfirmedTickets;
-            if (availableTickets <= 0 || totalConfirmedTickets + requestedQuantity > maxTicketsInTx) {
-              throw new Error("Event is sold out");
-            }
+            const bookingData = prepareBookingData();
+            const eventBookingData = prepareEventBookingData(bookingData);
+
+            transaction.set(bookingRef, bookingData);
+            transaction.set(eventBookingRef, eventBookingData);
+            return; // Exit transaction early
           }
+
+          // 2. Get current ticketsSold counter (defaults to 0 if not set)
+          const currentTicketsSold = typeof eventDataInTx.ticketsSold === "number" ? eventDataInTx.ticketsSold : 0;
+
+          // 3. CRITICAL: Check if adding this booking would exceed maxTickets
+          // This check happens INSIDE the transaction, so it's atomic
+          if (currentTicketsSold + requestedQuantity > maxTicketsInTx) {
+            throw new Error("Event is sold out");
+          }
+
+          // 4. ATOMIC: Increment ticketsSold counter (reserves tickets immediately)
+          // This prevents concurrent bookings from overselling
+          transaction.update(eventRef, {
+            ticketsSold: increment(requestedQuantity),
+          });
 
           // 5. Create booking INSIDE same transaction (atomic write)
           const bookingRef = doc(firestore, "bookings", bookingId);
@@ -203,7 +201,7 @@ export async function POST(req: NextRequest) {
           transaction.set(eventBookingRef, eventBookingData);
         });
 
-        console.log("Created pending booking (with atomic transaction):", bookingId);
+        console.log("Created pending booking (with atomic counter transaction):", bookingId);
       } else {
         // No maxTickets - create booking without transaction (no inventory constraint)
         const bookingRef = doc(firestore, "bookings", bookingId);

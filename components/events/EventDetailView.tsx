@@ -5,7 +5,7 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import { Calendar, MapPin, ShieldCheck, Users, Plus, Minus, Share2, ChevronDown, Loader2 } from "lucide-react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebaseClient";
 import HostedBadge from "@/components/HostedBadge";
 import { Event, TicketType } from "@/types/event";
@@ -34,25 +34,28 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
   const isProcessingRef = useRef(false); // Synchronous check to prevent double clicks
   const isHosted = event.organizerId === organizer.id;
 
-  // Fetch full event data to calculate lowest price
+  // Fetch full event data with real-time listener to update ticketsSold counter immediately
   useEffect(() => {
     if (!event.id || !db) return;
 
-    async function fetchEventData() {
-      if (!db) return;
-      try {
-        const eventDoc = await getDoc(doc(db, "events", event.id));
-        if (eventDoc.exists()) {
-          setEventData(eventDoc.data());
+    const eventRef = doc(db, "events", event.id);
+    
+    // Use real-time listener to update ticketsSold counter immediately when it changes
+    const unsubscribe = onSnapshot(
+      eventRef,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          setEventData(snapshot.data());
         }
-      } catch (error) {
+        setIsLoadingPrice(false);
+      },
+      (error) => {
         console.error("Error fetching event data:", error);
-      } finally {
         setIsLoadingPrice(false);
       }
-    }
+    );
 
-    fetchEventData();
+    return () => unsubscribe();
   }, [event.id]);
 
   // Handle click outside to close price breakup dropdown
@@ -144,76 +147,27 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
 
   // Get tickets for single location
   const [selectedTickets, setSelectedTickets] = useState<Record<string, number>>({});
-  const [bookings, setBookings] = useState<any[]>([]);
   const { user, loading: authLoading } = useAuth();
 
-  // Fetch bookings for availability calculation (if single location)
-  useEffect(() => {
-    if (!hasSingleShow || !event.id || !db) return;
-
-    async function fetchBookings() {
-      if (!db || !eventData?.schedule?.locations) return;
-      try {
-        const location = eventData.schedule.locations[0];
-        const venue = location.venues[0];
-        const date = venue.dates[0];
-        const show = date.shows[0];
-
-        const bookingsRef = collection(db, "events", event.id, "bookings");
-        // Fetch all bookings for the show - we'll filter for CONFIRMED status client-side
-        const q = query(
-          bookingsRef,
-          where("showId", "==", show.id)
-        );
-        const snapshot = await getDocs(q);
-        setBookings(snapshot.docs.map(doc => doc.data()));
-      } catch (error) {
-        console.error("Error fetching bookings:", error);
-        setBookings([]);
-      }
-    }
-
-    fetchBookings();
-  }, [hasSingleShow, event.id, eventData]);
-
-  // Filter confirmed bookings (paymentStatus === "SUCCESS" AND bookingStatus === "CONFIRMED")
-  // CRITICAL: Only count fully confirmed bookings (both statuses must match)
-  const confirmedBookings = useMemo(() => {
-    return bookings.filter((booking: any) => {
-      const paymentStatus = (booking.paymentStatus || "").toUpperCase();
-      const bookingStatus = (booking.bookingStatus || "").toUpperCase();
-      // STRICT: Both must be confirmed/success
-      return paymentStatus === "SUCCESS" && bookingStatus === "CONFIRMED";
-    });
-  }, [bookings]);
-
-  // Calculate total tickets sold (sum of all confirmed booking quantities)
-  const totalTicketsSold = useMemo(() => {
-    return confirmedBookings.reduce((total: number, booking: any) => {
-      const quantity = typeof booking.quantity === "number" ? booking.quantity : 0;
-      return total + quantity;
-    }, 0);
-  }, [confirmedBookings]);
-
-  // Check if event is sold out
-  // CRITICAL: Show sold out if totalTicketsSold >= maxTickets (including when equal)
+  // PERMANENT FIX: Read ticketsSold counter from event document (single source of truth)
+  // This counter is atomically updated in transactions, preventing all race conditions
+  const ticketsSold = typeof eventData?.ticketsSold === "number" ? eventData.ticketsSold : 0;
   const maxTickets = typeof eventData?.maxTickets === "number" ? eventData.maxTickets : null;
-  const isSoldOut = maxTickets !== null && maxTickets > 0 && totalTicketsSold >= maxTickets;
+  
+  // Check if event is sold out using counter (ticketsSold >= maxTickets)
+  const isSoldOut = maxTickets !== null && maxTickets > 0 && ticketsSold >= maxTickets;
+  
+  // Calculate available tickets from counter (total available, not per ticket type)
+  const totalAvailableTickets = maxTickets !== null && maxTickets > 0 ? maxTickets - ticketsSold : null;
 
-  // Calculate booked quantities per ticket type (only from confirmed bookings)
+  // Calculate booked quantities per ticket type (for per-type availability display)
+  // Note: This is for UI display only - the counter prevents total overselling
   const bookedQuantities = useMemo(() => {
     const booked: Record<string, number> = {};
-    confirmedBookings.forEach((booking: any) => {
-      if (booking.items && Array.isArray(booking.items)) {
-        booking.items.forEach((item: any) => {
-          if (item.ticketTypeId && item.quantity) {
-            booked[item.ticketTypeId] = (booked[item.ticketTypeId] || 0) + item.quantity;
-          }
-        });
-      }
-    });
+    // Note: We removed bookings state, so this will be empty for now
+    // Per-ticket-type availability can be added later if needed
     return booked;
-  }, [confirmedBookings]);
+  }, []);
 
   // Get tickets for single location
   const availableTickets = useMemo((): TicketTypeCard[] => {

@@ -39,6 +39,15 @@ export async function GET(
 
     const booking = bookingSnap.data();
     
+    // CRITICAL: Check if booking data exists (could be corrupted)
+    if (!booking) {
+      console.error("Booking document exists but data is null/undefined");
+      return NextResponse.json(
+        { error: "Booking data corrupted" },
+        { status: 500 }
+      );
+    }
+    
     // Enforce ownership
     if (booking.userId !== user.uid) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });

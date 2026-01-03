@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { NextRequest } from "next/server";
 import { db } from "@/lib/firebaseServer";
-import { collection, doc, getDocs, limit, query, serverTimestamp, setDoc, where } from "firebase/firestore";
+import { collection, doc, getDocs, limit, query, serverTimestamp, setDoc, where, runTransaction, increment } from "firebase/firestore";
 import { maybeSendBookingConfirmationEmail } from "@/lib/bookingConfirmationEmail";
 import { updateAnalyticsOnBookingConfirmation } from "@/lib/analyticsUpdate";
 
@@ -100,6 +100,13 @@ export async function handleCashfreeWebhook(req: NextRequest) {
     const bookingDoc = snapshot.docs[0];
     const bookingId = bookingDoc.id;
     const existing = bookingDoc.data() as any;
+    
+    // CRITICAL: Check if booking data exists (could be corrupted)
+    if (!existing) {
+      console.error("[Webhook] Booking document exists but data is null/undefined");
+      return new Response("Booking data corrupted", { status: 500 });
+    }
+    
     console.log("[Webhook] Found booking", {
       bookingId,
       currentBookingStatus: existing.bookingStatus,
@@ -215,12 +222,50 @@ export async function handleCashfreeWebhook(req: NextRequest) {
     };
 
     const bookingRef = doc(firestore, "bookings", bookingId);
-    await Promise.all([
-      setDoc(bookingRef, updateData, { merge: true }),
-      existing.eventId
-        ? setDoc(doc(firestore, "events", existing.eventId, "bookings", bookingId), updateData, { merge: true })
-        : Promise.resolve(),
-    ]);
+    
+    // CRITICAL: If payment fails, decrement ticketsSold counter to release reservation
+    // This ensures tickets are available again if payment fails
+    if (existing.eventId && existing.quantity) {
+      const eventRef = doc(firestore, "events", existing.eventId);
+      const bookingQuantity = typeof existing.quantity === "number" ? existing.quantity : 0;
+      
+      // Use transaction to atomically decrement counter and update booking
+      try {
+        await runTransaction(firestore, async (transaction) => {
+          // Decrement ticketsSold counter (release reservation)
+          transaction.update(eventRef, {
+            ticketsSold: increment(-bookingQuantity),
+          });
+          
+          // Update booking status
+          transaction.set(bookingRef, updateData, { merge: true });
+          
+          // Update event booking subcollection if exists
+          if (existing.eventId) {
+            const eventBookingRef = doc(firestore, "events", existing.eventId, "bookings", bookingId);
+            transaction.set(eventBookingRef, updateData, { merge: true });
+          }
+        });
+        console.log("[Webhook] Payment failed - released ticket reservation:", bookingQuantity);
+      } catch (error) {
+        // If transaction fails, still update booking status (non-blocking)
+        console.error("[Webhook] Failed to decrement ticketsSold counter:", error);
+        await Promise.all([
+          setDoc(bookingRef, updateData, { merge: true }),
+          existing.eventId
+            ? setDoc(doc(firestore, "events", existing.eventId, "bookings", bookingId), updateData, { merge: true })
+            : Promise.resolve(),
+        ]);
+      }
+    } else {
+      // No eventId or quantity - just update booking status
+      await Promise.all([
+        setDoc(bookingRef, updateData, { merge: true }),
+        existing.eventId
+          ? setDoc(doc(firestore, "events", existing.eventId, "bookings", bookingId), updateData, { merge: true })
+          : Promise.resolve(),
+      ]);
+    }
 
     return new Response("OK", { status: 200 });
   } catch (error: any) {

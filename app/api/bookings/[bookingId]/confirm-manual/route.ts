@@ -8,6 +8,7 @@ import { verifyAuthToken } from "@/lib/auth";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { maybeSendBookingConfirmationEmail } from "@/lib/bookingConfirmationEmail";
 import { updateAnalyticsOnBookingConfirmation } from "@/lib/analyticsUpdate";
+// Note: ticketsSold is already incremented at booking creation, so we don't need to increment here
 
 export const runtime = "nodejs";
 
@@ -53,6 +54,15 @@ export async function POST(
     }
 
     const booking = bookingSnap.data() as any;
+
+    // CRITICAL: Check if booking data exists (could be corrupted)
+    if (!booking) {
+      console.error("Booking document exists but data is null/undefined");
+      return NextResponse.json(
+        { error: "Booking data corrupted" },
+        { status: 500 }
+      );
+    }
 
     // Verify ownership
     if (booking.userId !== user.uid) {

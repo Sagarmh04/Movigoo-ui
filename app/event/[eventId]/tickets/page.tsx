@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useEventById } from "@/hooks/useEventById";
-import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebaseClient";
 import { useAuth } from "@/hooks/useAuth";
 import ShowSelector, { type ShowSelection } from "@/components/booking/ShowSelector";
@@ -30,23 +30,26 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
   const [isPaying, setIsPaying] = useState(false);
   const isProcessingRef = useRef(false); // Synchronous check to prevent double clicks
 
-  // Fetch full event data with schedule structure
+  // Fetch full event data with real-time listener to update ticketsSold counter immediately
   useEffect(() => {
     if (!params.eventId || !db) return;
 
-    async function fetchEventData() {
-      if (!db) return;
-      try {
-        const eventDoc = await getDoc(doc(db, "events", params.eventId));
-        if (eventDoc.exists()) {
-          setEventData(eventDoc.data());
+    const eventRef = doc(db, "events", params.eventId);
+    
+    // Use real-time listener to update ticketsSold counter immediately when it changes
+    const unsubscribe = onSnapshot(
+      eventRef,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          setEventData(snapshot.data());
         }
-      } catch (error) {
+      },
+      (error) => {
         console.error("Error fetching event data:", error);
       }
-    }
+    );
 
-    fetchEventData();
+    return () => unsubscribe();
   }, [params.eventId]);
 
   // Get locations from event data
@@ -120,56 +123,67 @@ export default function TicketSelectionPage({ params }: { params: { eventId: str
     setSelectedShow(null);
   };
 
-  // Fetch bookings to calculate available tickets
+  // PERMANENT FIX: Read ticketsSold counter from event document (single source of truth)
+  // This counter is atomically updated in transactions, preventing all race conditions
+  // No need to count bookings - the counter is the authoritative source
+  const ticketsSold = typeof eventData?.ticketsSold === "number" ? eventData.ticketsSold : 0;
+  const maxTickets = typeof eventData?.maxTickets === "number" ? eventData.maxTickets : null;
+  
+  // Check if event is sold out using counter (ticketsSold >= maxTickets)
+  const isSoldOut = maxTickets !== null && maxTickets > 0 && ticketsSold >= maxTickets;
+  
+  // Calculate available tickets from counter
+  const availableTickets = maxTickets !== null && maxTickets > 0 ? maxTickets - ticketsSold : null;
+  
+  // Note: For per-ticket-type availability, we still need to track bookings per type
+  // But the total overselling is prevented by the counter
   const [bookings, setBookings] = useState<any[]>([]);
   const [isLoadingBookings, setIsLoadingBookings] = useState(false);
 
   useEffect(() => {
     if (!selectedShow || !params.eventId || !db) return;
 
-    async function fetchBookings() {
-      if (!db || !selectedShow) return;
-      setIsLoadingBookings(true);
-      try {
-        const bookingsRef = collection(db, "events", params.eventId, "bookings");
-        // Fetch all bookings for the show - we'll filter for CONFIRMED status client-side
-        const q = query(
-          bookingsRef,
-          where("showId", "==", selectedShow.showId)
-        );
-        const snapshot = await getDocs(q);
-        setBookings(snapshot.docs.map(doc => doc.data()));
-      } catch (error) {
-        console.error("Error fetching bookings:", error);
-        setBookings([]);
-      } finally {
-        setIsLoadingBookings(false);
-      }
-    }
+    if (!db || !selectedShow) return;
+    
+    setIsLoadingBookings(true);
+    
+    try {
+      const bookingsRef = collection(db, "events", params.eventId, "bookings");
+      // Use real-time listener for per-ticket-type availability (not for total sold-out check)
+      const q = query(
+        bookingsRef,
+        where("showId", "==", selectedShow.showId)
+      );
+      
+      const unsubscribe = onSnapshot(
+        q,
+        (snapshot) => {
+          setBookings(snapshot.docs.map(doc => doc.data()));
+          setIsLoadingBookings(false);
+        },
+        (error) => {
+          console.error("Error fetching bookings:", error);
+          setBookings([]);
+          setIsLoadingBookings(false);
+        }
+      );
 
-    fetchBookings();
+      return () => unsubscribe();
+    } catch (error) {
+      console.error("Error setting up bookings listener:", error);
+      setBookings([]);
+      setIsLoadingBookings(false);
+    }
   }, [selectedShow, params.eventId]);
 
-  // Filter confirmed bookings (paymentStatus === "confirmed" OR bookingStatus === "CONFIRMED")
+  // Filter confirmed bookings for per-ticket-type availability calculation
   const confirmedBookings = useMemo(() => {
     return bookings.filter((booking: any) => {
-      const paymentStatus = (booking.paymentStatus || "").toLowerCase();
+      const paymentStatus = (booking.paymentStatus || "").toUpperCase();
       const bookingStatus = (booking.bookingStatus || "").toUpperCase();
-      return paymentStatus === "confirmed" || bookingStatus === "CONFIRMED";
+      return paymentStatus === "SUCCESS" && bookingStatus === "CONFIRMED";
     });
   }, [bookings]);
-
-  // Calculate total tickets sold (sum of all confirmed booking quantities)
-  const totalTicketsSold = useMemo(() => {
-    return confirmedBookings.reduce((total: number, booking: any) => {
-      const quantity = typeof booking.quantity === "number" ? booking.quantity : 0;
-      return total + quantity;
-    }, 0);
-  }, [confirmedBookings]);
-
-  // Check if event is sold out
-  const maxTickets = typeof eventData?.maxTickets === "number" ? eventData.maxTickets : null;
-  const isSoldOut = maxTickets !== null && totalTicketsSold >= maxTickets;
 
   // Calculate booked quantities per ticket type (only from confirmed bookings)
   const bookedQuantities = useMemo(() => {
