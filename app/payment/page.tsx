@@ -20,7 +20,7 @@ function PaymentPageContent() {
   const email = searchParams.get("email");
   const phone = searchParams.get("phone");
 
-  const startPayment = useCallback(async () => {
+  const startPayment = useCallback(async (token: string) => {
     try {
       // STEP 3: Log domain for Vercel debugging
       if (typeof window !== "undefined") {
@@ -34,7 +34,10 @@ function PaymentPageContent() {
 
       const res = await fetch("/api/payments/cashfree", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`, // CRITICAL: Include auth token
+        },
         body: JSON.stringify({
           bookingId: bookingId || `booking_${Date.now()}`,
           amount: amount ? parseFloat(amount) : 0,
@@ -155,8 +158,8 @@ function PaymentPageContent() {
         return;
       }
 
-      // Proceed with payment initiation
-      await startPayment();
+      // Proceed with payment initiation with auth token
+      await startPayment(token);
     } catch (err: any) {
       console.error("Error checking booking:", err);
       alert("Failed to verify booking status");
