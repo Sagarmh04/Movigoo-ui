@@ -40,6 +40,13 @@ function PaymentSuccessContent() {
     let pollInterval: NodeJS.Timeout | null = null;
 
     async function fetchBookingStatus() {
+      if (!user) {
+        setBookingStatus({ error: "User not authenticated" });
+        setLoading(false);
+        if (pollInterval) clearInterval(pollInterval);
+        return;
+      }
+
       try {
         const token = await user.getIdToken();
         
@@ -74,10 +81,14 @@ function PaymentSuccessContent() {
             // Max polls reached - try manual reconciliation as fallback
             console.log("[Payment Success] Webhook didn't confirm, trying manual reconciliation");
             try {
+              if (!user) {
+                throw new Error("User not authenticated");
+              }
+              const reconcileToken = await user.getIdToken();
               const reconcileResponse = await fetch(`/api/bookings/${bookingId}/confirm-manual`, {
                 method: "POST",
                 headers: {
-                  "Authorization": `Bearer ${token}`,
+                  "Authorization": `Bearer ${reconcileToken}`,
                 },
               });
               

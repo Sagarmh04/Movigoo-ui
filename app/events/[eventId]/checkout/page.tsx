@@ -97,7 +97,7 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
     if (eventId) {
       fetchEventDetails();
     }
-  }, [mounted, eventId, authLoading, user, router]);
+  }, [mounted, eventId, authLoading, user, router, pathname, searchParams]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {

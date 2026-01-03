@@ -87,9 +87,9 @@ function PaymentPageContent() {
       console.error("Error checking booking:", err);
       alert("Failed to verify booking status");
     }
-  }, [authLoading, bookingId, user]);
+  }, [authLoading, bookingId, user, startPayment]);
 
-  async function startPayment() {
+  const startPayment = useCallback(async () => {
     try {
       // STEP 3: Log domain for Vercel debugging
       if (typeof window !== "undefined") {
@@ -161,7 +161,7 @@ function PaymentPageContent() {
       console.error("Payment error:", err);
       alert("Payment failed: " + (err.message || "Unknown error"));
     }
-  }
+  }, [bookingId, amount, email, phone]);
 
   // Start payment when both SDK and auth are ready
   useEffect(() => {
