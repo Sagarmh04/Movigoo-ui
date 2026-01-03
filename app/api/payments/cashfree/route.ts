@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseServer";
 import { doc, setDoc, serverTimestamp, getDoc } from "firebase/firestore";
+import { verifyAuthToken } from "@/lib/auth";
 
 // ✅ STEP 1 — FORCE NODE RUNTIME (CRITICAL)
 // Vercel may run this route in Edge runtime
@@ -36,6 +37,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // CRITICAL: Verify authentication
+    const authHeader = req.headers.get("authorization") || req.headers.get("Authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return NextResponse.json(
+        { error: "Unauthorized: Missing or invalid Authorization header" },
+        { status: 401 }
+      );
+    }
+
+    const token = authHeader.substring(7);
+    const user = await verifyAuthToken(token);
+    if (!user) {
+      return NextResponse.json(
+        { error: "Invalid token" },
+        { status: 401 }
+      );
+    }
+
     const body = await req.json();
     const { bookingId, amount, email, phone } = body;
 
@@ -54,6 +73,15 @@ export async function POST(req: NextRequest) {
         
         if (bookingSnap.exists()) {
           const booking = bookingSnap.data();
+          
+          // CRITICAL: Verify user owns this booking
+          if (booking.userId !== user.uid) {
+            return NextResponse.json(
+              { error: "Access denied: You don't own this booking" },
+              { status: 403 }
+            );
+          }
+          
           // If already confirmed, reject new order creation
           if (booking.bookingStatus === "CONFIRMED" || booking.paymentStatus === "SUCCESS") {
             console.log("Booking already confirmed, rejecting payment order creation");

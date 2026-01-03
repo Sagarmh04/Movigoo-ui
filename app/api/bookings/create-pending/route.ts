@@ -4,7 +4,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseServer";
-import { doc, setDoc, serverTimestamp, getDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp, getDoc, collection, query, where, getDocs, runTransaction } from "firebase/firestore";
 import { v4 as uuidv4 } from "uuid";
 import { verifyAuthToken } from "@/lib/auth";
 
@@ -73,10 +73,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Server-side inventory check: prevent overselling
+    const firestore = db; // TypeScript inference helper
+
+    // Calculate requested quantity
+    const requestedQuantity = quantity || (items ? items.reduce((sum: number, i: any) => sum + i.quantity, 0) : 0);
+
+    // Generate booking ID
+    const bookingId = uuidv4();
+
+    // CRITICAL: Use Firestore transaction for atomic inventory check + booking creation
     try {
-      // Fetch event to get maxTickets
-      const eventRef = doc(db, "events", eventId);
+      // First, query confirmed bookings OUTSIDE transaction to get document IDs
+      // Then read each document INSIDE transaction for atomic consistency
+      let confirmedBookingIds: string[] = [];
+      const eventRef = doc(firestore, "events", eventId);
       const eventDoc = await getDoc(eventRef);
       
       if (!eventDoc.exists()) {
@@ -91,103 +101,129 @@ export async function POST(req: NextRequest) {
 
       // Only check inventory if maxTickets is set
       if (maxTickets !== null && maxTickets > 0) {
-        // Query confirmed bookings for this event
-        const eventBookingsRef = collection(db, "events", eventId, "bookings");
+        const eventBookingsRef = collection(firestore, "events", eventId, "bookings");
         const confirmedBookingsQuery = query(
           eventBookingsRef,
           where("bookingStatus", "==", "CONFIRMED"),
           where("paymentStatus", "==", "SUCCESS")
         );
         
+        // Query outside transaction to get document IDs
         const confirmedBookingsSnapshot = await getDocs(confirmedBookingsQuery);
-        
-        // Sum up quantities from all confirmed bookings
-        let totalConfirmedTickets = 0;
-        confirmedBookingsSnapshot.docs.forEach((doc) => {
-          const bookingData = doc.data();
-          const bookingQuantity = typeof bookingData.quantity === "number" ? bookingData.quantity : 0;
-          totalConfirmedTickets += bookingQuantity;
-        });
-
-        // Calculate requested quantity
-        const requestedQuantity = quantity || (items ? items.reduce((sum: number, i: any) => sum + i.quantity, 0) : 0);
-
-        // Check if adding this booking would exceed maxTickets
-        if (totalConfirmedTickets + requestedQuantity > maxTickets) {
-          return NextResponse.json(
-            { error: "Event is sold out" },
-            { status: 409 }
-          );
-        }
+        confirmedBookingIds = confirmedBookingsSnapshot.docs.map(d => d.id);
       }
-    } catch (inventoryError: any) {
-      // Log error but don't block booking if inventory check fails
-      // This is a safety measure - we want bookings to work even if inventory check has issues
-      console.error("Inventory check error:", inventoryError);
-      // Continue with booking creation
+
+      // Now run transaction: read each confirmed booking + create new booking atomically
+      await runTransaction(firestore, async (transaction) => {
+        // 1. Re-read event document inside transaction (for consistency)
+        const eventDocInTx = await transaction.get(eventRef);
+        if (!eventDocInTx.exists()) {
+          throw new Error("Event not found");
+        }
+
+        const eventDataInTx = eventDocInTx.data();
+        const maxTicketsInTx = typeof eventDataInTx.maxTickets === "number" ? eventDataInTx.maxTickets : null;
+
+        // 2. Only check inventory if maxTickets is set
+        if (maxTicketsInTx !== null && maxTicketsInTx > 0) {
+          // 3. Read each confirmed booking INSIDE transaction (atomic reads)
+          let totalConfirmedTickets = 0;
+          for (const bookingId of confirmedBookingIds) {
+            const bookingRef = doc(firestore, "events", eventId, "bookings", bookingId);
+            const bookingSnap = await transaction.get(bookingRef);
+            if (bookingSnap.exists()) {
+              const bookingData = bookingSnap.data() as any;
+              const bookingQuantity = typeof bookingData.quantity === "number" ? bookingData.quantity : 0;
+              // Double-check status in case it changed
+              if (bookingData.bookingStatus === "CONFIRMED" && bookingData.paymentStatus === "SUCCESS") {
+                totalConfirmedTickets += bookingQuantity;
+              }
+            }
+          }
+
+          // 4. Check if adding this booking would exceed maxTickets
+          if (totalConfirmedTickets + requestedQuantity > maxTicketsInTx) {
+            throw new Error("Event is sold out");
+          }
+        }
+
+        // 6. Create booking INSIDE same transaction (atomic)
+        const bookingRef = doc(firestore, "bookings", bookingId);
+        const eventBookingRef = doc(firestore, "events", eventId, "bookings", bookingId);
+
+        // Prepare booking data
+        const bookingData = {
+          bookingId,
+          userId: user.uid, // Use authenticated user ID
+          eventId,
+          eventTitle: eventTitle || "Event",
+          coverUrl: coverUrl || "",
+          venueName: venueName || "TBA",
+          date: date || new Date().toISOString().split("T")[0],
+          time: time || "00:00",
+          ticketType: ticketType || (items ? items.map((i: any) => `${i.ticketTypeId} (${i.quantity})`).join(", ") : ""),
+          quantity: requestedQuantity,
+          price: price || (items ? items.reduce((sum: number, i: any) => sum + (i.price * i.quantity), 0) : 0),
+          bookingFee: bookingFee || 0,
+          totalAmount,
+          items: items || [],
+          orderId: orderId || null,
+          paymentGateway: "cashfree",
+          paymentStatus: "INITIATED",
+          bookingStatus: "PENDING",
+          userEmail: userEmail || null,
+          userName: userName || null,
+          createdAt: serverTimestamp(),
+        };
+
+        // Prepare event booking data with metadata
+        const eventBookingData = {
+          ...bookingData,
+          locationId: locationId || null,
+          locationName: locationName || null,
+          venueId: venueId || null,
+          dateId: body.dateId || null,
+          showId: showId || null,
+          showTime: showTime || time || "00:00",
+          showEndTime: body.showEndTime || null,
+          venueAddress: body.venueAddress || null,
+          locationVenueKey: locationId && venueId ? `${locationId}_${venueId}` : null,
+          venueShowKey: venueId && showId ? `${venueId}_${showId}` : null,
+          dateTimeKey: date && (showTime || time) ? `${date}_${showTime || time}` : null,
+        };
+
+        // Write both documents atomically
+        transaction.set(bookingRef, bookingData);
+        transaction.set(eventBookingRef, eventBookingData);
+      });
+
+      console.log("Created pending booking (with transaction):", bookingId);
+    } catch (transactionError: any) {
+      console.error("Transaction error:", transactionError);
+      
+      // Handle specific errors
+      if (transactionError.message === "Event not found") {
+        return NextResponse.json(
+          { error: "Event not found" },
+          { status: 404 }
+        );
+      }
+      
+      if (transactionError.message === "Event is sold out") {
+        return NextResponse.json(
+          { error: "Event is sold out" },
+          { status: 409 }
+        );
+      }
+      
+      // Other transaction errors (conflicts, etc.)
+      return NextResponse.json(
+        { error: "Failed to create booking. Please try again." },
+        { status: 503 }
+      );
     }
 
-    console.log("Creating pending booking for userId:", userId, "eventId:", eventId);
-
-    // Generate booking ID
-    const bookingId = uuidv4();
-
-    // Prepare booking data
-    // CRITICAL: userId comes from authenticated token, not request body
-    const bookingData = {
-      bookingId,
-      userId: user.uid, // Use authenticated user ID
-      eventId,
-      eventTitle: eventTitle || "Event",
-      coverUrl: coverUrl || "",
-      venueName: venueName || "TBA",
-      date: date || new Date().toISOString().split("T")[0],
-      time: time || "00:00",
-      ticketType: ticketType || (items ? items.map((i: any) => `${i.ticketTypeId} (${i.quantity})`).join(", ") : ""),
-      quantity: quantity || (items ? items.reduce((sum: number, i: any) => sum + i.quantity, 0) : 0),
-      price: price || (items ? items.reduce((sum: number, i: any) => sum + (i.price * i.quantity), 0) : 0),
-      bookingFee: bookingFee || 0,
-      totalAmount,
-      items: items || [],
-      orderId: orderId || null, // Store Cashfree order ID for webhook lookup
-      paymentGateway: "cashfree",
-      paymentStatus: "INITIATED",
-      bookingStatus: "PENDING",
-      userEmail: userEmail || null, // Store user email for email sending
-      userName: userName || null, // Store user name for email
-      createdAt: serverTimestamp(),
-    };
-
-    // Prepare event booking data with metadata for host queries
-    const eventBookingData = {
-      ...bookingData,
-      // Metadata fields for querying by location/venue/show
-      locationId: locationId || null,
-      locationName: locationName || null,
-      venueId: venueId || null,
-      dateId: body.dateId || null,
-      showId: showId || null,
-      showTime: showTime || time || "00:00",
-      showEndTime: body.showEndTime || null,
-      venueAddress: body.venueAddress || null,
-      // Composite fields for easy querying
-      locationVenueKey: locationId && venueId ? `${locationId}_${venueId}` : null,
-      venueShowKey: venueId && showId ? `${venueId}_${showId}` : null,
-      dateTimeKey: date && (showTime || time) ? `${date}_${showTime || time}` : null,
-    };
-
-    // Save to Firestore in multiple locations
-    // NOTE: We do NOT save to /users/{userId}/bookings because that's reserved for host users only
-    const bookingRef = doc(db, "bookings", bookingId);
-    // Save to /events/{eventId}/bookings/{bookingId} (with metadata for hosts)
-    const eventBookingRef = doc(db, "events", eventId, "bookings", bookingId);
-
-    await Promise.all([
-      setDoc(bookingRef, bookingData),
-      setDoc(eventBookingRef, eventBookingData),
-    ]);
-
-    console.log("Created pending booking:", bookingId);
+    // Booking creation is now done inside transaction above
 
     return NextResponse.json({
       success: true,
