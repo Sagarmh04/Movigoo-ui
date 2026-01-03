@@ -155,7 +155,13 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
   const maxTickets = typeof eventData?.maxTickets === "number" ? eventData.maxTickets : null;
   
   // Check if event is sold out using counter (ticketsSold >= maxTickets)
+  // CRITICAL: Show sold out if ticketsSold >= maxTickets (including when equal)
   const isSoldOut = maxTickets !== null && maxTickets > 0 && ticketsSold >= maxTickets;
+  
+  // Debug logging (remove in production)
+  if (maxTickets !== null && maxTickets > 0) {
+    console.log("[EventDetailView] Inventory state:", { ticketsSold, maxTickets, isSoldOut, available: maxTickets - ticketsSold });
+  }
   
   // Calculate available tickets from counter (total available, not per ticket type)
   const totalAvailableTickets = maxTickets !== null && maxTickets > 0 ? maxTickets - ticketsSold : null;

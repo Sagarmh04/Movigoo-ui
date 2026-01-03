@@ -4,7 +4,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseServer";
-import { doc, setDoc, serverTimestamp, getDoc, runTransaction, increment } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp, getDoc, runTransaction, increment, collection, query, where, getDocs } from "firebase/firestore";
 import { v4 as uuidv4 } from "uuid";
 import { verifyAuthToken } from "@/lib/auth";
 
@@ -175,11 +175,27 @@ export async function POST(req: NextRequest) {
           }
 
           // 2. Get current ticketsSold counter (defaults to 0 if not set)
+          // CRITICAL: If field doesn't exist, Firestore increment() will create it starting from 0
+          // But we need to check the current value for validation
           const currentTicketsSold = typeof eventDataInTx.ticketsSold === "number" ? eventDataInTx.ticketsSold : 0;
 
           // 3. CRITICAL: Check if adding this booking would exceed maxTickets
           // This check happens INSIDE the transaction, so it's atomic
+          // Block if: already sold out OR adding this booking would exceed max
+          console.log("[Create-Pending] Inventory check:", { 
+            currentTicketsSold, 
+            requestedQuantity, 
+            maxTicketsInTx, 
+            wouldExceed: currentTicketsSold + requestedQuantity > maxTicketsInTx 
+          });
+          
+          if (currentTicketsSold >= maxTicketsInTx) {
+            console.log("[Create-Pending] Event already sold out");
+            throw new Error("Event is sold out");
+          }
+          
           if (currentTicketsSold + requestedQuantity > maxTicketsInTx) {
+            console.log("[Create-Pending] Booking would exceed max tickets");
             throw new Error("Event is sold out");
           }
 
