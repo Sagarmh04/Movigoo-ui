@@ -75,11 +75,19 @@ export async function POST(req: NextRequest) {
             );
           }
 
-          // Idempotency: reuse existing orderId if already set
+          // CRITICAL: If booking already has orderId, check if we should reuse it
           if (booking.orderId) {
-            console.log("Reusing existing orderId:", booking.orderId);
-            // Don't create new order, but we could return existing session info if needed
-            // For now, proceed with new order creation since Cashfree sessions are short-lived
+            // If booking is already confirmed, reject payment creation
+            if (booking.bookingStatus === "CONFIRMED" || booking.paymentStatus === "SUCCESS") {
+              console.log("Booking already confirmed with orderId:", booking.orderId);
+              return NextResponse.json(
+                { error: "Booking already confirmed" },
+                { status: 409 }
+              );
+            }
+            // If booking has orderId but not confirmed, we can reuse it
+            // This prevents creating duplicate orders for the same booking
+            console.log("Booking already has orderId, will reuse:", booking.orderId);
           }
         }
       } catch (error) {
@@ -88,9 +96,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    let orderId = `order_${Date.now()}`;
-
-    // Store orderId in booking for webhook lookup
+    // CRITICAL: Get orderId BEFORE generating new one to prevent race conditions
+    let orderId: string | null = null;
+    
+    // First, check if booking already has orderId (atomic read)
     if (bookingId && db) {
       try {
         const bookingRef = doc(db, "bookings", bookingId);
@@ -98,25 +107,53 @@ export async function POST(req: NextRequest) {
         
         if (bookingSnap.exists()) {
           const booking = bookingSnap.data();
-          // Idempotency: reuse existing orderId if already set
-          if (booking.orderId) {
+          // Reuse existing orderId if present (prevents duplicate orders)
+          if (booking.orderId && typeof booking.orderId === "string") {
             orderId = booking.orderId;
-            console.log("Reusing existing orderId:", orderId);
-          } else {
-            // Store new orderId
-            await setDoc(bookingRef, {
-              orderId: orderId,
-              paymentStatus: "INITIATED",
-              bookingStatus: "PENDING",
-              updatedAt: serverTimestamp(),
-            }, { merge: true });
-            console.log("Updated booking with orderId:", orderId);
+            console.log("Reusing existing orderId from booking:", orderId);
           }
         }
       } catch (error) {
-        console.error("Failed to update booking with orderId:", error);
-        // Continue with payment creation even if this fails
+        console.error("Failed to read booking for orderId:", error);
+        // Continue - will generate new orderId below
       }
+    }
+
+    // Only generate new orderId if booking doesn't have one
+    if (!orderId) {
+      // Generate unique orderId with timestamp + random to prevent collisions
+      orderId = `order_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      
+      // Store new orderId in booking atomically (before creating Cashfree order)
+      if (bookingId && db) {
+        try {
+          const bookingRef = doc(db, "bookings", bookingId);
+          await setDoc(bookingRef, {
+            orderId: orderId,
+            paymentStatus: "INITIATED",
+            bookingStatus: "PENDING",
+            updatedAt: serverTimestamp(),
+          }, { merge: true });
+          console.log("Stored new orderId in booking:", orderId);
+        } catch (error) {
+          console.error("Failed to store orderId in booking:", error);
+          // CRITICAL: If we can't store orderId, webhook won't find booking
+          // Return error instead of continuing
+          return NextResponse.json(
+            { error: "Failed to initialize payment order" },
+            { status: 500 }
+          );
+        }
+      }
+    }
+
+    // CRITICAL: Ensure orderId is set (should never be null at this point)
+    if (!orderId) {
+      console.error("CRITICAL: orderId is null after initialization");
+      return NextResponse.json(
+        { error: "Failed to generate payment order ID" },
+        { status: 500 }
+      );
     }
 
     // ✅ STEP 3 — ENSURE CORRECT BASE URL
