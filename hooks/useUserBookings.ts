@@ -32,45 +32,38 @@ export function useUserBookings(userId: string | null) {
       let globalSnapshot;
 
       try {
-        // Try optimized query with bookingStatus filter (requires composite index)
+        // Try optimized query with bookingStatus AND paymentStatus filter (requires composite index)
+        // This ensures we only fetch confirmed + successful bookings from Firestore
         const globalQ = query(
           globalBookingsRef,
           where("userId", "==", userId),
           where("bookingStatus", "==", "CONFIRMED"),
+          where("paymentStatus", "==", "SUCCESS"),
           orderBy("createdAt", "desc")
         );
         globalSnapshot = await getDocs(globalQ);
       } catch (indexError: any) {
         if (indexError.code === "failed-precondition" || indexError.message?.includes("index")) {
-          console.warn("Firestore index not ready, fetching without status filter:", indexError);
-          // Fallback: fetch all user bookings, filter client-side
-          const globalQWithoutStatus = query(
-            globalBookingsRef,
-            where("userId", "==", userId),
-            orderBy("createdAt", "desc")
-          );
-          globalSnapshot = await getDocs(globalQWithoutStatus);
-
-          const docs = globalSnapshot.docs.map((doc) => ({
-            bookingId: doc.id,
-            ...doc.data(),
-            createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
-          })) as any[];
-
-          docs.sort((a, b) => {
-            const dateA = new Date(a.createdAt).getTime();
-            const dateB = new Date(b.createdAt).getTime();
-            return dateB - dateA;
-          });
-
-          const confirmedBookings = docs.filter((booking) => {
-            const status = booking.bookingStatus || booking.status;
-            return status === "CONFIRMED" || status === "confirmed";
-          });
-
-          setBookings(confirmedBookings);
-          setLoading(false);
-          return;
+          console.warn("Firestore composite index not ready, trying fallback queries:", indexError);
+          // Fallback: Try with just bookingStatus filter (single field index)
+          try {
+            const globalQWithBookingStatus = query(
+              globalBookingsRef,
+              where("userId", "==", userId),
+              where("bookingStatus", "==", "CONFIRMED"),
+              orderBy("createdAt", "desc")
+            );
+            globalSnapshot = await getDocs(globalQWithBookingStatus);
+          } catch (singleIndexError: any) {
+            // If that also fails, fetch all and filter client-side
+            console.warn("Single field index also not ready, fetching all and filtering client-side:", singleIndexError);
+            const globalQWithoutStatus = query(
+              globalBookingsRef,
+              where("userId", "==", userId),
+              orderBy("createdAt", "desc")
+            );
+            globalSnapshot = await getDocs(globalQWithoutStatus);
+          }
         } else {
           throw indexError;
         }
@@ -81,14 +74,12 @@ export function useUserBookings(userId: string | null) {
         .map((doc) => {
           const data = doc.data();
           // Double-check payment status (webhook sets both bookingStatus and paymentStatus)
-          const bookingStatus = data.bookingStatus || data.status;
-          const paymentStatus = data.paymentStatus;
+          const bookingStatus = (data.bookingStatus || data.status || "").toUpperCase();
+          const paymentStatus = (data.paymentStatus || "").toUpperCase();
           
-          // Only include if confirmed and payment successful
-          if (
-            (bookingStatus === "CONFIRMED" || bookingStatus === "confirmed") &&
-            (paymentStatus === "SUCCESS" || paymentStatus === "confirmed" || !paymentStatus)
-          ) {
+          // STRICT: Only include if CONFIRMED AND payment SUCCESS
+          // This excludes: PENDING, FAILED, CANCELLED, and bookings without proper status
+          if (bookingStatus === "CONFIRMED" && paymentStatus === "SUCCESS") {
             return {
               bookingId: doc.id,
               ...data,

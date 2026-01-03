@@ -1,0 +1,111 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ============================================
+    // EVENTS - Public read, server write only
+    // ============================================
+    match /events/{eventId} {
+      // Allow anyone to read events (for frontend display)
+      allow read: if true;
+      
+      // Only server API can write events
+      allow write: if false;
+      
+      // Event bookings subcollection
+      match /bookings/{bookingId} {
+        // Users can read their own bookings
+        allow read: if request.auth != null && 
+          resource.data.userId == request.auth.uid;
+        // Hosts can read bookings for their events
+        allow read: if request.auth != null && (
+          get(/databases/$(database)/documents/events/$(eventId)).data.organizerId == request.auth.uid ||
+          get(/databases/$(database)/documents/events/$(eventId)).data.hostUid == request.auth.uid
+        );
+        // Only server API can write
+        allow write: if false;
+      }
+    }
+    
+    // ============================================
+    // GLOBAL BOOKINGS - User read own, server write only
+    // ============================================
+    match /bookings/{bookingId} {
+      // Users can read their own bookings only
+      allow read: if request.auth != null && 
+        resource.data.userId == request.auth.uid;
+      
+      // Only server API can write bookings
+      allow write: if false;
+    }
+    
+    // ============================================
+    // USER PROFILES - Read/write own profile
+    // ============================================
+    match /users/{uid} {
+      // Users can read their own profile
+      allow read: if request.auth != null && request.auth.uid == uid;
+      
+      // Users can write their own profile
+      allow write: if request.auth != null && request.auth.uid == uid;
+      
+      // User bookings subcollection (if used)
+      match /bookings/{bookingId} {
+        allow read: if request.auth != null && request.auth.uid == uid;
+        allow write: if false; // Server API only
+      }
+    }
+    
+    // ============================================
+    // PAYMENT SESSIONS - No client access
+    // ============================================
+    match /paymentSessions/{sessionId} {
+      allow read: if false;
+      allow write: if false; // Only server API
+    }
+    
+    // ============================================
+    // IDEMPOTENCY KEYS - No client access
+    // ============================================
+    match /idempotency/{key} {
+      allow read: if false;
+      allow write: if false; // Only server API
+    }
+    
+    // ============================================
+    // ANALYTICS - Host read only
+    // ============================================
+    match /host_analytics/{hostId} {
+      allow read: if request.auth != null && request.auth.uid == hostId;
+      allow write: if false; // Server API only
+    }
+    
+    match /event_analytics/{eventId} {
+      allow read: if request.auth != null && (
+        get(/databases/$(database)/documents/events/$(eventId)).data.organizerId == request.auth.uid ||
+        get(/databases/$(database)/documents/events/$(eventId)).data.hostUid == request.auth.uid
+      );
+      allow write: if false; // Server API only
+      
+      match /stats/{statId} {
+        allow read: if request.auth != null && (
+          get(/databases/$(database)/documents/events/$(eventId)).data.organizerId == request.auth.uid ||
+          get(/databases/$(database)/documents/events/$(eventId)).data.hostUid == request.auth.uid
+        );
+        allow write: if false; // Server API only
+      }
+    }
+    
+    // ============================================
+    // SUPPORT TICKETS - User read/create own
+    // ============================================
+    match /supportTickets/{ticketId} {
+      allow read: if request.auth != null && 
+        resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null && 
+        request.resource.data.userId == request.auth.uid;
+      allow update, delete: if false; // Server API only
+    }
+  }
+}
+
