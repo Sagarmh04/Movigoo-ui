@@ -21,6 +21,7 @@ function PaymentSuccessContent() {
     paymentStatus?: string;
     error?: string;
   } | null>(null);
+  const [isProcessing, setIsProcessing] = useState(true); // Track if we're still processing/verifying
 
   // Fetch booking status from backend (ONLY source of truth)
   // Polls for up to 30 seconds to wait for webhook confirmation
@@ -70,9 +71,22 @@ function PaymentSuccessContent() {
               bookingStatus: booking.bookingStatus,
               paymentStatus: booking.paymentStatus,
             });
+            setIsProcessing(false); // No longer processing
             setLoading(false);
             if (pollInterval) clearInterval(pollInterval);
             return;
+          }
+          
+          // If booking is PENDING/INITIATED, we're still processing - don't show failed yet
+          const isPending = bookingStatusUpper === "PENDING" || 
+                           bookingStatusUpper === "" || 
+                           paymentStatusUpper === "INITIATED" ||
+                           paymentStatusUpper === "PENDING";
+          
+          if (isPending) {
+            // Still processing - keep showing loading/processing state
+            setIsProcessing(true);
+            // Don't set loading to false yet - keep showing processing message
           }
           
           // If still pending, try manual reconciliation after first check (pollCount === 0)
@@ -97,6 +111,7 @@ function PaymentSuccessContent() {
                 if (reconcileData.ok && reconcileData.bookingStatus === "CONFIRMED") {
                   // Manual reconciliation succeeded!
                   console.log("[Payment Success] Manual reconciliation succeeded!");
+                  setIsProcessing(false); // No longer processing
                   setBookingStatus({
                     bookingStatus: "CONFIRMED",
                     paymentStatus: "SUCCESS",
@@ -121,12 +136,27 @@ function PaymentSuccessContent() {
             pollCount++;
             return; // Continue polling
           } else {
-            // Max polls reached - show current status
-            console.log("[Payment Success] Max polls reached, showing current status");
-            setBookingStatus({
-              bookingStatus: booking.bookingStatus,
-              paymentStatus: booking.paymentStatus,
-            });
+            // Max polls reached - check final status
+            console.log("[Payment Success] Max polls reached, showing final status");
+            const finalStatusUpper = (booking.bookingStatus || "").toUpperCase();
+            const finalPaymentUpper = (booking.paymentStatus || "").toUpperCase();
+            
+            // Only mark as failed if it's actually failed/cancelled, not pending
+            if (finalStatusUpper === "CANCELLED" || finalPaymentUpper === "FAILED") {
+              setIsProcessing(false); // Actually failed
+              setBookingStatus({
+                bookingStatus: booking.bookingStatus,
+                paymentStatus: booking.paymentStatus,
+              });
+            } else {
+              // Still pending after all attempts - show as failed but with different message
+              setIsProcessing(false);
+              setBookingStatus({
+                bookingStatus: booking.bookingStatus || "PENDING",
+                paymentStatus: booking.paymentStatus || "PENDING",
+                error: "Payment verification timeout",
+              });
+            }
             setLoading(false);
             if (pollInterval) clearInterval(pollInterval);
           }
@@ -169,24 +199,34 @@ function PaymentSuccessContent() {
     };
   }, [bookingId, user]);
 
-  // STRICT DECISION LOGIC: Only two states
+  // STRICT DECISION LOGIC: Three states
   const bookingStatusUpper = bookingStatus?.bookingStatus?.toUpperCase() || "";
   const paymentStatusUpper = bookingStatus?.paymentStatus?.toUpperCase() || "";
   
   // STATE 1: CONFIRMED - Only if backend confirms
   const isConfirmed = bookingStatusUpper === "CONFIRMED" && paymentStatusUpper === "SUCCESS";
   
-  // STATE 2: FAILED - Everything else (pending, failed, cancelled, error, etc.)
-  const isFailed = !isConfirmed;
+  // STATE 2: PROCESSING - Still verifying payment (PENDING/INITIATED)
+  const isStillProcessing = isProcessing && (loading || 
+    bookingStatusUpper === "PENDING" || 
+    bookingStatusUpper === "" ||
+    paymentStatusUpper === "INITIATED" ||
+    paymentStatusUpper === "PENDING");
+  
+  // STATE 3: FAILED - Actually failed (CANCELLED, FAILED, or timeout after all attempts)
+  const isFailed = !isConfirmed && !isStillProcessing;
 
-  // Show loading only while fetching
-  if (loading) {
+  // Show loading/processing while fetching or still processing
+  if (loading || isStillProcessing) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-[#050016] via-[#0b0220] to-[#05010a] text-white">
         <div className="mx-auto flex min-h-screen w-full max-w-2xl flex-col items-center justify-center px-4 py-12">
           <div className="text-center space-y-6">
             <Loader2 className="h-12 w-12 animate-spin text-[#0B62FF] mx-auto" />
-            <p className="text-slate-400">Checking payment status…</p>
+            <h1 className="text-2xl font-bold text-white">Verifying Payment</h1>
+            <p className="text-slate-400">
+              Please wait while we confirm your payment. This may take a few seconds...
+            </p>
           </div>
         </div>
       </div>
