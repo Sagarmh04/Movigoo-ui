@@ -23,58 +23,63 @@ export function useSupportTickets(userId: string | null) {
 
     const ticketsRef = collection(db, "supportTickets");
     
-    // Try query with orderBy first (requires index)
-    let q = query(
+    console.log("[useSupportTickets] Subscribing to tickets for userId:", userId);
+
+    // Helper function to process tickets
+    const processTickets = (snapshot: any) => {
+      const ticketList: SupportTicket[] = [];
+      snapshot.forEach((doc: any) => {
+        const data = doc.data();
+        ticketList.push({
+          id: doc.id,
+          category: data.category,
+          subject: data.subject,
+          description: data.description,
+          status: data.status,
+          priority: data.priority,
+          userId: data.userId,
+          userEmail: data.userEmail,
+          userName: data.userName,
+          createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAtISO || new Date().toISOString(),
+          updatedAt: data.updatedAt?.toDate?.()?.toISOString() || data.createdAtISO || new Date().toISOString(),
+          adminResponse: data.adminResponse,
+          resolvedAt: data.resolvedAt?.toDate?.()?.toISOString(),
+          messages: data.messages || [],
+        });
+      });
+      
+      // Sort by updatedAt client-side (always sort, even if query has orderBy)
+      ticketList.sort((a, b) => {
+        const dateA = new Date(a.updatedAt).getTime();
+        const dateB = new Date(b.updatedAt).getTime();
+        return dateB - dateA;
+      });
+      
+      setTickets(ticketList);
+      setLoading(false);
+    };
+
+    // Try query with orderBy first (requires composite index)
+    const qWithOrderBy = query(
       ticketsRef,
       where("userId", "==", userId),
       orderBy("updatedAt", "desc")
     );
 
-    console.log("[useSupportTickets] Subscribing to tickets for userId:", userId);
+    let unsubscribe: (() => void) | null = null;
 
-    const unsubscribe = onSnapshot(
-      q,
+    unsubscribe = onSnapshot(
+      qWithOrderBy,
       (snapshot) => {
         console.log("[useSupportTickets] Snapshot received, docs count:", snapshot.size);
-        const ticketList: SupportTicket[] = [];
-        snapshot.forEach((doc) => {
-          const data = doc.data();
-          console.log("[useSupportTickets] Ticket found:", doc.id, "status:", data.status);
-          ticketList.push({
-            id: doc.id,
-            category: data.category,
-            subject: data.subject,
-            description: data.description,
-            status: data.status,
-            priority: data.priority,
-            userId: data.userId,
-            userEmail: data.userEmail,
-            userName: data.userName,
-            createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAtISO || new Date().toISOString(),
-            updatedAt: data.updatedAt?.toDate?.()?.toISOString() || data.createdAtISO || new Date().toISOString(),
-            adminResponse: data.adminResponse,
-            resolvedAt: data.resolvedAt?.toDate?.()?.toISOString(),
-            messages: data.messages || [],
-          });
-        });
-        console.log("[useSupportTickets] Total tickets loaded:", ticketList.length);
-        
-        // Sort by updatedAt client-side as fallback
-        ticketList.sort((a, b) => {
-          const dateA = new Date(a.updatedAt).getTime();
-          const dateB = new Date(b.updatedAt).getTime();
-          return dateB - dateA;
-        });
-        
-        setTickets(ticketList);
-        setLoading(false);
+        processTickets(snapshot);
       },
       (err) => {
         console.error("[useSupportTickets] Error fetching support tickets:", err);
         console.error("[useSupportTickets] Error code:", err.code);
         
         // If index error, try simpler query without orderBy
-        if (err.code === "failed-precondition" || err.message.includes("index")) {
+        if (err.code === "failed-precondition" || err.message?.includes("index")) {
           console.warn("[useSupportTickets] Index not ready, falling back to simple query");
           
           // Fallback: query without orderBy (no index required)
@@ -83,40 +88,16 @@ export function useSupportTickets(userId: string | null) {
             where("userId", "==", userId)
           );
           
-          const fallbackUnsubscribe = onSnapshot(
+          // Unsubscribe from the failed query and set up fallback
+          if (unsubscribe) {
+            unsubscribe();
+          }
+          
+          unsubscribe = onSnapshot(
             simpleQuery,
             (snapshot) => {
               console.log("[useSupportTickets] Fallback query - docs count:", snapshot.size);
-              const ticketList: SupportTicket[] = [];
-              snapshot.forEach((doc) => {
-                const data = doc.data();
-                ticketList.push({
-                  id: doc.id,
-                  category: data.category,
-                  subject: data.subject,
-                  description: data.description,
-                  status: data.status,
-                  priority: data.priority,
-                  userId: data.userId,
-                  userEmail: data.userEmail,
-                  userName: data.userName,
-                  createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAtISO || new Date().toISOString(),
-                  updatedAt: data.updatedAt?.toDate?.()?.toISOString() || data.createdAtISO || new Date().toISOString(),
-                  adminResponse: data.adminResponse,
-                  resolvedAt: data.resolvedAt?.toDate?.()?.toISOString(),
-                  messages: data.messages || [],
-                });
-              });
-              
-              // Sort client-side
-              ticketList.sort((a, b) => {
-                const dateA = new Date(a.updatedAt).getTime();
-                const dateB = new Date(b.updatedAt).getTime();
-                return dateB - dateA;
-              });
-              
-              setTickets(ticketList);
-              setLoading(false);
+              processTickets(snapshot);
             },
             (fallbackErr) => {
               console.error("[useSupportTickets] Fallback query also failed:", fallbackErr);
@@ -124,8 +105,6 @@ export function useSupportTickets(userId: string | null) {
               setLoading(false);
             }
           );
-          
-          return () => fallbackUnsubscribe();
         } else {
           setError(err.message);
           setLoading(false);
@@ -133,7 +112,11 @@ export function useSupportTickets(userId: string | null) {
       }
     );
 
-    return () => unsubscribe();
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
   }, [userId]);
 
   return { tickets, loading, error };

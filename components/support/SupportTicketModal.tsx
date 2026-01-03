@@ -8,18 +8,23 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Send, CheckCircle, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SUPPORT_TICKET_CATEGORIES, SupportTicketCategory } from "@/types/supportTicket";
+import { useAuth } from "@/hooks/useAuth";
 
 type SupportTicketModalProps = {
   isOpen: boolean;
   onClose: () => void;
-  user: {
+  user?: {
     uid: string;
     email: string | null;
     displayName: string | null;
   };
 };
 
-export default function SupportTicketModal({ isOpen, onClose, user }: SupportTicketModalProps) {
+export default function SupportTicketModal({ isOpen, onClose, user: propUser }: SupportTicketModalProps) {
+  const { user: authUser } = useAuth();
+  // Use authUser from hook if available, otherwise fallback to prop
+  const user = authUser || propUser;
+  
   const [category, setCategory] = useState<SupportTicketCategory | "">("");
   const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
@@ -35,19 +40,40 @@ export default function SupportTicketModal({ isOpen, onClose, user }: SupportTic
       return;
     }
 
+    // Check if user is authenticated
+    if (!user) {
+      setError("Please log in to submit a support ticket");
+      return;
+    }
+
+    // Get Firebase ID token for authentication
+    let token: string;
+    try {
+      if (authUser && typeof authUser.getIdToken === "function") {
+        token = await authUser.getIdToken();
+      } else {
+        throw new Error("User authentication not available");
+      }
+    } catch (tokenError: any) {
+      console.error("Failed to get ID token:", tokenError);
+      setError("Authentication error. Please log in again.");
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
     try {
       const response = await fetch("/api/support-tickets", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
         body: JSON.stringify({
           category,
           subject: subject.trim(),
           description: description.trim(),
-          userId: user.uid,
-          userEmail: user.email,
           userName: user.displayName || user.email?.split("@")[0] || "User",
         }),
       });

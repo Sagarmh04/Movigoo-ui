@@ -3,7 +3,7 @@
 
 "use client";
 
-import { Suspense, useState, useEffect } from "react";
+import { Suspense, useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import LayoutWrapper from "@/components/LayoutWrapper";
 import BookingCard from "@/components/bookings/BookingCard";
@@ -17,7 +17,7 @@ function MyBookingsPageContent() {
   const { user, loading } = useAuth();
   const { bookings, loading: bookingsLoading, error, refetch, reconcilePending } = useUserBookings(user?.uid || null);
   const [activeTab, setActiveTab] = useState<"upcoming" | "past">("upcoming");
-  const [isReconciling, setIsReconciling] = useState(true);
+  const hasReconciledRef = useRef(false);
   
   const redirectUrl = searchParams.get("redirect");
 
@@ -28,15 +28,14 @@ function MyBookingsPageContent() {
     }
   }, [user, redirectUrl, router]);
 
-  // Run reconciliation in background (non-blocking)
+  // Run reconciliation in background ONCE when user is ready (non-blocking)
   useEffect(() => {
-    if (loading || !user) {
-      setIsReconciling(false);
+    if (loading || !user || hasReconciledRef.current) {
       return;
     }
 
-    // Show bookings immediately, reconcile in background
-    setIsReconciling(false);
+    // Mark as reconciled to prevent re-running
+    hasReconciledRef.current = true;
     
     // Run reconciliation silently in background
     const runReconciliation = async () => {
@@ -58,7 +57,7 @@ function MyBookingsPageContent() {
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [loading, user, reconcilePending, refetch]);
+  }, [loading, user]); // Only depend on stable values
 
   // Redirect to profile if not logged in
   if (!loading && !user) {
