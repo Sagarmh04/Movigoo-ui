@@ -153,7 +153,7 @@ export async function POST(req: NextRequest) {
       },
       order_meta: {
         return_url: returnUrl,
-        notify_url: `${appUrl}/api/payments/cashfree/webhook`,
+        notify_url: `${appUrl}/api/cashfree/webhook`,
       },
     };
     const response = await fetch(`${CASHFREE_BASE}/orders`, {

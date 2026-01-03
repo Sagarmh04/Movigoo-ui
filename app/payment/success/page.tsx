@@ -23,22 +23,23 @@ function PaymentSuccessContent() {
   } | null>(null);
 
   // Fetch booking status from backend (ONLY source of truth)
+  // Polls for up to 30 seconds to wait for webhook confirmation
   useEffect(() => {
-    async function fetchBookingStatus() {
+    if (!user || !bookingId) {
+      setLoading(false);
       if (!user) {
-        setLoading(false);
         setBookingStatus({ error: "User not authenticated" });
-        return;
-      }
-
-      // If no bookingId, we can't fetch - show failed
-      if (!bookingId) {
-        console.error("No bookingId in URL params");
+      } else {
         setBookingStatus({ error: "Booking ID not found" });
-        setLoading(false);
-        return;
       }
+      return;
+    }
 
+    let pollCount = 0;
+    const maxPolls = 15; // Poll for 30 seconds (15 * 2 seconds)
+    let pollInterval: NodeJS.Timeout | null = null;
+
+    async function fetchBookingStatus() {
       try {
         const token = await user.getIdToken();
         
@@ -51,10 +52,60 @@ function PaymentSuccessContent() {
 
         if (response.ok) {
           const booking = await response.json();
-          setBookingStatus({
-            bookingStatus: booking.bookingStatus,
-            paymentStatus: booking.paymentStatus,
-          });
+          const bookingStatusUpper = (booking.bookingStatus || "").toUpperCase();
+          const paymentStatusUpper = (booking.paymentStatus || "").toUpperCase();
+          
+          // Check if confirmed
+          if (bookingStatusUpper === "CONFIRMED" && paymentStatusUpper === "SUCCESS") {
+            setBookingStatus({
+              bookingStatus: booking.bookingStatus,
+              paymentStatus: booking.paymentStatus,
+            });
+            setLoading(false);
+            if (pollInterval) clearInterval(pollInterval);
+            return;
+          }
+          
+          // If still pending and we haven't reached max polls, continue polling
+          if (pollCount < maxPolls) {
+            pollCount++;
+            return; // Continue polling
+          } else {
+            // Max polls reached - try manual reconciliation as fallback
+            console.log("[Payment Success] Webhook didn't confirm, trying manual reconciliation");
+            try {
+              const reconcileResponse = await fetch(`/api/bookings/${bookingId}/confirm-manual`, {
+                method: "POST",
+                headers: {
+                  "Authorization": `Bearer ${token}`,
+                },
+              });
+              
+              if (reconcileResponse.ok) {
+                const reconcileData = await reconcileResponse.json();
+                if (reconcileData.ok && reconcileData.bookingStatus === "CONFIRMED") {
+                  // Manual reconciliation succeeded!
+                  setBookingStatus({
+                    bookingStatus: "CONFIRMED",
+                    paymentStatus: "SUCCESS",
+                  });
+                  setLoading(false);
+                  if (pollInterval) clearInterval(pollInterval);
+                  return;
+                }
+              }
+            } catch (reconcileError) {
+              console.error("[Payment Success] Manual reconciliation failed:", reconcileError);
+            }
+            
+            // Show current status (may still be pending if reconciliation failed)
+            setBookingStatus({
+              bookingStatus: booking.bookingStatus,
+              paymentStatus: booking.paymentStatus,
+            });
+            setLoading(false);
+            if (pollInterval) clearInterval(pollInterval);
+          }
         } else {
           if (response.status === 404) {
             setBookingStatus({ error: "Booking not found" });
@@ -63,16 +114,35 @@ function PaymentSuccessContent() {
           } else {
             setBookingStatus({ error: "Failed to fetch booking status" });
           }
+          setLoading(false);
+          if (pollInterval) clearInterval(pollInterval);
         }
       } catch (error) {
         console.error("Error fetching booking status:", error);
-        setBookingStatus({ error: "Failed to fetch booking status" });
-      } finally {
-        setLoading(false);
+        if (pollCount >= maxPolls) {
+          setBookingStatus({ error: "Failed to fetch booking status" });
+          setLoading(false);
+          if (pollInterval) clearInterval(pollInterval);
+        }
       }
     }
 
+    // Initial fetch
     fetchBookingStatus();
+
+    // Poll every 2 seconds for up to 30 seconds
+    pollInterval = setInterval(() => {
+      if (pollCount < maxPolls) {
+        fetchBookingStatus();
+      } else {
+        if (pollInterval) clearInterval(pollInterval);
+      }
+    }, 2000);
+
+    // Cleanup
+    return () => {
+      if (pollInterval) clearInterval(pollInterval);
+    };
   }, [bookingId, user]);
 
   // STRICT DECISION LOGIC: Only two states

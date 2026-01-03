@@ -64,13 +64,21 @@ export async function handleCashfreeWebhook(req: NextRequest) {
     });
 
     if (!verified) {
+      console.error("[Webhook] Signature verification failed");
       return new Response("Invalid webhook signature", { status: 401 });
     }
 
     const payload = JSON.parse(rawBody) as CashfreeWebhookPayload;
+    console.log("[Webhook] Payload received", {
+      order_id: payload.order_id,
+      order_status: payload.order_status,
+      payment_status: payload.payment_status,
+      order_amount: payload.order_amount,
+    });
 
     const orderId = payload.order_id;
     if (!orderId) {
+      console.error("[Webhook] Missing order_id in payload");
       return new Response("Invalid payload: missing order_id", { status: 400 });
     }
 
@@ -85,12 +93,18 @@ export async function handleCashfreeWebhook(req: NextRequest) {
     const snapshot = await getDocs(q);
 
     if (snapshot.empty) {
+      console.log("[Webhook] No booking found for orderId:", orderId);
       return new Response("OK", { status: 200 });
     }
 
     const bookingDoc = snapshot.docs[0];
     const bookingId = bookingDoc.id;
     const existing = bookingDoc.data() as any;
+    console.log("[Webhook] Found booking", {
+      bookingId,
+      currentBookingStatus: existing.bookingStatus,
+      currentPaymentStatus: existing.paymentStatus,
+    });
 
     const expectedAmount = typeof existing.totalAmount === "number" ? existing.totalAmount : Number(existing.totalAmount);
     const receivedAmount = typeof payload.order_amount === "number" ? payload.order_amount : Number(payload.order_amount);
@@ -102,10 +116,20 @@ export async function handleCashfreeWebhook(req: NextRequest) {
     const alreadyConfirmed = safeUpper(existing.bookingStatus) === "CONFIRMED" && safeUpper(existing.paymentStatus) === "SUCCESS";
     const success = isPaymentSuccess(payload);
 
+    console.log("[Webhook] Payment check", {
+      success,
+      alreadyConfirmed,
+      payment_status: payload.payment_status,
+      order_status: payload.order_status,
+    });
+
     if (success) {
       if (alreadyConfirmed) {
+        console.log("[Webhook] Booking already confirmed, skipping");
         return new Response("OK", { status: 200 });
       }
+
+      console.log("[Webhook] Confirming booking:", bookingId);
 
       const ticketId = existing.ticketId || `TKT-${Date.now()}-${Math.random().toString(36).slice(2, 11).toUpperCase()}`;
 
@@ -174,8 +198,11 @@ export async function handleCashfreeWebhook(req: NextRequest) {
         eventId: existing.eventId || null,
       });
 
+      console.log("[Webhook] Booking confirmed successfully:", bookingId);
       return new Response("OK", { status: 200 });
     }
+
+    console.log("[Webhook] Payment failed, updating booking status");
 
     const updateData = {
       orderId,
@@ -196,7 +223,11 @@ export async function handleCashfreeWebhook(req: NextRequest) {
     ]);
 
     return new Response("OK", { status: 200 });
-  } catch {
+  } catch (error: any) {
+    // Log error but still return OK to prevent Cashfree retries
+    console.error("[Webhook] Critical error:", error);
+    console.error("[Webhook] Error stack:", error?.stack);
+    // Still return OK to prevent Cashfree retries
     return new Response("OK", { status: 200 });
   }
 }
