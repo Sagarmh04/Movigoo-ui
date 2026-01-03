@@ -20,75 +20,6 @@ function PaymentPageContent() {
   const email = searchParams.get("email");
   const phone = searchParams.get("phone");
 
-  const checkBookingAndStartPayment = useCallback(async () => {
-    // Wait for auth to load
-    if (authLoading) {
-      console.log("Waiting for auth to load...");
-      return;
-    }
-    if (!bookingId) {
-      console.error("Missing bookingId");
-      alert("Invalid payment link");
-      return;
-    }
-
-    try {
-      // Get Firebase ID token for authentication
-      if (!user || typeof user.getIdToken !== "function") {
-        console.error("User not authenticated");
-        alert("Please log in to continue with payment");
-        window.location.href = "/my-bookings";
-        return;
-      }
-
-      let token: string;
-      try {
-        token = await user.getIdToken();
-        if (!token) {
-          throw new Error("Token is null");
-        }
-      } catch (tokenError: any) {
-        console.error("Failed to get ID token:", tokenError);
-        alert("Authentication error. Please log in again.");
-        window.location.href = "/my-bookings";
-        return;
-      }
-
-      // Frontend guard: fetch booking status first with auth
-      const bookingRes = await fetch(`/api/bookings/${bookingId}`, {
-        method: "GET",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-        },
-      });
-      
-      if (!bookingRes.ok) {
-        console.error("Failed to fetch booking, status:", bookingRes.status);
-        if (bookingRes.status === 401) {
-          alert("Authentication required. Please log in again.");
-          window.location.href = "/my-bookings";
-        } else {
-          alert("Booking not found");
-        }
-        return;
-      }
-      const booking = await bookingRes.json();
-
-      // If already confirmed, redirect to My Bookings immediately
-      if (booking.bookingStatus === "CONFIRMED" || booking.paymentStatus === "SUCCESS") {
-        console.log("Booking already confirmed, redirecting to My Bookings");
-        window.location.href = "/my-bookings";
-        return;
-      }
-
-      // Proceed with payment initiation
-      await startPayment();
-    } catch (err: any) {
-      console.error("Error checking booking:", err);
-      alert("Failed to verify booking status");
-    }
-  }, [authLoading, bookingId, user, startPayment]);
-
   const startPayment = useCallback(async () => {
     try {
       // STEP 3: Log domain for Vercel debugging
@@ -162,6 +93,75 @@ function PaymentPageContent() {
       alert("Payment failed: " + (err.message || "Unknown error"));
     }
   }, [bookingId, amount, email, phone]);
+
+  const checkBookingAndStartPayment = useCallback(async () => {
+    // Wait for auth to load
+    if (authLoading) {
+      console.log("Waiting for auth to load...");
+      return;
+    }
+    if (!bookingId) {
+      console.error("Missing bookingId");
+      alert("Invalid payment link");
+      return;
+    }
+
+    try {
+      // Get Firebase ID token for authentication
+      if (!user || typeof user.getIdToken !== "function") {
+        console.error("User not authenticated");
+        alert("Please log in to continue with payment");
+        window.location.href = "/my-bookings";
+        return;
+      }
+
+      let token: string;
+      try {
+        token = await user.getIdToken();
+        if (!token) {
+          throw new Error("Token is null");
+        }
+      } catch (tokenError: any) {
+        console.error("Failed to get ID token:", tokenError);
+        alert("Authentication error. Please log in again.");
+        window.location.href = "/my-bookings";
+        return;
+      }
+
+      // Frontend guard: fetch booking status first with auth
+      const bookingRes = await fetch(`/api/bookings/${bookingId}`, {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+        },
+      });
+      
+      if (!bookingRes.ok) {
+        console.error("Failed to fetch booking, status:", bookingRes.status);
+        if (bookingRes.status === 401) {
+          alert("Authentication required. Please log in again.");
+          window.location.href = "/my-bookings";
+        } else {
+          alert("Booking not found");
+        }
+        return;
+      }
+      const booking = await bookingRes.json();
+
+      // If already confirmed, redirect to My Bookings immediately
+      if (booking.bookingStatus === "CONFIRMED" || booking.paymentStatus === "SUCCESS") {
+        console.log("Booking already confirmed, redirecting to My Bookings");
+        window.location.href = "/my-bookings";
+        return;
+      }
+
+      // Proceed with payment initiation
+      await startPayment();
+    } catch (err: any) {
+      console.error("Error checking booking:", err);
+      alert("Failed to verify booking status");
+    }
+  }, [authLoading, bookingId, user, startPayment]);
 
   // Start payment when both SDK and auth are ready
   useEffect(() => {
