@@ -313,8 +313,15 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
 
       if (!bookingResponse.ok || !bookingResult.bookingId) {
         console.error("Failed to create pending booking:", bookingResult);
-        const errorMessage = bookingResult.error || "Failed to create booking. Please try again.";
-        alert(errorMessage);
+        
+        // CRITICAL: Handle sold-out error (409) with user-friendly message
+        if (bookingResponse.status === 409 || bookingResult.error?.toLowerCase().includes("sold out")) {
+          alert("Sorry, tickets are sold out. This event has reached its maximum capacity.");
+        } else {
+          const errorMessage = bookingResult.error || "Failed to create booking. Please try again.";
+          alert(errorMessage);
+        }
+        
         isProcessingRef.current = false;
         setIsPaying(false);
         return;

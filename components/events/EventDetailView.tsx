@@ -176,12 +176,14 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
     fetchBookings();
   }, [hasSingleShow, event.id, eventData]);
 
-  // Filter confirmed bookings (paymentStatus === "confirmed" OR bookingStatus === "CONFIRMED")
+  // Filter confirmed bookings (paymentStatus === "SUCCESS" AND bookingStatus === "CONFIRMED")
+  // CRITICAL: Only count fully confirmed bookings (both statuses must match)
   const confirmedBookings = useMemo(() => {
     return bookings.filter((booking: any) => {
-      const paymentStatus = (booking.paymentStatus || "").toLowerCase();
+      const paymentStatus = (booking.paymentStatus || "").toUpperCase();
       const bookingStatus = (booking.bookingStatus || "").toUpperCase();
-      return paymentStatus === "confirmed" || bookingStatus === "CONFIRMED";
+      // STRICT: Both must be confirmed/success
+      return paymentStatus === "SUCCESS" && bookingStatus === "CONFIRMED";
     });
   }, [bookings]);
 
@@ -194,8 +196,9 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
   }, [confirmedBookings]);
 
   // Check if event is sold out
+  // CRITICAL: Show sold out if totalTicketsSold >= maxTickets (including when equal)
   const maxTickets = typeof eventData?.maxTickets === "number" ? eventData.maxTickets : null;
-  const isSoldOut = maxTickets !== null && totalTicketsSold >= maxTickets;
+  const isSoldOut = maxTickets !== null && maxTickets > 0 && totalTicketsSold >= maxTickets;
 
   // Calculate booked quantities per ticket type (only from confirmed bookings)
   const bookedQuantities = useMemo(() => {
@@ -393,8 +396,30 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
 
       if (!bookingResponse.ok || !bookingResult.bookingId) {
         console.error("Failed to create pending booking:", bookingResult);
-        const errorMessage = bookingResult.error || "Failed to create booking. Please try again.";
-        alert(errorMessage);
+        
+        // CRITICAL: Handle sold-out error (409) with user-friendly message
+        if (bookingResponse.status === 409 || bookingResult.error?.toLowerCase().includes("sold out")) {
+          alert("Sorry, tickets are sold out. This event has reached its maximum capacity.");
+          // Refresh bookings to update sold-out UI
+          if (hasSingleShow && event.id && db && eventData?.schedule?.locations) {
+            try {
+              const location = eventData.schedule.locations[0];
+              const venue = location.venues[0];
+              const date = venue.dates[0];
+              const show = date.shows[0];
+              const bookingsRef = collection(db, "events", event.id, "bookings");
+              const q = query(bookingsRef, where("showId", "==", show.id));
+              const snapshot = await getDocs(q);
+              setBookings(snapshot.docs.map(doc => doc.data()));
+            } catch (error) {
+              console.error("Error refreshing bookings:", error);
+            }
+          }
+        } else {
+          const errorMessage = bookingResult.error || "Failed to create booking. Please try again.";
+          alert(errorMessage);
+        }
+        
         isProcessingRef.current = false;
         setIsPaying(false);
         return;
