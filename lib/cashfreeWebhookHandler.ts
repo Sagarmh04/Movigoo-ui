@@ -81,8 +81,15 @@ export async function handleCashfreeWebhook(req: NextRequest) {
     });
     console.log("[Webhook] Signature-related headers:", allHeaders);
 
-    if (!process.env.CASHFREE_SECRET_KEY) {
-      console.error("[Webhook] CASHFREE_SECRET_KEY not configured");
+    // CRITICAL: Cashfree may use separate webhook secret (different from API secret)
+    // Try CASHFREE_WEBHOOK_SECRET first, fall back to CASHFREE_SECRET_KEY
+    const webhookSecret = process.env.CASHFREE_WEBHOOK_SECRET || process.env.CASHFREE_SECRET_KEY;
+    
+    if (!webhookSecret) {
+      console.error("[Webhook] Webhook secret not configured", {
+        hasWebhookSecret: !!process.env.CASHFREE_WEBHOOK_SECRET,
+        hasApiSecret: !!process.env.CASHFREE_SECRET_KEY,
+      });
       return new Response("Webhook not configured", { status: 500 });
     }
 
@@ -96,22 +103,30 @@ export async function handleCashfreeWebhook(req: NextRequest) {
     }
 
     // CRITICAL: Verify signature using raw body (not parsed JSON)
+    // Log which secret is being used (for debugging)
+    const usingWebhookSecret = !!process.env.CASHFREE_WEBHOOK_SECRET;
+    console.log("[Webhook] Using secret for verification:", {
+      type: usingWebhookSecret ? "CASHFREE_WEBHOOK_SECRET" : "CASHFREE_SECRET_KEY",
+      secretLength: webhookSecret.length,
+      secretPrefix: webhookSecret.substring(0, 5) + "...",
+    });
+
     // Try with the secret key as-is first
     let verified = verifyCashfreeWebhookSignature({
       rawBody,
       timestamp,
       signature,
-      secret: process.env.CASHFREE_SECRET_KEY,
+      secret: webhookSecret,
     });
 
     // If verification fails, try with trimmed secret (common issue)
-    if (!verified && process.env.CASHFREE_SECRET_KEY.trim() !== process.env.CASHFREE_SECRET_KEY) {
+    if (!verified && webhookSecret.trim() !== webhookSecret) {
       console.log("[Webhook] Retrying signature verification with trimmed secret");
       verified = verifyCashfreeWebhookSignature({
         rawBody,
         timestamp,
         signature,
-        secret: process.env.CASHFREE_SECRET_KEY.trim(),
+        secret: webhookSecret.trim(),
       });
     }
 
@@ -120,9 +135,14 @@ export async function handleCashfreeWebhook(req: NextRequest) {
         timestamp,
         signatureLength: signature.length,
         rawBodyLength: rawBody.length,
-        secretKeyLength: process.env.CASHFREE_SECRET_KEY.length,
+        secretKeyLength: webhookSecret.length,
+        usingWebhookSecret,
         // Log first few chars for debugging (safe - not full secret)
-        secretKeyPrefix: process.env.CASHFREE_SECRET_KEY.substring(0, 5) + "...",
+        secretKeyPrefix: webhookSecret.substring(0, 5) + "...",
+        // Helpful message for debugging
+        hint: usingWebhookSecret 
+          ? "Using CASHFREE_WEBHOOK_SECRET - verify it matches Cashfree Dashboard webhook secret"
+          : "Using CASHFREE_SECRET_KEY - consider using CASHFREE_WEBHOOK_SECRET if Cashfree provides separate webhook secret",
       });
       return new Response("Invalid webhook signature", { status: 401 });
     }
