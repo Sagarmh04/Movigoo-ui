@@ -2,18 +2,30 @@
 // Cashfree webhook handler - ONLY source of truth for payment confirmation
 // CRITICAL: Uses Admin SDK to bypass Firestore rules
 // Architecture: Webhook confirms booking → Email sent separately (decoupled)
+//
+// PRODUCTION SETUP:
+// - Single webhook endpoint: https://www.movigoo.in/api/cashfree/webhook
+// - Webhook version: 2025-01-01 (compatible with current payload structure)
+// - Events: payment.success
+// - Secret: CASHFREE_WEBHOOK_SECRET (from Cashfree Dashboard → Developers → Webhooks)
+//
+// IDEMPOTENT: Safe to retry - checks if booking already confirmed before updating
+// DECOUPLED: No email/analytics in webhook - handled separately via triggers/API
 
 import crypto from "crypto";
 import { NextRequest } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 
+// Cashfree Webhook Payload (compatible with 2025-01-01 schema)
+// Standard fields that Cashfree sends for payment.success events
 type CashfreeWebhookPayload = {
   order_id?: string;
   order_status?: string;
   payment_status?: string;
   order_amount?: number | string;
   order_currency?: string;
+  // Additional fields may be present but we only use the above
 };
 
 function safeUpper(val: unknown) {
@@ -56,7 +68,8 @@ function isPaymentSuccess(payload: CashfreeWebhookPayload) {
 export async function handleCashfreeWebhook(req: NextRequest) {
   try {
     // CRITICAL: Read raw body BEFORE any parsing
-    // This is required for signature verification
+    // Signature verification requires the EXACT raw body bytes
+    // Any modification (JSON parsing, string manipulation) will break signature
     const rawBody = await req.text();
 
     // CRITICAL: Try multiple header name variations (Cashfree may use different names)
@@ -81,8 +94,10 @@ export async function handleCashfreeWebhook(req: NextRequest) {
     });
     console.log("[Webhook] Signature-related headers:", allHeaders);
 
-    // CRITICAL: Cashfree may use separate webhook secret (different from API secret)
-    // Try CASHFREE_WEBHOOK_SECRET first, fall back to CASHFREE_SECRET_KEY
+    // CRITICAL: Use webhook secret (NOT API secret)
+    // Cashfree provides separate webhook secret in Dashboard → Developers → Webhooks
+    // This is DIFFERENT from CASHFREE_SECRET_KEY (API secret)
+    // Fallback to API secret only for backward compatibility
     const webhookSecret = process.env.CASHFREE_WEBHOOK_SECRET || process.env.CASHFREE_SECRET_KEY;
     
     if (!webhookSecret) {
@@ -214,6 +229,8 @@ export async function handleCashfreeWebhook(req: NextRequest) {
     }
 
     // CRITICAL: Idempotency check - skip if already confirmed
+    // This makes webhook safe to retry (Cashfree may retry on timeout/error)
+    // If booking already confirmed, return OK immediately (don't process again)
     const alreadyConfirmed = safeUpper(existing.bookingStatus) === "CONFIRMED" && safeUpper(existing.paymentStatus) === "SUCCESS";
     const success = isPaymentSuccess(payload);
 
@@ -225,9 +242,10 @@ export async function handleCashfreeWebhook(req: NextRequest) {
     });
 
     if (success) {
-      // CRITICAL: Idempotent - if already confirmed, return OK
+      // CRITICAL: Idempotent - if already confirmed, return OK immediately
+      // Prevents duplicate processing if Cashfree retries webhook
       if (alreadyConfirmed) {
-        console.log("[Webhook] Booking already confirmed, skipping (idempotent)");
+        console.log("[Webhook] Booking already confirmed, skipping (idempotent - safe retry)");
         return new Response("OK", { status: 200 });
       }
 

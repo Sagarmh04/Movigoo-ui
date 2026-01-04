@@ -276,6 +276,9 @@ export async function POST(req: NextRequest) {
       },
       order_meta: {
         return_url: returnUrl,
+        // CRITICAL: Single webhook endpoint (2025-01-01 compatible)
+        // This tells Cashfree where to send webhook notifications
+        // Must match exactly: https://www.movigoo.in/api/cashfree/webhook
         notify_url: `${appUrl}/api/cashfree/webhook`,
       },
     };
