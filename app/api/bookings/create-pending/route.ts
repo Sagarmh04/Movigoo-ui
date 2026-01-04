@@ -11,6 +11,8 @@ import { verifyAuthToken } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
+const SERVER_BOOKING_FEE = 7;
+
 export async function POST(req: NextRequest) {
   try {
     // Verify authentication
@@ -42,9 +44,7 @@ export async function POST(req: NextRequest) {
       date,
       time,
       ticketType,
-      quantity,
       price,
-      bookingFee,
       totalAmount,
       items, // Array of { ticketTypeId, quantity, price }
       userEmail, // User email for sending confirmation
@@ -61,8 +61,7 @@ export async function POST(req: NextRequest) {
     const userId = user.uid;
 
     const requestedTotalAmount = Number(totalAmount);
-    const requestedBookingFee = Number(bookingFee);
-    const safeBookingFee = Number.isFinite(requestedBookingFee) && requestedBookingFee >= 0 ? requestedBookingFee : 0;
+    const safeBookingFee = SERVER_BOOKING_FEE;
 
     if (!eventId || !Number.isFinite(requestedTotalAmount)) {
       return NextResponse.json(
@@ -82,8 +81,8 @@ export async function POST(req: NextRequest) {
 
     const firestore = adminDb; // Admin SDK Firestore instance (bypasses rules)
 
-    // Calculate requested quantity
-    const requestedQuantity = quantity || (items ? items.reduce((sum: number, i: any) => sum + i.quantity, 0) : 0);
+    // Calculate requested quantity (derive ONLY from items to prevent fractional quantities)
+    let requestedQuantity = 0;
 
     // Generate booking ID
     const bookingId = uuidv4();
@@ -101,14 +100,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // CRITICAL: Validate requested quantity and items
-    if (requestedQuantity <= 0) {
-      return NextResponse.json(
-        { error: "Invalid quantity: must be greater than 0" },
-        { status: 400 }
-      );
-    }
-
     // CRITICAL: Validate items array exists and has ticketTypeIds
     if (!items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json(
@@ -119,12 +110,22 @@ export async function POST(req: NextRequest) {
 
     // Validate each item has ticketTypeId and quantity
     for (const item of items) {
-      if (!item.ticketTypeId || typeof item.quantity !== "number" || item.quantity <= 0) {
+      if (!item.ticketTypeId || typeof item.quantity !== "number" || !Number.isInteger(item.quantity) || item.quantity <= 0) {
         return NextResponse.json(
-          { error: "Invalid item: each item must have ticketTypeId and quantity > 0" },
+          { error: "Invalid item: each item must have ticketTypeId and quantity as a positive integer" },
           { status: 400 }
         );
       }
+    }
+
+    requestedQuantity = items.reduce((sum: number, i: any) => sum + i.quantity, 0);
+
+    // CRITICAL: Validate requested quantity derived from items
+    if (requestedQuantity <= 0) {
+      return NextResponse.json(
+        { error: "Invalid quantity: must be greater than 0" },
+        { status: 400 }
+      );
     }
 
     // Helper function to prepare booking data
@@ -147,7 +148,7 @@ export async function POST(req: NextRequest) {
       ticketType: ticketType || (itemsToUse ? itemsToUse.map((i: any) => `${i.ticketTypeId} (${i.quantity})`).join(", ") : ""),
       quantity: requestedQuantity,
       price: overrides?.price ?? (price || (itemsToUse ? itemsToUse.reduce((sum: number, i: any) => sum + (i.price * i.quantity), 0) : 0)),
-      bookingFee: overrides?.bookingFee ?? (bookingFee || 0),
+      bookingFee: overrides?.bookingFee ?? safeBookingFee,
       totalAmount: overrides?.totalAmount ?? totalAmount,
       items: itemsToUse,
       orderId: orderId || null,
@@ -230,6 +231,10 @@ export async function POST(req: NextRequest) {
         let serverCalculatedPrice = 0;
         
         for (const item of items) {
+          if (typeof item.quantity !== "number" || !Number.isInteger(item.quantity) || item.quantity <= 0) {
+            throw new Error(`Invalid quantity for ticket type ${item.ticketTypeId}: must be a positive integer`);
+          }
+
           const ticketTypeInfo = ticketTypeMap.get(item.ticketTypeId);
           
           if (!ticketTypeInfo) {

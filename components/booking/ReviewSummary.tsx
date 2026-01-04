@@ -117,7 +117,7 @@ export default function ReviewSummary({ booking }: ReviewSummaryProps) {
             <span>{currencyFormatter.format(subtotal)}</span>
           </div>
           <div className="flex justify-between text-slate-300">
-            <span>Booking Fee ({booking.tickets.reduce((sum, t) => sum + t.quantity, 0)} tickets × ₹7)</span>
+            <span>Platform Fee</span>
             <span>{currencyFormatter.format(bookingFee)}</span>
           </div>
           <div className="border-t border-white/10 pt-2">
