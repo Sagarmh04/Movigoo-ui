@@ -58,6 +58,23 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
     return () => unsubscribe();
   }, [event.id]);
 
+  // Lazy Cleanup: Silently restore inventory from abandoned bookings
+  // Fire-and-forget - runs once on component mount, doesn't block UI
+  useEffect(() => {
+    // Run cleanup silently in background
+    fetch("/api/bookings/cleanup")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.cleaned > 0) {
+          console.log("[Cleanup] Restored inventory from", data.cleaned, "abandoned bookings");
+        }
+      })
+      .catch((error) => {
+        // Silent failure - cleanup is best-effort, don't interrupt user experience
+        console.warn("[Cleanup] Background cleanup failed (non-critical):", error);
+      });
+  }, []); // Empty deps = run once on mount
+
   // Handle click outside to close price breakup dropdown
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
