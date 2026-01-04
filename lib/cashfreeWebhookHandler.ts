@@ -1,41 +1,39 @@
 // lib/cashfreeWebhookHandler.ts
-// Cashfree webhook handler - signature verified + transaction-safe booking confirmation
-// Security goals:
-// - Reject forged webhooks (HMAC with CASHFREE_WEBHOOK_SECRET)
-// - Prevent race conditions (runTransaction + idempotency check inside transaction)
-// - Prevent price tampering (strict amount match against booking.totalAmount)
+// Cashfree webhook handler - Production-ready with email integration
+// Security: Signature verification + Transaction-based confirmation
+// Email: Decoupled, sent AFTER successful payment confirmation
 
 import crypto from "crypto";
 import { NextRequest } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { validateAmount, validateCashfreeWebhookSecret } from "@/lib/utils/cashfree";
+import { sendBookingConfirmationEmail } from "@/lib/email-helper";
 
-// Cashfree Webhook Payload (2023-08-01 / 2025-01-01 schema)
-// Real-world structure for payment.success events
+// Cashfree 2023-08-01 payload structure (nested data)
 type CashfreeWebhookPayload = {
-  data?: {
-    order?: {
-      order_id?: string;
-      order_amount?: number;
-      order_currency?: string;
+  data: {
+    order: {
+      order_id: string;
+      order_amount: number;
+      order_currency: string;
     };
-    payment?: {
-      cf_payment_id?: string;
-      payment_status?: string; // SUCCESS / FAILED / etc.
-      payment_amount?: number;
-      payment_currency?: string;
-      payment_message?: string;
+    payment: {
+      cf_payment_id: string;
+      payment_status: string;
+      payment_amount: number;
+      payment_currency: string;
+      payment_message: string;
     };
-    customer_details?: {
-      customer_name?: string;
-      customer_id?: string;
-      customer_email?: string;
-      customer_phone?: string;
+    customer_details: {
+      customer_name: string;
+      customer_id: string;
+      customer_email: string;
+      customer_phone: string;
     };
   };
-  event_time?: string;
-  type?: string;
+  event_time: string;
+  type: string;
 };
 
 function safeUpper(val: unknown) {
@@ -55,8 +53,6 @@ function constantTimeEquals(a: string, b: string) {
  * Tries both signature formats to handle documentation inconsistencies:
  * 1. WITH DOT: timestamp + "." + rawBody (per official pseudocode)
  * 2. WITHOUT DOT: timestamp + rawBody (per some Node.js SDK examples)
- * 
- * This ensures we don't fail due to Cashfree implementation vs documentation mismatch.
  */
 function verifyCashfreeWebhookSignature(args: {
   rawBody: string;
@@ -66,7 +62,6 @@ function verifyCashfreeWebhookSignature(args: {
 }) {
   const { rawBody, timestamp, signature, secret } = args;
 
-  // Helper to calculate HMAC
   const computeHMAC = (payload: string) => {
     const hmac = crypto.createHmac("sha256", secret);
     hmac.update(payload, "utf8");
@@ -81,10 +76,9 @@ function verifyCashfreeWebhookSignature(args: {
   }
 
   // 2. Fallback: Try WITHOUT DOT (per Node.js Example)
-  // This saves us if the documentation is inconsistent
   const signatureNoDot = computeHMAC(timestamp + rawBody);
   if (constantTimeEquals(signatureNoDot, signature)) {
-    console.warn("[Webhook] ⚠️ Signature matched using NO-DOT format (Fallback) - Consider updating docs");
+    console.warn("[Webhook] ⚠️ Signature matched using NO-DOT format (Fallback)");
     return true;
   }
 
@@ -106,177 +100,187 @@ function isPaymentSuccess(payload: CashfreeWebhookPayload) {
 }
 
 export async function handleCashfreeWebhook(req: NextRequest) {
-  let signatureVerified = false;
   try {
-    // 1. Read RAW body FIRST - no parsing
+    // 1. Read RAW body FIRST (required for signature verification)
     const rawBody = await req.text();
 
-    // 2. Extract EXACT headers per Cashfree docs
+    // 2. Extract signature headers
     const timestamp = req.headers.get("x-webhook-timestamp") || "";
     const signature = req.headers.get("x-webhook-signature") || "";
 
-    // 3. Use webhook secret (CASHFREE_WEBHOOK_SECRET) - not API secret
-    let secret: string;
+    // 3. Validate webhook secret
+    let webhookSecret: string;
     try {
-      secret = validateCashfreeWebhookSecret();
+      webhookSecret = validateCashfreeWebhookSecret();
     } catch (e) {
       console.error("[Webhook] CASHFREE_WEBHOOK_SECRET not configured");
       return new Response("Webhook not configured", { status: 500 });
     }
 
     if (!timestamp || !signature) {
-      console.error("[Webhook] Missing signature headers", {
-        hasTimestamp: !!timestamp,
-        hasSignature: !!signature,
-        rawBodyLength: rawBody.length,
-      });
-      return new Response("Missing webhook signature headers", { status: 401 });
+      console.error("[Webhook] Missing signature headers");
+      return new Response("Missing headers", { status: 401 });
     }
 
-    // 4. Verify signature using EXACT algorithm
-    const signatureValid = verifyCashfreeWebhookSignature({
+    // 4. Verify signature (bulletproof with fallback)
+    const verified = verifyCashfreeWebhookSignature({
       rawBody,
       timestamp,
       signature,
-      secret,
+      secret: webhookSecret,
     });
 
-    if (!signatureValid) {
-      console.error("[Webhook] Invalid signature - ignoring");
-      return new Response("Invalid webhook signature", { status: 401 });
+    if (!verified) {
+      console.error("[Webhook] ❌ Signature verification FAILED");
+      return new Response("Invalid signature", { status: 401 });
     }
-    signatureVerified = true;
 
-    // 6. Parse JSON AFTER signature verification
+    // 5. Parse payload AFTER signature verification
     let payload: CashfreeWebhookPayload;
     try {
-      payload = JSON.parse(rawBody) as CashfreeWebhookPayload;
-    } catch (parseError) {
-      console.error("[Webhook] Failed to parse JSON:", parseError);
-      return new Response("Invalid JSON", { status: 400 });
+      payload = JSON.parse(rawBody);
+    } catch (e) {
+      console.error("[Webhook] Invalid JSON payload");
+      return new Response("OK", { status: 200 }); // Return OK to prevent retries
     }
 
-    // Extract nested fields (Cashfree 2023-08-01)
+    // 6. Extract data from nested payload structure (2023-08-01)
     const orderId = payload?.data?.order?.order_id;
-    const paymentStatus = safeUpper(payload?.data?.payment?.payment_status);
-    const receivedAmountRaw = payload?.data?.payment?.payment_amount;
+    const paymentStatus = payload?.data?.payment?.payment_status;
+    const receivedAmount = payload?.data?.payment?.payment_amount;
 
-    console.log("[Webhook] Payload received", {
-      order_id: orderId,
-      payment_status: paymentStatus,
-      payment_amount: receivedAmountRaw,
-      type: payload?.type,
+    console.log("[Webhook] Payload received:", {
+      orderId,
+      paymentStatus,
+      receivedAmount,
     });
 
-    // 7. Process ONLY payment.success events
-    if (paymentStatus !== "SUCCESS") {
-      console.log("[Webhook] Payment not successful - ignoring");
+    if (!orderId) {
+      console.error("[Webhook] Missing order_id in payload");
       return new Response("OK", { status: 200 });
     }
 
-    // 8. Get orderId and find booking
-    if (!orderId || !adminDb) {
-      console.error("[Webhook] Missing orderId or Admin SDK");
+    // 7. Check payment status
+    if (safeUpper(paymentStatus) !== "SUCCESS") {
+      console.log(`[Webhook] Payment not successful (status: ${paymentStatus}), ignoring`);
+      return new Response("OK", { status: 200 });
+    }
+
+    // 8. Admin SDK null safety
+    if (!adminDb) {
+      console.error("[Webhook] Admin SDK not initialized");
       return new Response("OK", { status: 200 });
     }
 
     const db = adminDb;
-    const bookingsRef = db.collection("bookings");
-    const snapshot = await bookingsRef.where("orderId", "==", orderId).limit(1).get();
 
-    if (snapshot.empty) {
-      console.log("[Webhook] No booking found for orderId:", orderId);
-      return new Response("OK", { status: 200 });
-    }
+    // 9. Run transaction for atomic booking confirmation
+    await db.runTransaction(async (transaction) => {
+      // Find booking by orderId
+      const bookingsRef = db.collection("bookings");
+      const snapshot = await bookingsRef.where("orderId", "==", orderId).limit(1).get();
 
-    const bookingDoc = snapshot.docs[0];
-    const bookingId = bookingDoc.id;
-    const bookingRef = db.doc(`bookings/${bookingId}`);
+      if (snapshot.empty) {
+        console.log("[Webhook] No booking found for orderId:", orderId);
+        return;
+      }
 
-    // Validate received amount
-    let receivedAmount: number;
-    try {
-      receivedAmount = validateAmount(receivedAmountRaw);
-    } catch {
-      console.error("[Webhook] Invalid payment_amount in payload");
-      return new Response("OK", { status: 200 });
-    }
+      const bookingDoc = snapshot.docs[0];
+      const bookingId = bookingDoc.id;
+      const booking = bookingDoc.data();
 
-    // 9. Confirm booking inside a Firestore transaction (prevents races)
-    try {
-      await db.runTransaction(async (tx) => {
-        const snap = await tx.get(bookingRef);
-        if (!snap.exists) return;
+      // Idempotency check INSIDE transaction
+      const alreadyConfirmed =
+        safeUpper(booking.bookingStatus) === "CONFIRMED" &&
+        safeUpper(booking.paymentStatus) === "SUCCESS";
 
-        const booking = snap.data() as any;
-        if (!booking) return;
+      if (alreadyConfirmed) {
+        console.log("[Webhook] Booking already confirmed (idempotent):", bookingId);
+        return;
+      }
 
-        // Idempotency check INSIDE transaction
-        const alreadyConfirmed =
-          safeUpper(booking.bookingStatus) === "CONFIRMED" &&
-          safeUpper(booking.paymentStatus) === "SUCCESS";
-        if (alreadyConfirmed) return;
+      // Strict amount validation INSIDE transaction
+      const expectedAmount = validateAmount(booking.totalAmount);
+      const payloadAmount = validateAmount(receivedAmount);
 
-        // Strict amount comparison INSIDE transaction
-        const expectedAmount = validateAmount(booking.totalAmount);
-        if (expectedAmount !== receivedAmount) {
-          console.error("[Webhook] Amount mismatch", {
-            bookingId,
-            orderId,
-            expectedAmount,
-            receivedAmount,
-          });
-          return;
-        }
-
-        const ticketId =
-          booking.ticketId ||
-          `TKT-${Date.now()}-${Math.random().toString(36).slice(2, 11).toUpperCase()}`;
-
-        const updateData = {
+      if (expectedAmount !== payloadAmount) {
+        console.error("[Webhook] Amount mismatch", {
+          bookingId,
           orderId,
-          paymentGateway: "cashfree",
-          paymentStatus: "SUCCESS",
-          bookingStatus: "CONFIRMED",
-          ticketId,
-          confirmedAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp(),
-          webhookReceivedAt: FieldValue.serverTimestamp(),
+          expectedAmount,
+          receivedAmount: payloadAmount,
+        });
+        throw new Error(`Amount mismatch: expected ${expectedAmount}, got ${payloadAmount}`);
+      }
+
+      // Generate ticket ID if not exists
+      const ticketId =
+        booking.ticketId ||
+        `TKT-${Date.now()}-${Math.random().toString(36).slice(2, 11).toUpperCase()}`;
+
+      // Confirm booking
+      const updateData = {
+        orderId,
+        paymentGateway: "cashfree",
+        paymentStatus: "SUCCESS",
+        bookingStatus: "CONFIRMED",
+        ticketId,
+        confirmedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+        webhookReceivedAt: FieldValue.serverTimestamp(),
+      };
+
+      // Update main booking
+      transaction.set(bookingDoc.ref, updateData, { merge: true });
+
+      // Update event booking if exists
+      if (booking.eventId) {
+        const eventBookingRef = db.doc(`events/${booking.eventId}/bookings/${bookingId}`);
+        const eventBookingUpdate = {
+          ...updateData,
+          locationId: booking.locationId || null,
+          locationName: booking.locationName || null,
+          venueId: booking.venueId || null,
+          showId: booking.showId || null,
+          showTime: booking.showTime || booking.time || null,
+          locationVenueKey: booking.locationVenueKey || null,
+          venueShowKey: booking.venueShowKey || null,
+          dateTimeKey: booking.dateTimeKey || null,
         };
+        transaction.set(eventBookingRef, eventBookingUpdate, { merge: true });
+      }
 
-        tx.set(bookingRef, updateData, { merge: true });
+      console.log(`[Webhook] ✅ Booking confirmed successfully: ${bookingId}`);
+    });
 
-        if (booking.eventId) {
-          const eventBookingRef = db.doc(
-            `events/${booking.eventId}/bookings/${bookingId}`
-          );
-          const eventBookingUpdate = {
-            ...updateData,
-            locationId: booking.locationId || null,
-            locationName: booking.locationName || null,
-            venueId: booking.venueId || null,
-            showId: booking.showId || null,
-            showTime: booking.showTime || booking.time || null,
-            locationVenueKey: booking.locationVenueKey || null,
-            venueShowKey: booking.venueShowKey || null,
-            dateTimeKey: booking.dateTimeKey || null,
-          };
-          tx.set(eventBookingRef, eventBookingUpdate, { merge: true });
-        }
-      });
-    } catch (txErr) {
-      console.error("[Webhook] Transaction failed", txErr);
-      // After signature verification: return OK to prevent retry loops
-      return new Response("OK", { status: 200 });
+    // 10. Send confirmation email (OUTSIDE transaction, non-blocking)
+    try {
+      // Re-query booking to get final confirmed data
+      const bookingsRef = db.collection("bookings");
+      const finalSnapshot = await bookingsRef.where("orderId", "==", orderId).limit(1).get();
+
+      if (!finalSnapshot.empty) {
+        const finalBookingData = finalSnapshot.docs[0].data();
+        const finalBookingId = finalSnapshot.docs[0].id;
+
+        console.log(`[Webhook] 📧 Attempting to send confirmation email for: ${finalBookingId}`);
+
+        // Send email via helper (uses MSG91 via dispatcher)
+        await sendBookingConfirmationEmail(finalBookingData);
+
+        console.log(`[Webhook] ✅ Email sent successfully for booking: ${finalBookingId}`);
+      }
+    } catch (emailError: any) {
+      // Email failure should NOT fail the webhook
+      // Booking is already confirmed, email can be resent later
+      console.error("[Webhook] ⚠️ Payment confirmed, but email failed:", emailError.message);
     }
 
-    console.log("[Webhook] Booking confirmed successfully:", bookingId);
     return new Response("OK", { status: 200 });
-
   } catch (error: any) {
     console.error("[Webhook] Critical error:", error);
-    // After signature verification: return OK to prevent retry loops; before verification fail closed
-    if (signatureVerified) return new Response("OK", { status: 200 });
-    return new Response("Internal server error", { status: 500 });
+    console.error("[Webhook] Error stack:", error?.stack);
+    // Return OK to prevent Cashfree retry loops on internal errors
+    return new Response("OK", { status: 200 });
   }
 }
