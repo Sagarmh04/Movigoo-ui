@@ -1,6 +1,8 @@
 {
   "projects": {
-    "default": "movigoo-23d18"
-  }
+    "default": "movigoo-23d18",
+    "firebase deploy --only functions:onBookingConfirmed": "movigoo-23d18"
+  },
+  "targets": {},
+  "etags": {}
 }
-
