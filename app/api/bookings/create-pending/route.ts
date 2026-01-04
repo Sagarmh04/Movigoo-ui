@@ -3,8 +3,9 @@
 // Creates a pending booking before payment sure
 
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/firebaseServer";
-import { doc, setDoc, serverTimestamp, getDoc, runTransaction, increment, collection, query, where, getDocs } from "firebase/firestore";
+// CRITICAL: Use Admin SDK to bypass Firestore security rules
+import { adminDb } from "@/lib/firebaseAdmin";
+import { FieldValue } from "firebase-admin/firestore";
 import { v4 as uuidv4 } from "uuid";
 import { verifyAuthToken } from "@/lib/auth";
 
@@ -66,14 +67,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!db) {
+    // CRITICAL: Use Admin SDK (bypasses Firestore rules)
+    if (!adminDb) {
+      console.error("[Create-Pending] Firebase Admin SDK not initialized");
       return NextResponse.json(
-        { error: "Database not initialized" },
+        { error: "Database not initialized. Admin SDK setup required." },
         { status: 500 }
       );
     }
 
-    const firestore = db; // TypeScript inference helper
+    const firestore = adminDb; // Admin SDK Firestore instance (bypasses rules)
 
     // Calculate requested quantity
     const requestedQuantity = quantity || (items ? items.reduce((sum: number, i: any) => sum + i.quantity, 0) : 0);
@@ -83,11 +86,11 @@ export async function POST(req: NextRequest) {
 
     // CRITICAL: Use Firestore transaction for atomic inventory check + booking creation
     // Query global bookings collection (not subcollection) for better transaction support
-    const eventRef = doc(firestore, "events", eventId);
+    const eventRef = firestore.doc(`events/${eventId}`);
     
     // Pre-check: verify event exists before transaction
-    const eventDoc = await getDoc(eventRef);
-    if (!eventDoc.exists()) {
+    const eventDoc = await eventRef.get();
+    if (!eventDoc.exists) {
       return NextResponse.json(
         { error: "Event not found" },
         { status: 404 }
@@ -144,7 +147,7 @@ export async function POST(req: NextRequest) {
       bookingStatus: "PENDING",
       userEmail: userEmail || null,
       userName: userName || null,
-      createdAt: serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
     });
 
     const prepareEventBookingData = (bookingData: any) => ({
@@ -175,12 +178,12 @@ export async function POST(req: NextRequest) {
       // ATOMIC TRANSACTION: Check ticketType inventory + increment + create booking in ONE transaction
       // CRITICAL: Firestore automatically retries transactions on conflicts
       // This ensures only ONE transaction succeeds when multiple users book simultaneously
-      await runTransaction(firestore, async (transaction) => {
+      await firestore.runTransaction(async (transaction: any) => {
         // 1. Read event document inside transaction (atomic read)
         // CRITICAL: This read is part of the transaction snapshot
         // If another transaction modifies this document, Firestore will retry this transaction
         const eventDocInTx = await transaction.get(eventRef);
-        if (!eventDocInTx.exists()) {
+        if (!eventDocInTx.exists) {
           throw new Error("Event not found");
         }
 
@@ -193,8 +196,8 @@ export async function POST(req: NextRequest) {
         if (venueConfigs.length === 0) {
           // No ticket types configured - allow booking (backward compatibility)
           console.log("[Create-Pending] No ticket types configured, allowing booking");
-          const bookingRef = doc(firestore, "bookings", bookingId);
-          const eventBookingRef = doc(firestore, "events", eventId, "bookings", bookingId);
+          const bookingRef = firestore.doc(`bookings/${bookingId}`);
+          const eventBookingRef = firestore.doc(`events/${eventId}/bookings/${bookingId}`);
 
           const bookingData = prepareBookingData();
           const eventBookingData = prepareEventBookingData(bookingData);
@@ -321,8 +324,8 @@ export async function POST(req: NextRequest) {
         // 6. Create booking INSIDE same transaction (atomic write)
         // CRITICAL: Booking is only created if all inventory checks pass
         // If transaction retries due to conflict, this booking creation is also retried
-        const bookingRef = doc(firestore, "bookings", bookingId);
-        const eventBookingRef = doc(firestore, "events", eventId, "bookings", bookingId);
+        const bookingRef = firestore.doc(`bookings/${bookingId}`);
+        const eventBookingRef = firestore.doc(`events/${eventId}/bookings/${bookingId}`);
 
         const bookingData = prepareBookingData();
         const eventBookingData = prepareEventBookingData(bookingData);
