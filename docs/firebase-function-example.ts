@@ -1,12 +1,13 @@
-// functions/onBookingConfirmed.ts
-// Firebase Cloud Function - Firestore Trigger
+// docs/firebase-function-example.ts
+// Firebase Cloud Function - Firestore Trigger Example
 // Sends confirmation email when booking status changes to CONFIRMED
 // 
 // DEPLOYMENT:
 // 1. Install Firebase CLI: npm install -g firebase-tools
 // 2. Login: firebase login
 // 3. Initialize: firebase init functions
-// 4. Deploy: firebase deploy --only functions
+// 4. Copy this file to functions/src/index.ts (or as separate export)
+// 5. Deploy: firebase deploy --only functions
 //
 // This function runs automatically when a booking document is updated
 // and bookingStatus becomes "CONFIRMED"

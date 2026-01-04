@@ -53,7 +53,8 @@ This guide explains how to set up automatic email sending when bookings are conf
 
 ### Function Code
 
-See `functions/onBookingConfirmed.ts` for the complete implementation.
+See `docs/firebase-function-example.ts` for the complete implementation.
+Copy this file to your Firebase Functions project when setting up.
 
 ---
 

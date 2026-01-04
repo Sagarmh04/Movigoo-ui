@@ -274,16 +274,24 @@ export async function handleCashfreeWebhook(req: NextRequest) {
       failureReason: payload.payment_status || payload.order_status || "UNKNOWN",
     };
 
-    const bookingRef = adminDb.doc(`bookings/${bookingId}`);
+    // CRITICAL: Ensure adminDb is available (already checked above, but TypeScript needs this)
+    if (!adminDb) {
+      console.error("[Webhook] Admin SDK not available for payment failure handling");
+      return new Response("Database error", { status: 500 });
+    }
+
+    // Capture adminDb in const for TypeScript (non-null assertion safe here)
+    const db = adminDb;
+    const bookingRef = db.doc(`bookings/${bookingId}`);
     
     // CRITICAL: If payment fails, decrement ticketType-level ticketsSold to release reservation
     // This ensures tickets are available again if payment fails
     if (existing.eventId && existing.items && Array.isArray(existing.items) && existing.items.length > 0) {
-      const eventRef = adminDb.doc(`events/${existing.eventId}`);
+      const eventRef = db.doc(`events/${existing.eventId}`);
       
       try {
         // Use transaction to atomically decrement ticketType counters and update booking
-        await adminDb.runTransaction(async (transaction) => {
+        await db.runTransaction(async (transaction) => {
           // Read event document to get ticketTypes structure
           const eventDoc = await transaction.get(eventRef);
           if (!eventDoc.exists) {
@@ -298,7 +306,7 @@ export async function handleCashfreeWebhook(req: NextRequest) {
             // No ticket types - just update booking status
             transaction.set(bookingRef, updateData, { merge: true });
             if (existing.eventId) {
-              const eventBookingRef = adminDb.doc(`events/${existing.eventId}/bookings/${bookingId}`);
+              const eventBookingRef = db.doc(`events/${existing.eventId}/bookings/${bookingId}`);
               transaction.set(eventBookingRef, updateData, { merge: true });
             }
             return;
@@ -360,7 +368,7 @@ export async function handleCashfreeWebhook(req: NextRequest) {
           
           // Update event booking subcollection if exists
           if (existing.eventId) {
-            const eventBookingRef = adminDb.doc(`events/${existing.eventId}/bookings/${bookingId}`);
+            const eventBookingRef = db.doc(`events/${existing.eventId}/bookings/${bookingId}`);
             transaction.set(eventBookingRef, updateData, { merge: true });
           }
         });
@@ -370,7 +378,7 @@ export async function handleCashfreeWebhook(req: NextRequest) {
         await Promise.all([
           bookingRef.set(updateData, { merge: true }),
           existing.eventId
-            ? adminDb.doc(`events/${existing.eventId}/bookings/${bookingId}`).set(updateData, { merge: true })
+            ? db.doc(`events/${existing.eventId}/bookings/${bookingId}`).set(updateData, { merge: true })
             : Promise.resolve(),
         ]);
       }
@@ -379,7 +387,7 @@ export async function handleCashfreeWebhook(req: NextRequest) {
       await Promise.all([
         bookingRef.set(updateData, { merge: true }),
         existing.eventId
-          ? adminDb.doc(`events/${existing.eventId}/bookings/${bookingId}`).set(updateData, { merge: true })
+          ? db.doc(`events/${existing.eventId}/bookings/${bookingId}`).set(updateData, { merge: true })
           : Promise.resolve(),
       ]);
     }
