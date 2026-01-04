@@ -13,6 +13,24 @@ function safeUpper(val: unknown) {
   return typeof val === "string" ? val.toUpperCase() : "";
 }
 
+function isOrderPaid(data: any): boolean {
+  if (!data) return false;
+
+  // Case 1: order_status directly
+  if (["PAID", "SUCCESS", "COMPLETED"].includes(data.order_status)) {
+    return true;
+  }
+
+  // Case 2: payments array
+  if (Array.isArray(data.payments)) {
+    return data.payments.some(
+      (p) => p.payment_status === "SUCCESS"
+    );
+  }
+
+  return false;
+}
+
 async function verifyOrderWithCashfree(orderId: string) {
   if (!adminDb) {
     console.error("[Webhook] Admin SDK not initialized");
@@ -32,75 +50,81 @@ async function verifyOrderWithCashfree(orderId: string) {
 
   const data = await res.json();
 
-  if (data.order_status === "PAID") {
-    // ✅ Confirm booking (idempotent)
-    const bookingsRef = adminDb.collection("bookings");
-    const snapshot = await bookingsRef.where("orderId", "==", orderId).limit(1).get();
+  // 🔧 TEMP: Log the Cashfree API response to see exact structure
+  console.log("[Cashfree API] Order response:", JSON.stringify(data));
 
-    if (snapshot.empty) {
-      console.log("[Webhook] No booking found for orderId:", orderId);
-      return;
-    }
-
-    const bookingDoc = snapshot.docs[0];
-    const bookingId = bookingDoc.id;
-    const existing = bookingDoc.data() as any;
-
-    // Idempotency check
-    const alreadyConfirmed = safeUpper(existing.bookingStatus) === "CONFIRMED" && safeUpper(existing.paymentStatus) === "SUCCESS";
-    
-    if (alreadyConfirmed) {
-      console.log("[Webhook] Already confirmed - skipping");
-      return;
-    }
-
-    // Amount validation
-    const expectedAmount = typeof existing.totalAmount === "number" ? existing.totalAmount : Number(existing.totalAmount);
-    const receivedAmount = typeof data.order_amount === "number" ? data.order_amount : Number(data.order_amount);
-
-    if (Number.isFinite(expectedAmount) && Number.isFinite(receivedAmount) && expectedAmount !== receivedAmount) {
-      console.error("[Webhook] Amount mismatch - ignoring");
-      return;
-    }
-
-    // Confirm booking
-    console.log("[Webhook] Confirming booking:", bookingId);
-
-    const ticketId = existing.ticketId || `TKT-${Date.now()}-${Math.random().toString(36).slice(2, 11).toUpperCase()}`;
-
-    const updateData = {
-      orderId,
-      paymentGateway: "cashfree",
-      paymentStatus: "SUCCESS",
-      bookingStatus: "CONFIRMED",
-      ticketId,
-      confirmedAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-      webhookReceivedAt: FieldValue.serverTimestamp(),
-    };
-
-    const eventBookingUpdate = {
-      ...updateData,
-      locationId: existing.locationId || null,
-      locationName: existing.locationName || null,
-      venueId: existing.venueId || null,
-      showId: existing.showId || null,
-      showTime: existing.showTime || existing.time || null,
-      locationVenueKey: existing.locationVenueKey || null,
-      venueShowKey: existing.venueShowKey || null,
-      dateTimeKey: existing.dateTimeKey || null,
-    };
-
-    // Update using Admin SDK
-    await Promise.all([
-      adminDb.doc(`bookings/${bookingId}`).set(updateData, { merge: true }),
-      existing.eventId
-        ? adminDb.doc(`events/${existing.eventId}/bookings/${bookingId}`).set(eventBookingUpdate, { merge: true })
-        : Promise.resolve(),
-    ]);
-
-    console.log("[Webhook] ✅ Booking confirmed successfully:", bookingId);
+  if (!isOrderPaid(data)) {
+    console.log("[Webhook] Order not paid yet:", data.order_status);
+    return;
   }
+
+  console.log("[Webhook] Order verified as PAID");
+
+  // ✅ Confirm booking (idempotent)
+  const bookingsRef = adminDb.collection("bookings");
+  const snapshot = await bookingsRef.where("orderId", "==", orderId).limit(1).get();
+
+  if (snapshot.empty) {
+    console.log("[Webhook] No booking found for orderId:", orderId);
+    return;
+  }
+
+  const bookingDoc = snapshot.docs[0];
+  const bookingId = bookingDoc.id;
+  const existing = bookingDoc.data() as any;
+
+  // 🔧 IMPORTANT: Idempotency check (prevents duplicates)
+  if (existing.paymentStatus === "SUCCESS") {
+    console.log("[Webhook] Booking already confirmed, skipping");
+    return;
+  }
+
+  // Amount validation
+  const expectedAmount = typeof existing.totalAmount === "number" ? existing.totalAmount : Number(existing.totalAmount);
+  const receivedAmount = typeof data.order_amount === "number" ? data.order_amount : Number(data.order_amount);
+
+  if (Number.isFinite(expectedAmount) && Number.isFinite(receivedAmount) && expectedAmount !== receivedAmount) {
+    console.error("[Webhook] Amount mismatch - ignoring");
+    return;
+  }
+
+  // Confirm booking
+  console.log("[Webhook] Confirming booking:", bookingId);
+
+  const ticketId = existing.ticketId || `TKT-${Date.now()}-${Math.random().toString(36).slice(2, 11).toUpperCase()}`;
+
+  const updateData = {
+    orderId,
+    paymentGateway: "cashfree",
+    paymentStatus: "SUCCESS",
+    bookingStatus: "CONFIRMED",
+    ticketId,
+    confirmedAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+    webhookReceivedAt: FieldValue.serverTimestamp(),
+  };
+
+  const eventBookingUpdate = {
+    ...updateData,
+    locationId: existing.locationId || null,
+    locationName: existing.locationName || null,
+    venueId: existing.venueId || null,
+    showId: existing.showId || null,
+    showTime: existing.showTime || existing.time || null,
+    locationVenueKey: existing.locationVenueKey || null,
+    venueShowKey: existing.venueShowKey || null,
+    dateTimeKey: existing.dateTimeKey || null,
+  };
+
+  // Update using Admin SDK
+  await Promise.all([
+    adminDb.doc(`bookings/${bookingId}`).set(updateData, { merge: true }),
+    existing.eventId
+      ? adminDb.doc(`events/${existing.eventId}/bookings/${bookingId}`).set(eventBookingUpdate, { merge: true })
+      : Promise.resolve(),
+  ]);
+
+  console.log("[Webhook] ✅ Booking confirmed automatically:", bookingId);
 }
 
 export async function POST(req: NextRequest) {
