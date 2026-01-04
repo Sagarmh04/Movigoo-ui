@@ -14,36 +14,30 @@ let adminDb: Firestore | null = null;
 if (typeof window === "undefined") {
   // Server-side only
   try {
-    // Initialize Admin SDK
     if (getApps().length === 0) {
-      // Option 1: Use service account (if available)
-      if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-        try {
-          const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
-          adminApp = initializeApp({
-            credential: cert(serviceAccount),
-            projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || serviceAccount.project_id,
-          });
-          console.log("✅ Firebase Admin SDK initialized with service account");
-        } catch (parseError) {
-          console.error("❌ Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY:", parseError);
-          // Fall through to default credentials
-        }
+      const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+      
+      if (!serviceAccountKey) {
+        throw new Error("FIREBASE_SERVICE_ACCOUNT_KEY environment variable is required");
       }
       
-      // Option 2: Use Application Default Credentials (for Vercel/Cloud Run/GCP)
-      // This works if FIREBASE_SERVICE_ACCOUNT_KEY is not set
-      if (!adminApp) {
-        const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
-        if (!projectId) {
-          console.error("❌ NEXT_PUBLIC_FIREBASE_PROJECT_ID not set");
-        } else {
-          adminApp = initializeApp({
-            projectId: projectId,
-          });
-          console.log("✅ Firebase Admin SDK initialized with default credentials");
-        }
+      let serviceAccount: any;
+      try {
+        serviceAccount = JSON.parse(serviceAccountKey);
+      } catch (parseError) {
+        throw new Error(`Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
       }
+      
+      if (!serviceAccount.project_id) {
+        throw new Error("FIREBASE_SERVICE_ACCOUNT_KEY missing project_id");
+      }
+      
+      adminApp = initializeApp({
+        credential: cert(serviceAccount),
+        projectId: serviceAccount.project_id,
+      });
+      
+      console.log("✅ Firebase Admin SDK initialized with service account");
     } else {
       adminApp = getApps()[0];
     }
@@ -52,11 +46,11 @@ if (typeof window === "undefined") {
       adminDb = getFirestore(adminApp);
       console.log("✅ Firebase Admin Firestore initialized (bypasses security rules)");
     } else {
-      console.error("❌ Firebase Admin App not initialized");
+      throw new Error("Failed to initialize Firebase Admin App");
     }
   } catch (error) {
-    console.error("❌ Firebase Admin SDK initialization error:", error);
-    // adminDb remains null if initialization fails
+    console.error("❌ Firebase Admin SDK initialization failed:", error instanceof Error ? error.message : String(error));
+    throw error;
   }
 }
 

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/firebaseServer";
-import { doc, getDoc } from "firebase/firestore";
+import { adminDb } from "@/lib/firebaseAdmin";
 import { verifyAuthToken } from "@/lib/auth";
 
 export async function GET(
@@ -8,6 +7,14 @@ export async function GET(
   { params }: { params: { bookingId: string } }
 ) {
   try {
+    if (!adminDb) {
+      console.error("[GET BOOKING] adminDb is null");
+      return NextResponse.json(
+        { error: "Server not initialized" },
+        { status: 500 }
+      );
+    }
+
     // Verify authentication
     const authHeader = req.headers.get("authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -23,25 +30,26 @@ export async function GET(
     const { bookingId } = params;
 
     if (!bookingId) {
-      return NextResponse.json({ error: "Missing bookingId" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Missing bookingId" },
+        { status: 400 }
+      );
     }
 
-    if (!db) {
-      return NextResponse.json({ error: "Database not available" }, { status: 500 });
+    const ref = adminDb.doc(`bookings/${bookingId}`);
+    const snap = await ref.get();
+
+    if (!snap.exists) {
+      return NextResponse.json(
+        { error: "Booking not found" },
+        { status: 404 }
+      );
     }
 
-    const bookingRef = doc(db, "bookings", bookingId);
-    const bookingSnap = await getDoc(bookingRef);
-
-    if (!bookingSnap.exists()) {
-      return NextResponse.json({ error: "Booking not found" }, { status: 404 });
-    }
-
-    const booking = bookingSnap.data();
+    const booking = snap.data();
     
-    // CRITICAL: Check if booking data exists (could be corrupted)
     if (!booking) {
-      console.error("Booking document exists but data is null/undefined");
+      console.error("[GET BOOKING] Booking document exists but data is null/undefined");
       return NextResponse.json(
         { error: "Booking data corrupted" },
         { status: 500 }
@@ -53,9 +61,12 @@ export async function GET(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    return NextResponse.json(booking);
-  } catch (error: any) {
-    console.error("Error fetching booking:", error);
+    return NextResponse.json({
+      id: snap.id,
+      ...booking,
+    });
+  } catch (err: any) {
+    console.error("[GET BOOKING] FAILED", err);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
