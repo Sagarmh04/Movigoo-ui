@@ -55,7 +55,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const body = await req.json();
+    // CRITICAL: Parse request body with error handling
+    let body: any;
+    try {
+      body = await req.json();
+    } catch (parseError) {
+      console.error("Failed to parse request body:", parseError);
+      return NextResponse.json(
+        { error: "Invalid request body format" },
+        { status: 400 }
+      );
+    }
+
     const { bookingId, amount, email, phone } = body;
 
     if (!amount) {
@@ -177,7 +188,12 @@ export async function POST(req: NextRequest) {
           }, { merge: true });
           console.log("Stored new orderId in booking:", orderId);
         } catch (error) {
-          console.error("Failed to store orderId in booking:", error);
+          console.error("Failed to store orderId in booking:", {
+            error: error instanceof Error ? error.message : String(error),
+            bookingId,
+            orderId,
+            hasDb: !!db,
+          });
           // CRITICAL: If we can't store orderId, webhook won't find booking
           // Return error instead of continuing
           return NextResponse.json(
@@ -185,6 +201,15 @@ export async function POST(req: NextRequest) {
             { status: 500 }
           );
         }
+      } else if (bookingId && !db) {
+        console.error("Cannot store orderId: Firebase db not initialized", {
+          bookingId,
+          orderId,
+        });
+        return NextResponse.json(
+          { error: "Database connection failed" },
+          { status: 500 }
+        );
       }
     }
 
@@ -234,28 +259,68 @@ export async function POST(req: NextRequest) {
         notify_url: `${appUrl}/api/cashfree/webhook`,
       },
     };
-    const response = await fetch(`${CASHFREE_BASE}/orders`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-client-id": process.env.CASHFREE_APP_ID!,
-        "x-client-secret": process.env.CASHFREE_SECRET_KEY!,
-        "x-api-version": "2023-08-01",
-      },
-      body: JSON.stringify(payload),
-    });
 
-    const data = await response.json();
+    // CRITICAL: Fetch with timeout and error handling
+    let response: Response;
+    try {
+      response = await fetch(`${CASHFREE_BASE}/orders`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-client-id": process.env.CASHFREE_APP_ID!,
+          "x-client-secret": process.env.CASHFREE_SECRET_KEY!,
+          "x-api-version": "2023-08-01",
+        },
+        body: JSON.stringify(payload),
+      });
+    } catch (fetchError) {
+      console.error("Cashfree API fetch failed:", {
+        error: fetchError instanceof Error ? fetchError.message : String(fetchError),
+        orderId,
+      });
+      return NextResponse.json(
+        { error: "Failed to connect to payment gateway" },
+        { status: 500 }
+      );
+    }
+
+    // CRITICAL: Parse response with defensive error handling
+    let data: any;
+    try {
+      const responseText = await response.text();
+      if (!responseText) {
+        console.error("Cashfree API returned empty response:", {
+          status: response.status,
+          statusText: response.statusText,
+        });
+        return NextResponse.json(
+          { error: "Payment gateway returned empty response" },
+          { status: 500 }
+        );
+      }
+      data = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error("Cashfree API response parse failed:", {
+        status: response.status,
+        statusText: response.statusText,
+        error: parseError instanceof Error ? parseError.message : String(parseError),
+      });
+      return NextResponse.json(
+        { error: "Payment gateway returned invalid response" },
+        { status: 500 }
+      );
+    }
 
     if (!response.ok) {
       console.error("Cashfree API error:", {
         status: response.status,
         statusText: response.statusText,
         error: data,
+        orderId,
       });
       return NextResponse.json(
-        { error: data.message || "Cashfree order failed" },
-        { status: 400 }
+        { error: data.message || data.error || "Cashfree order failed" },
+        { status: response.status >= 500 ? 500 : 400 }
       );
     }
 
@@ -309,9 +374,17 @@ export async function POST(req: NextRequest) {
       orderId: cashfreeOrderId, // Also return orderId for frontend reference
     });
   } catch (err: any) {
-    console.error("Server error:", err);
+    // CRITICAL: Log full error details for debugging
+    console.error("Cashfree payment route error:", {
+      error: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+      name: err instanceof Error ? err.name : undefined,
+    });
+    
+    // Return user-friendly error message
+    const errorMessage = err instanceof Error ? err.message : "Internal server error";
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Failed to initialize payment order" },
       { status: 500 }
     );
   }
