@@ -39,6 +39,7 @@
   ],
   "exclude": [
     "node_modules",
+    "functions",
     "docs/firebase-function-example.ts"
   ]
 }
