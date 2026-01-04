@@ -1,9 +1,12 @@
+// lib/cashfreeWebhookHandler.ts
+// Cashfree webhook handler - ONLY source of truth for payment confirmation
+// CRITICAL: Uses Admin SDK to bypass Firestore rules
+// Architecture: Webhook confirms booking → Email sent separately (decoupled)
+
 import crypto from "crypto";
 import { NextRequest } from "next/server";
-import { db } from "@/lib/firebaseServer";
-import { collection, doc, getDocs, limit, query, serverTimestamp, setDoc, where, runTransaction, increment } from "firebase/firestore";
-import { maybeSendBookingConfirmationEmail } from "@/lib/bookingConfirmationEmail";
-import { updateAnalyticsOnBookingConfirmation } from "@/lib/analyticsUpdate";
+import { adminDb } from "@/lib/firebaseAdmin";
+import { FieldValue } from "firebase-admin/firestore";
 
 type CashfreeWebhookPayload = {
   order_id?: string;
@@ -33,6 +36,15 @@ function verifyCashfreeWebhookSignature(args: {
   const { rawBody, timestamp, signature, secret } = args;
   const signedPayload = `${timestamp}.${rawBody}`;
   const expected = crypto.createHmac("sha256", secret).update(signedPayload).digest("base64");
+  
+  // Log for debugging (first 20 chars only for security)
+  console.log("[Webhook] Signature verification:", {
+    timestamp,
+    signatureReceived: signature.substring(0, 20) + "...",
+    signatureExpected: expected.substring(0, 20) + "...",
+    rawBodyLength: rawBody.length,
+  });
+  
   return constantTimeEquals(expected, signature);
 }
 
@@ -43,32 +55,87 @@ function isPaymentSuccess(payload: CashfreeWebhookPayload) {
 
 export async function handleCashfreeWebhook(req: NextRequest) {
   try {
+    // CRITICAL: Read raw body BEFORE any parsing
+    // This is required for signature verification
     const rawBody = await req.text();
 
-    const timestamp = req.headers.get("x-webhook-timestamp") || "";
-    const signature = req.headers.get("x-webhook-signature") || "";
+    // CRITICAL: Try multiple header name variations (Cashfree may use different names)
+    const timestamp = 
+      req.headers.get("x-webhook-timestamp") || 
+      req.headers.get("x-cf-timestamp") ||
+      req.headers.get("x-timestamp") ||
+      "";
+    
+    const signature = 
+      req.headers.get("x-webhook-signature") || 
+      req.headers.get("x-cf-signature") ||
+      req.headers.get("x-signature") ||
+      "";
+
+    // Log all headers for debugging
+    const allHeaders: Record<string, string> = {};
+    req.headers.forEach((value, key) => {
+      if (key.toLowerCase().includes("webhook") || key.toLowerCase().includes("signature") || key.toLowerCase().includes("timestamp") || key.toLowerCase().includes("cf-")) {
+        allHeaders[key] = value;
+      }
+    });
+    console.log("[Webhook] Signature-related headers:", allHeaders);
 
     if (!process.env.CASHFREE_SECRET_KEY) {
+      console.error("[Webhook] CASHFREE_SECRET_KEY not configured");
       return new Response("Webhook not configured", { status: 500 });
     }
 
     if (!timestamp || !signature) {
+      console.error("[Webhook] Missing signature headers", {
+        hasTimestamp: !!timestamp,
+        hasSignature: !!signature,
+        allHeaders: Object.keys(allHeaders),
+      });
       return new Response("Missing webhook signature headers", { status: 401 });
     }
 
-    const verified = verifyCashfreeWebhookSignature({
+    // CRITICAL: Verify signature using raw body (not parsed JSON)
+    // Try with the secret key as-is first
+    let verified = verifyCashfreeWebhookSignature({
       rawBody,
       timestamp,
       signature,
       secret: process.env.CASHFREE_SECRET_KEY,
     });
 
+    // If verification fails, try with trimmed secret (common issue)
+    if (!verified && process.env.CASHFREE_SECRET_KEY.trim() !== process.env.CASHFREE_SECRET_KEY) {
+      console.log("[Webhook] Retrying signature verification with trimmed secret");
+      verified = verifyCashfreeWebhookSignature({
+        rawBody,
+        timestamp,
+        signature,
+        secret: process.env.CASHFREE_SECRET_KEY.trim(),
+      });
+    }
+
     if (!verified) {
-      console.error("[Webhook] Signature verification failed");
+      console.error("[Webhook] Signature verification failed", {
+        timestamp,
+        signatureLength: signature.length,
+        rawBodyLength: rawBody.length,
+        secretKeyLength: process.env.CASHFREE_SECRET_KEY.length,
+        // Log first few chars for debugging (safe - not full secret)
+        secretKeyPrefix: process.env.CASHFREE_SECRET_KEY.substring(0, 5) + "...",
+      });
       return new Response("Invalid webhook signature", { status: 401 });
     }
 
-    const payload = JSON.parse(rawBody) as CashfreeWebhookPayload;
+    // Only parse JSON AFTER signature verification
+    let payload: CashfreeWebhookPayload;
+    try {
+      payload = JSON.parse(rawBody) as CashfreeWebhookPayload;
+    } catch (parseError) {
+      console.error("[Webhook] Failed to parse payload JSON:", parseError);
+      return new Response("Invalid payload format", { status: 400 });
+    }
+
     console.log("[Webhook] Payload received", {
       order_id: payload.order_id,
       order_status: payload.order_status,
@@ -82,18 +149,19 @@ export async function handleCashfreeWebhook(req: NextRequest) {
       return new Response("Invalid payload: missing order_id", { status: 400 });
     }
 
-    if (!db) {
+    // CRITICAL: Check Admin SDK is initialized
+    if (!adminDb) {
+      console.error("[Webhook] Admin SDK not initialized");
       return new Response("Database error", { status: 500 });
     }
 
-    const firestore = db;
-
-    const bookingsRef = collection(firestore, "bookings");
-    const q = query(bookingsRef, where("orderId", "==", orderId), limit(1));
-    const snapshot = await getDocs(q);
+    // CRITICAL: Use Admin SDK to query bookings (bypasses Firestore rules)
+    const bookingsRef = adminDb.collection("bookings");
+    const snapshot = await bookingsRef.where("orderId", "==", orderId).limit(1).get();
 
     if (snapshot.empty) {
       console.log("[Webhook] No booking found for orderId:", orderId);
+      // Return OK to prevent Cashfree retries
       return new Response("OK", { status: 200 });
     }
 
@@ -113,13 +181,19 @@ export async function handleCashfreeWebhook(req: NextRequest) {
       currentPaymentStatus: existing.paymentStatus,
     });
 
+    // Amount validation
     const expectedAmount = typeof existing.totalAmount === "number" ? existing.totalAmount : Number(existing.totalAmount);
     const receivedAmount = typeof payload.order_amount === "number" ? payload.order_amount : Number(payload.order_amount);
 
     if (Number.isFinite(expectedAmount) && Number.isFinite(receivedAmount) && expectedAmount !== receivedAmount) {
+      console.error("[Webhook] Amount mismatch", {
+        expected: expectedAmount,
+        received: receivedAmount,
+      });
       return new Response("Amount mismatch", { status: 400 });
     }
 
+    // CRITICAL: Idempotency check - skip if already confirmed
     const alreadyConfirmed = safeUpper(existing.bookingStatus) === "CONFIRMED" && safeUpper(existing.paymentStatus) === "SUCCESS";
     const success = isPaymentSuccess(payload);
 
@@ -131,8 +205,9 @@ export async function handleCashfreeWebhook(req: NextRequest) {
     });
 
     if (success) {
+      // CRITICAL: Idempotent - if already confirmed, return OK
       if (alreadyConfirmed) {
-        console.log("[Webhook] Booking already confirmed, skipping");
+        console.log("[Webhook] Booking already confirmed, skipping (idempotent)");
         return new Response("OK", { status: 200 });
       }
 
@@ -140,15 +215,19 @@ export async function handleCashfreeWebhook(req: NextRequest) {
 
       const ticketId = existing.ticketId || `TKT-${Date.now()}-${Math.random().toString(36).slice(2, 11).toUpperCase()}`;
 
+      // CRITICAL: Booking confirmation data ONLY
+      // No email sending here - that's decoupled
       const updateData = {
         orderId,
         paymentGateway: "cashfree",
         paymentStatus: "SUCCESS",
         bookingStatus: "CONFIRMED",
         ticketId,
-        confirmedAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        webhookReceivedAt: serverTimestamp(),
+        confirmedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+        webhookReceivedAt: FieldValue.serverTimestamp(),
+        // NOTE: Email will be sent separately via trigger or API call
+        // This keeps booking confirmation independent of email delivery
       };
 
       const eventBookingUpdate = {
@@ -163,52 +242,26 @@ export async function handleCashfreeWebhook(req: NextRequest) {
         dateTimeKey: existing.dateTimeKey || null,
       };
 
-      const bookingRef = doc(firestore, "bookings", bookingId);
-
+      // CRITICAL: Use Admin SDK for all writes (bypasses Firestore rules)
+      const bookingRef = adminDb.doc(`bookings/${bookingId}`);
+      
       await Promise.all([
-        setDoc(bookingRef, updateData, { merge: true }),
+        bookingRef.set(updateData, { merge: true }),
         existing.eventId
-          ? setDoc(doc(firestore, "events", existing.eventId, "bookings", bookingId), eventBookingUpdate, { merge: true })
+          ? adminDb.doc(`events/${existing.eventId}/bookings/${bookingId}`).set(eventBookingUpdate, { merge: true })
           : Promise.resolve(),
       ]);
 
-      // Update analytics (non-blocking - failures are logged but don't affect booking confirmation)
-      if (existing.eventId && existing.quantity && existing.totalAmount) {
-        // Extract date from booking (could be in 'date' field or parsed from dateTimeKey)
-        let bookingDate: string | null = existing.date || null;
-        if (!bookingDate && existing.dateTimeKey) {
-          // dateTimeKey format: "yyyy-mm-dd_HH:mm"
-          const datePart = existing.dateTimeKey.split("_")[0];
-          if (datePart && /^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
-            bookingDate = datePart;
-          }
-        }
-
-        updateAnalyticsOnBookingConfirmation(firestore, {
-          eventId: existing.eventId,
-          quantity: typeof existing.quantity === "number" ? existing.quantity : 0,
-          totalAmount: typeof existing.totalAmount === "number" ? existing.totalAmount : 0,
-          locationId: existing.locationId || null,
-          venueId: existing.venueId || null,
-          date: bookingDate,
-          showId: existing.showId || null,
-        }).catch((error) => {
-          // Analytics failure must NEVER block booking confirmation
-          // Error is already logged in updateAnalyticsOnBookingConfirmation
-          console.error("[Webhook] Analytics update failed (non-fatal):", error);
-        });
-      }
-
-      await maybeSendBookingConfirmationEmail({
-        firestore,
-        bookingId,
-        eventId: existing.eventId || null,
-      });
+      // NOTE: Analytics and email are decoupled
+      // Analytics can be updated via Firestore trigger or separate API
+      // Email can be sent via Firestore trigger or separate API call
+      // This keeps webhook fast and focused on booking confirmation only
 
       console.log("[Webhook] Booking confirmed successfully:", bookingId);
       return new Response("OK", { status: 200 });
     }
 
+    // Payment failed - update booking status
     console.log("[Webhook] Payment failed, updating booking status");
 
     const updateData = {
@@ -216,37 +269,36 @@ export async function handleCashfreeWebhook(req: NextRequest) {
       paymentGateway: "cashfree",
       paymentStatus: "FAILED",
       bookingStatus: "CANCELLED",
-      updatedAt: serverTimestamp(),
-      webhookReceivedAt: serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+      webhookReceivedAt: FieldValue.serverTimestamp(),
       failureReason: payload.payment_status || payload.order_status || "UNKNOWN",
     };
 
-    const bookingRef = doc(firestore, "bookings", bookingId);
+    const bookingRef = adminDb.doc(`bookings/${bookingId}`);
     
     // CRITICAL: If payment fails, decrement ticketType-level ticketsSold to release reservation
     // This ensures tickets are available again if payment fails
-    // PRODUCTION-READY: Decrement at ticketType level (not event level)
     if (existing.eventId && existing.items && Array.isArray(existing.items) && existing.items.length > 0) {
-      const eventRef = doc(firestore, "events", existing.eventId);
+      const eventRef = adminDb.doc(`events/${existing.eventId}`);
       
-      // Use transaction to atomically decrement ticketType counters and update booking
       try {
-        await runTransaction(firestore, async (transaction) => {
+        // Use transaction to atomically decrement ticketType counters and update booking
+        await adminDb.runTransaction(async (transaction) => {
           // Read event document to get ticketTypes structure
           const eventDoc = await transaction.get(eventRef);
-          if (!eventDoc.exists()) {
+          if (!eventDoc.exists) {
             throw new Error("Event not found");
           }
 
           const eventData = eventDoc.data();
-          const tickets = eventData.tickets || {};
+          const tickets = eventData?.tickets || {};
           const venueConfigs = Array.isArray(tickets.venueConfigs) ? tickets.venueConfigs : [];
 
           if (venueConfigs.length === 0) {
             // No ticket types - just update booking status
             transaction.set(bookingRef, updateData, { merge: true });
             if (existing.eventId) {
-              const eventBookingRef = doc(firestore, "events", existing.eventId, "bookings", bookingId);
+              const eventBookingRef = adminDb.doc(`events/${existing.eventId}/bookings/${bookingId}`);
               transaction.set(eventBookingRef, updateData, { merge: true });
             }
             return;
@@ -308,7 +360,7 @@ export async function handleCashfreeWebhook(req: NextRequest) {
           
           // Update event booking subcollection if exists
           if (existing.eventId) {
-            const eventBookingRef = doc(firestore, "events", existing.eventId, "bookings", bookingId);
+            const eventBookingRef = adminDb.doc(`events/${existing.eventId}/bookings/${bookingId}`);
             transaction.set(eventBookingRef, updateData, { merge: true });
           }
         });
@@ -316,18 +368,18 @@ export async function handleCashfreeWebhook(req: NextRequest) {
         // If transaction fails, still update booking status (non-blocking)
         console.error("[Webhook] Failed to decrement ticketType ticketsSold counters:", error);
         await Promise.all([
-          setDoc(bookingRef, updateData, { merge: true }),
+          bookingRef.set(updateData, { merge: true }),
           existing.eventId
-            ? setDoc(doc(firestore, "events", existing.eventId, "bookings", bookingId), updateData, { merge: true })
+            ? adminDb.doc(`events/${existing.eventId}/bookings/${bookingId}`).set(updateData, { merge: true })
             : Promise.resolve(),
         ]);
       }
     } else {
       // No eventId or items - just update booking status
       await Promise.all([
-        setDoc(bookingRef, updateData, { merge: true }),
+        bookingRef.set(updateData, { merge: true }),
         existing.eventId
-          ? setDoc(doc(firestore, "events", existing.eventId, "bookings", bookingId), updateData, { merge: true })
+          ? adminDb.doc(`events/${existing.eventId}/bookings/${bookingId}`).set(updateData, { merge: true })
           : Promise.resolve(),
       ]);
     }
