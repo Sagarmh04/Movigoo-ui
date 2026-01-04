@@ -54,7 +54,8 @@ export async function GET(req: NextRequest) {
     let failedCount = 0;
     const errors: string[] = [];
 
-    // 2. Process each abandoned booking
+    // 2. Process each abandoned booking in its own transaction
+    // CRITICAL: Each booking gets its own transaction to avoid read/write ordering issues
     for (const bookingDoc of abandonedBookingsSnapshot.docs) {
       const bookingId = bookingDoc.id;
       const bookingData = bookingDoc.data();
@@ -63,16 +64,19 @@ export async function GET(req: NextRequest) {
         console.log("[Cleanup] Processing booking:", bookingId);
 
         // Validate booking has required fields
-        if (!bookingData.eventId || !bookingData.items || !Array.isArray(bookingData.items)) {
-          console.warn("[Cleanup] Skipping booking with missing eventId or items:", bookingId);
+        if (!bookingData.eventId) {
+          console.warn("[Cleanup] Skipping booking with missing eventId:", bookingId);
           failedCount++;
-          errors.push(`${bookingId}: Missing eventId or items`);
+          errors.push(`${bookingId}: Missing eventId`);
           continue;
         }
 
-        // 3. Use transaction to restore inventory atomically
+        // 3. Run separate transaction for this booking
+        // ALL READS happen first, then ALL WRITES (Firestore requirement)
         await firestore.runTransaction(async (transaction) => {
-          // Re-read booking inside transaction to ensure it's still PENDING
+          // === PHASE 1: ALL READS (must complete before any writes) ===
+          
+          // Read 1: Booking document
           const bookingRef = firestore.doc(`bookings/${bookingId}`);
           const bookingSnapshot = await transaction.get(bookingRef);
 
@@ -88,32 +92,58 @@ export async function GET(req: NextRequest) {
             return; // Exit transaction gracefully
           }
 
-          // Read event document
+          // Read 2: Event document
           const eventRef = firestore.doc(`events/${bookingData.eventId}`);
           const eventSnapshot = await transaction.get(eventRef);
 
+          // Read 3: Event booking subcollection (if exists)
+          const eventBookingRef = firestore.doc(`events/${bookingData.eventId}/bookings/${bookingId}`);
+          const eventBookingSnapshot = await transaction.get(eventBookingRef);
+
+          // === PHASE 2: COMPUTE UPDATES (no reads or writes) ===
+
+          const expiredBookingUpdate = {
+            bookingStatus: "EXPIRED",
+            paymentStatus: "FAILED",
+            expiredAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+          };
+
+          // Handle missing event (ghost booking cleanup)
           if (!eventSnapshot.exists) {
-            console.warn("[Cleanup] Event not found:", bookingData.eventId);
-            throw new Error(`Event ${bookingData.eventId} not found`);
+            console.warn("[Cleanup] Event not found (ghost booking):", bookingData.eventId, "- cleaning booking only");
+            
+            // === PHASE 3: WRITES (no more reads allowed) ===
+            // Just mark booking as EXPIRED, don't try to restore inventory
+            transaction.update(bookingRef, expiredBookingUpdate);
+            
+            if (eventBookingSnapshot.exists) {
+              transaction.update(eventBookingRef, expiredBookingUpdate);
+            }
+            
+            console.log("[Cleanup] ✅ Ghost booking cleaned:", bookingId);
+            return;
           }
 
+          // Event exists - restore inventory
           const eventData = eventSnapshot.data();
           const tickets = eventData?.tickets || {};
           const venueConfigs = Array.isArray(tickets.venueConfigs) ? tickets.venueConfigs : [];
 
-          if (venueConfigs.length === 0) {
-            console.log("[Cleanup] No venue configs found, skipping inventory restoration for:", bookingId);
-            // Still mark booking as expired even if no inventory to restore
-            transaction.update(bookingRef, {
-              bookingStatus: "EXPIRED",
-              paymentStatus: "FAILED",
-              expiredAt: FieldValue.serverTimestamp(),
-              updatedAt: FieldValue.serverTimestamp(),
-            });
+          if (venueConfigs.length === 0 || !bookingData.items || !Array.isArray(bookingData.items)) {
+            console.log("[Cleanup] No inventory to restore for:", bookingId);
+            
+            // === PHASE 3: WRITES (no more reads allowed) ===
+            transaction.update(bookingRef, expiredBookingUpdate);
+            
+            if (eventBookingSnapshot.exists) {
+              transaction.update(eventBookingRef, expiredBookingUpdate);
+            }
+            
             return;
           }
 
-          // 4. Build ticketType map for fast lookup
+          // Build ticketType map for fast lookup
           const ticketTypeMap = new Map<string, { venueConfigIndex: number; ticketTypeIndex: number; ticketType: any }>();
 
           for (let vcIdx = 0; vcIdx < venueConfigs.length; vcIdx++) {
@@ -128,7 +158,7 @@ export async function GET(req: NextRequest) {
             }
           }
 
-          // 5. Restore inventory for each item in booking
+          // Restore inventory for each item in booking
           const updatedVenueConfigs = [...venueConfigs];
           let inventoryRestored = false;
 
@@ -172,38 +202,25 @@ export async function GET(req: NextRequest) {
             inventoryRestored = true;
           }
 
-          // 6. Write updates to Firestore
+          // === PHASE 3: ALL WRITES (no more reads allowed) ===
+          
+          // Write 1: Update event inventory if restored
           if (inventoryRestored) {
-            // Update event document with restored inventory
             transaction.update(eventRef, {
               tickets: {
                 ...tickets,
                 venueConfigs: updatedVenueConfigs,
               },
             });
-
             console.log("[Cleanup] Inventory restored for booking:", bookingId);
           }
 
-          // 7. Mark booking as EXPIRED
-          transaction.update(bookingRef, {
-            bookingStatus: "EXPIRED",
-            paymentStatus: "FAILED",
-            expiredAt: FieldValue.serverTimestamp(),
-            updatedAt: FieldValue.serverTimestamp(),
-          });
+          // Write 2: Mark main booking as EXPIRED
+          transaction.update(bookingRef, expiredBookingUpdate);
 
-          // 8. Also update event booking subcollection if exists
-          const eventBookingRef = firestore.doc(`events/${bookingData.eventId}/bookings/${bookingId}`);
-          const eventBookingSnapshot = await transaction.get(eventBookingRef);
-
+          // Write 3: Mark event booking subcollection as EXPIRED (if exists)
           if (eventBookingSnapshot.exists) {
-            transaction.update(eventBookingRef, {
-              bookingStatus: "EXPIRED",
-              paymentStatus: "FAILED",
-              expiredAt: FieldValue.serverTimestamp(),
-              updatedAt: FieldValue.serverTimestamp(),
-            });
+            transaction.update(eventBookingRef, expiredBookingUpdate);
           }
 
           console.log("[Cleanup] ✅ Successfully cleaned booking:", bookingId);
