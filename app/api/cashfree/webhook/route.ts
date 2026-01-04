@@ -14,6 +14,11 @@ function safeUpper(val: unknown) {
 }
 
 async function verifyOrderWithCashfree(orderId: string) {
+  if (!adminDb) {
+    console.error("[Webhook] Admin SDK not initialized");
+    return;
+  }
+
   const res = await fetch(
     `${process.env.CASHFREE_BASE_URL}/pg/orders/${orderId}`,
     {
