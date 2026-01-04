@@ -3,7 +3,9 @@
 // CRITICAL: Use this ONLY in API routes (/app/api/**)
 // NEVER import this in components, hooks, or client-side code
 
+// @ts-ignore - firebase-admin is server-only, Next.js may try to bundle it
 import { initializeApp, getApps, cert, App } from "firebase-admin/app";
+// @ts-ignore - firebase-admin is server-only, Next.js may try to bundle it
 import { getFirestore, Firestore } from "firebase-admin/firestore";
 
 let adminApp: App | null = null;
