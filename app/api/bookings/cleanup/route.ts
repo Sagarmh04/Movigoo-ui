@@ -2,244 +2,150 @@
 // GET /api/bookings/cleanup
 // Cleans up abandoned PENDING bookings (> 15 minutes old) and restores inventory
 
-import { NextRequest, NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebaseAdmin";
+import { NextResponse } from "next/server";
+import { adminDb } from "@/lib/firebaseAdmin"; // ✅ Correct Admin SDK import
 import { FieldValue } from "firebase-admin/firestore";
 
-export const runtime = "nodejs";
+// 🔴 FIX 1: Prevent "Static Generation" Timeout during Build
+// This tells Next.js: "Don't run this during npm run build. Only run on request."
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
-const EXPIRATION_MINUTES = 15;
-
-export async function GET(req: NextRequest) {
+export async function GET(request: Request) {
   try {
     console.log("[Cleanup] Starting abandoned booking cleanup");
 
-    // CRITICAL: Use Admin SDK to bypass Firestore rules
+    // Check if Admin SDK is initialized
     if (!adminDb) {
-      console.error("[Cleanup] Firebase Admin SDK not initialized");
-      return NextResponse.json(
-        { error: "Database not initialized" },
-        { status: 500 }
-      );
+      console.error("[Cleanup] Admin SDK not initialized");
+      return NextResponse.json({ error: "Database not initialized" }, { status: 500 });
     }
 
-    const firestore = adminDb;
+    // 15 minutes ago
     const now = new Date();
-    const expirationThreshold = new Date(now.getTime() - EXPIRATION_MINUTES * 60 * 1000);
+    const expirationThreshold = new Date(now.getTime() - 15 * 60 * 1000);
 
-    console.log("[Cleanup] Expiration threshold:", expirationThreshold.toISOString());
-
-    // Step 1: Query for abandoned bookings (PENDING status > 15 minutes old)
-    const bookingsRef = firestore.collection("bookings");
-    const abandonedBookingsSnapshot = await bookingsRef
+    // 🔴 FIX 2: Limit to 5 items to respect Vercel Hobby Tier (10s Timeout)
+    // 5 items * ~1.5s each = ~7.5s (Safe zone)
+    const bookingsRef = adminDb.collection("bookings");
+    const snapshot = await bookingsRef
       .where("bookingStatus", "==", "PENDING")
       .where("createdAt", "<", expirationThreshold)
-      .limit(50) // Process in batches to avoid timeouts
+      .limit(5) 
       .get();
 
-    if (abandonedBookingsSnapshot.empty) {
-      console.log("[Cleanup] No abandoned bookings found");
-      return NextResponse.json({
-        success: true,
-        message: "No abandoned bookings to clean",
-        cleaned: 0,
-        failed: 0,
+    if (snapshot.empty) {
+      return NextResponse.json({ 
+        success: true, 
+        message: "No abandoned bookings found", 
+        cleaned: 0 
       });
     }
 
-    console.log("[Cleanup] Found", abandonedBookingsSnapshot.size, "abandoned bookings");
+    console.log(`[Cleanup] Found ${snapshot.size} abandoned bookings`);
 
-    // Step 2: Initialize counters
     let cleanedCount = 0;
-    let failedCount = 0;
+    let failCount = 0;
     const errors: string[] = [];
 
-    // Step 3: Loop through each abandoned booking
-    // CRITICAL: Each booking gets its own separate transaction
-    for (const bookingDoc of abandonedBookingsSnapshot.docs) {
-      const bookingId = bookingDoc.id;
-      const bookingData = bookingDoc.data();
-
-      // Skip bookings without eventId
-      if (!bookingData.eventId) {
-        console.warn("[Cleanup] Skipping booking with missing eventId:", bookingId);
-        failedCount++;
-        errors.push(`${bookingId}: Missing eventId`);
-        continue;
-      }
+    // Process bookings one by one (Sequential is safer for timeouts)
+    for (const doc of snapshot.docs) {
+      const bookingId = doc.id;
+      const bookingData = doc.data();
 
       try {
-        console.log("[Cleanup] Processing booking:", bookingId);
+        // Capture adminDb in closure to satisfy TypeScript
+        const db = adminDb;
+        
+        await db.runTransaction(async (transaction) => {
+          // 1. Re-read Booking (Safety check inside transaction)
+          const bookingRef = bookingsRef.doc(bookingId);
+          const freshSnap = await transaction.get(bookingRef);
+          
+          if (!freshSnap.exists) return;
+          const freshData = freshSnap.data();
+          if (freshData?.bookingStatus !== "PENDING") return;
 
-        // Step 4: Open a NEW transaction for THIS booking only
-        await firestore.runTransaction(async (transaction) => {
-          // ========================================
-          // STEP A: ALL READS (must happen first)
-          // ========================================
-
-          const bookingRef = firestore.doc(`bookings/${bookingId}`);
-          const eventRef = firestore.doc(`events/${bookingData.eventId}`);
-          const eventBookingRef = firestore.doc(`events/${bookingData.eventId}/bookings/${bookingId}`);
-
-          // Read 1: Re-read booking to ensure still PENDING (idempotency)
-          const bookingSnapshot = await transaction.get(bookingRef);
-
-          if (!bookingSnapshot.exists) {
-            throw new Error(`Booking ${bookingId} not found`);
+          // 2. Check Event
+          if (!freshData.eventId) {
+             // Invalid booking -> Just Expire
+             transaction.update(bookingRef, { 
+               bookingStatus: "EXPIRED", 
+               paymentStatus: "FAILED" 
+             });
+             return;
           }
 
-          const currentBookingData = bookingSnapshot.data();
+          const eventRef = db.collection("events").doc(freshData.eventId);
+          const eventSnap = await transaction.get(eventRef);
 
-          // Skip if already processed
-          if (currentBookingData?.bookingStatus !== "PENDING") {
-            console.log("[Cleanup] Already processed:", bookingId);
+          // 🔴 FIX 3: Handle "Ghost" Events (Deleted events)
+          if (!eventSnap.exists) {
+            console.warn(`[Cleanup] Event ${freshData.eventId} not found. Expiring booking.`);
+            transaction.update(bookingRef, { 
+               bookingStatus: "EXPIRED", 
+               paymentStatus: "FAILED" 
+            });
             return;
           }
 
-          // Read 2: Get the Event document
-          const eventSnapshot = await transaction.get(eventRef);
+          const eventData = eventSnap.data();
+          
+          // 3. Restore Inventory Logic
+          const venueConfigs = eventData?.tickets?.venueConfigs || [];
+          // Clone deeply to avoid reference issues
+          const updatedVenueConfigs = JSON.parse(JSON.stringify(venueConfigs));
+          let inventoryRestored = false;
 
-          // Read 3: Check if event booking subcollection exists
-          const eventBookingSnapshot = await transaction.get(eventBookingRef);
-
-          // ========================================
-          // STEP B: LOGIC (no reads, no writes)
-          // ========================================
-
-          const expiredUpdate = {
-            bookingStatus: "EXPIRED",
-            paymentStatus: "FAILED",
-            expiredAt: FieldValue.serverTimestamp(),
-            updatedAt: FieldValue.serverTimestamp(),
-          };
-
-          // Check if Event exists
-          const eventExists = eventSnapshot.exists;
-
-          let eventInventoryUpdate = null;
-
-          if (eventExists) {
-            // Event exists - prepare inventory restoration
-            const eventData = eventSnapshot.data();
-            const tickets = eventData?.tickets || {};
-            const venueConfigs = Array.isArray(tickets.venueConfigs) ? tickets.venueConfigs : [];
-
-            if (venueConfigs.length > 0 && bookingData.items && Array.isArray(bookingData.items)) {
-              // Build ticketType map
-              const ticketTypeMap = new Map<string, { vcIdx: number; ttIdx: number }>();
-
-              for (let vcIdx = 0; vcIdx < venueConfigs.length; vcIdx++) {
-                const venueConfig = venueConfigs[vcIdx];
-                const ticketTypes = Array.isArray(venueConfig.ticketTypes) ? venueConfig.ticketTypes : [];
-
-                for (let ttIdx = 0; ttIdx < ticketTypes.length; ttIdx++) {
-                  const ticketType = ticketTypes[ttIdx];
-                  if (ticketType.id) {
-                    ticketTypeMap.set(ticketType.id, { vcIdx, ttIdx });
-                  }
-                }
-              }
-
-              // Clone venueConfigs and restore inventory
-              const updatedVenueConfigs = JSON.parse(JSON.stringify(venueConfigs));
-              let inventoryChanged = false;
-
-              for (const item of bookingData.items) {
-                const mapping = ticketTypeMap.get(item.ticketTypeId);
-                if (!mapping) continue;
-
-                const { vcIdx, ttIdx } = mapping;
-                const ticketType = updatedVenueConfigs[vcIdx].ticketTypes[ttIdx];
-
-                const currentSold = typeof ticketType.ticketsSold === "number" ? ticketType.ticketsSold : 0;
-                const quantityToRestore = typeof item.quantity === "number" ? item.quantity : 0;
-
-                if (quantityToRestore > 0) {
-                  // Decrement ticketsSold (restore inventory)
-                  ticketType.ticketsSold = Math.max(0, currentSold - quantityToRestore);
-                  inventoryChanged = true;
-
-                  console.log("[Cleanup] Restoring:", {
-                    ticketTypeId: item.ticketTypeId,
-                    before: currentSold,
-                    restoring: quantityToRestore,
-                    after: ticketType.ticketsSold,
-                  });
-                }
-              }
-
-              if (inventoryChanged) {
-                eventInventoryUpdate = {
-                  tickets: {
-                    ...tickets,
-                    venueConfigs: updatedVenueConfigs,
-                  },
-                };
-              }
+          if (freshData.items && Array.isArray(freshData.items)) {
+            for (const item of freshData.items) {
+               updatedVenueConfigs.forEach((vc: any) => {
+                 const tTypes = vc.ticketTypes || [];
+                 const tIndex = tTypes.findIndex((t: any) => t.id === item.ticketTypeId);
+                 
+                 if (tIndex !== -1) {
+                   const currentSold = tTypes[tIndex].ticketsSold || 0;
+                   // Restore: Decrease sold count (don't go below 0)
+                   tTypes[tIndex].ticketsSold = Math.max(0, currentSold - item.quantity);
+                   inventoryRestored = true;
+                 }
+                 vc.ticketTypes = tTypes;
+               });
             }
-          } else {
-            // Event does NOT exist (ghost booking)
-            console.warn("[Cleanup] Ghost booking - event does not exist:", bookingData.eventId);
           }
 
-          // ========================================
-          // STEP C: ALL WRITES (after all reads)
-          // ========================================
-
-          // Write 1: Update event inventory (if event exists and inventory needs restoration)
-          if (eventExists && eventInventoryUpdate) {
-            transaction.update(eventRef, eventInventoryUpdate);
-            console.log("[Cleanup] Inventory restored for event:", bookingData.eventId);
+          // 4. Execute Writes
+          if (inventoryRestored) {
+            transaction.update(eventRef, { "tickets.venueConfigs": updatedVenueConfigs });
+            console.log(`[Cleanup] Inventory restored for event: ${freshData.eventId}`);
           }
-
-          // Write 2: Mark booking as EXPIRED
-          transaction.update(bookingRef, expiredUpdate);
-
-          // Write 3: Mark event booking subcollection as EXPIRED (if exists)
-          if (eventBookingSnapshot.exists) {
-            transaction.update(eventBookingRef, expiredUpdate);
-          }
-
-          if (eventExists) {
-            console.log("[Cleanup] ✅ Booking cleaned (inventory restored):", bookingId);
-          } else {
-            console.log("[Cleanup] ✅ Ghost booking cleaned:", bookingId);
-          }
+          
+          transaction.update(bookingRef, { 
+            bookingStatus: "EXPIRED", 
+            paymentStatus: "FAILED" 
+          });
         });
 
-        // Transaction succeeded
         cleanedCount++;
-      } catch (error: any) {
-        console.error("[Cleanup] Failed to clean booking:", bookingId, error.message);
-        failedCount++;
-        errors.push(`${bookingId}: ${error.message}`);
+        console.log(`[Cleanup] ✅ Cleared: ${bookingId}`);
+
+      } catch (err: any) {
+        console.error(`[Cleanup] ❌ Error on ${bookingId}:`, err);
+        failCount++;
+        errors.push(`${bookingId}: ${err.message}`);
       }
     }
 
-    // Step 5: Return final stats
-    console.log("[Cleanup] Cleanup complete:", {
-      total: abandonedBookingsSnapshot.size,
-      cleaned: cleanedCount,
-      failed: failedCount,
-    });
-
     return NextResponse.json({
       success: true,
-      message: "Cleanup completed",
       cleaned: cleanedCount,
-      failed: failedCount,
-      total: abandonedBookingsSnapshot.size,
-      errors: errors.length > 0 ? errors : undefined,
+      failed: failCount,
+      remaining_backlog: snapshot.size - (cleanedCount + failCount),
+      errors: errors.length > 0 ? errors : undefined
     });
+
   } catch (error: any) {
-    console.error("[Cleanup] Critical error:", error);
-    return NextResponse.json(
-      {
-        error: "Cleanup failed",
-        message: error.message,
-      },
-      { status: 500 }
-    );
+    console.error("[Cleanup] CRITICAL FAIL:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
-
