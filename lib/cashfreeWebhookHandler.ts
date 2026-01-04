@@ -83,13 +83,11 @@ function verifyCashfreeWebhookSignature(args: {
   }
 
   // 3. Failed both formats
-  console.error("[Webhook] ❌ Signature verification FAILED for both formats", {
+  console.error("[Webhook] ❌ Signature verification FAILED", {
     timestamp,
-    timestampLength: timestamp.length,
     rawBodyLength: rawBody.length,
-    signatureReceived: signature.substring(0, 20) + "...",
-    signatureWithDot: signatureWithDot.substring(0, 20) + "...",
-    signatureNoDot: signatureNoDot.substring(0, 20) + "...",
+    // Removed partial signature logs to prevent leakage of signature structure
+    error: "Signatures did not match expected values"
   });
   return false;
 }
@@ -113,8 +111,8 @@ export async function handleCashfreeWebhook(req: NextRequest) {
     try {
       webhookSecret = validateCashfreeWebhookSecret();
     } catch (e) {
-      console.error("[Webhook] CASHFREE_WEBHOOK_SECRET not configured");
-      return new Response("Webhook not configured", { status: 500 });
+      console.error("[Webhook] CRITICAL: CASHFREE_WEBHOOK_SECRET not configured in environment");
+      return new Response("Unauthorized", { status: 401 });
     }
 
     if (!timestamp || !signature) {
