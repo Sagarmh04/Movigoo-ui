@@ -24,13 +24,16 @@ export async function POST(req: NextRequest) {
       appUrl: process.env.NEXT_PUBLIC_APP_URL,
     });
 
-    // Validate environment variables
+    // Validate environment variables (must exist AND be non-empty)
     if (
       !process.env.CASHFREE_APP_ID ||
+      process.env.CASHFREE_APP_ID.trim() === "" ||
       !process.env.CASHFREE_SECRET_KEY ||
-      !process.env.CASHFREE_BASE_URL
+      process.env.CASHFREE_SECRET_KEY.trim() === "" ||
+      !process.env.CASHFREE_BASE_URL ||
+      process.env.CASHFREE_BASE_URL.trim() === ""
     ) {
-      console.error("❌ Missing Cashfree env vars on Vercel");
+      console.error("❌ Missing or empty Cashfree env vars");
       return NextResponse.json(
         { error: "Cashfree configuration missing" },
         { status: 500 }
@@ -69,9 +72,11 @@ export async function POST(req: NextRequest) {
 
     const { bookingId, amount, email, phone } = body;
 
-    if (!amount) {
+    // CRITICAL: Validate amount is a finite number > 0
+    const parsedAmount = Number(amount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
       return NextResponse.json(
-        { error: "Amount is required" },
+        { error: "Invalid amount: must be a positive number" },
         { status: 400 }
       );
     }
@@ -113,7 +118,7 @@ export async function POST(req: NextRequest) {
 
           // CRITICAL: Validate amount matches booking totalAmount
           const expectedAmount = typeof booking.totalAmount === "number" ? booking.totalAmount : Number(booking.totalAmount);
-          const requestedAmount = Number(amount);
+          const requestedAmount = parsedAmount;
           
           if (Number.isFinite(expectedAmount) && Number.isFinite(requestedAmount) && expectedAmount !== requestedAmount) {
             console.log("Amount mismatch:", { expectedAmount, requestedAmount });
@@ -223,11 +228,26 @@ export async function POST(req: NextRequest) {
     }
 
     // ✅ STEP 3 — ENSURE CORRECT BASE URL
-    // Confirm this line exists exactly (no trailing slash, no spaces, no quotes)
-    const CASHFREE_BASE = process.env.CASHFREE_BASE_URL;
+    // Production: https://api.cashfree.com/pg
+    // Sandbox: https://sandbox.cashfree.com/pg
+    // CRITICAL: Remove trailing slash to prevent double slashes in endpoint
+    let CASHFREE_BASE = process.env.CASHFREE_BASE_URL.trim();
+    if (CASHFREE_BASE.endsWith("/")) {
+      CASHFREE_BASE = CASHFREE_BASE.slice(0, -1);
+    }
+    
     if (!CASHFREE_BASE) {
       return NextResponse.json(
         { error: "CASHFREE_BASE_URL not configured" },
+        { status: 500 }
+      );
+    }
+    
+    // Validate base URL format
+    if (!CASHFREE_BASE.startsWith("https://") || !CASHFREE_BASE.includes("cashfree.com/pg")) {
+      console.error("❌ Invalid CASHFREE_BASE_URL format:", CASHFREE_BASE);
+      return NextResponse.json(
+        { error: "Invalid Cashfree base URL configuration" },
         { status: 500 }
       );
     }
@@ -247,7 +267,7 @@ export async function POST(req: NextRequest) {
 
     const payload = {
       order_id: orderId,
-      order_amount: Number(amount),
+      order_amount: parsedAmount,
       order_currency: "INR",
       customer_details: {
         customer_id: bookingId || orderId,
@@ -267,8 +287,8 @@ export async function POST(req: NextRequest) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-client-id": process.env.CASHFREE_APP_ID!,
-          "x-client-secret": process.env.CASHFREE_SECRET_KEY!,
+          "x-client-id": process.env.CASHFREE_APP_ID!.trim(),
+          "x-client-secret": process.env.CASHFREE_SECRET_KEY!.trim(),
           "x-api-version": "2023-08-01",
         },
         body: JSON.stringify(payload),
@@ -284,10 +304,33 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // CRITICAL: Log response status + raw text BEFORE parsing
+    let responseText: string;
+    try {
+      responseText = await response.text();
+    } catch (textError) {
+      console.error("Failed to read Cashfree API response body:", {
+        error: textError instanceof Error ? textError.message : String(textError),
+        status: response.status,
+        statusText: response.statusText,
+        orderId,
+      });
+      return NextResponse.json(
+        { error: "Payment gateway response read failed" },
+        { status: 502 }
+      );
+    }
+    
+    console.log("Cashfree API response:", {
+      status: response.status,
+      statusText: response.statusText,
+      rawTextPreview: responseText.substring(0, 300),
+      rawTextLength: responseText.length,
+    });
+
     // CRITICAL: Parse response with defensive error handling
     let data: any;
     try {
-      const responseText = await response.text();
       if (!responseText) {
         console.error("Cashfree API returned empty response:", {
           status: response.status,
@@ -303,6 +346,7 @@ export async function POST(req: NextRequest) {
       console.error("Cashfree API response parse failed:", {
         status: response.status,
         statusText: response.statusText,
+        rawTextPreview: responseText.substring(0, 300),
         error: parseError instanceof Error ? parseError.message : String(parseError),
       });
       return NextResponse.json(
