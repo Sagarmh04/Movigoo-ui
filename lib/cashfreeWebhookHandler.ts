@@ -39,6 +39,16 @@ function constantTimeEquals(a: string, b: string) {
   return crypto.timingSafeEqual(aBuf, bBuf);
 }
 
+/**
+ * Verify Cashfree webhook signature (exact implementation per Cashfree docs)
+ * 
+ * Algorithm:
+ * 1. timestamp := header "x-webhook-timestamp"
+ * 2. payload := RAW REQUEST BODY (exact bytes, no parsing)
+ * 3. signedPayload := timestamp + "." + payload
+ * 4. expectedSignature := Base64Encode(HMAC_SHA256(signedPayload, CASHFREE_WEBHOOK_SECRET))
+ * 5. Compare expectedSignature === header "x-webhook-signature"
+ */
 function verifyCashfreeWebhookSignature(args: {
   rawBody: string;
   timestamp: string;
@@ -46,17 +56,27 @@ function verifyCashfreeWebhookSignature(args: {
   secret: string;
 }) {
   const { rawBody, timestamp, signature, secret } = args;
-  const signedPayload = `${timestamp}.${rawBody}`;
-  const expected = crypto.createHmac("sha256", secret).update(signedPayload).digest("base64");
+  
+  // CRITICAL: Construct signedPayload exactly as Cashfree expects
+  // Format: timestamp + "." + rawBody (exact string concatenation)
+  const signedPayload = timestamp + "." + rawBody;
+  
+  // CRITICAL: Generate HMAC SHA256 and encode as BASE64 (not hex)
+  const hmac = crypto.createHmac("sha256", secret);
+  hmac.update(signedPayload, "utf8");
+  const expected = hmac.digest("base64");
   
   // Log for debugging (first 20 chars only for security)
   console.log("[Webhook] Signature verification:", {
     timestamp,
+    signedPayloadLength: signedPayload.length,
     signatureReceived: signature.substring(0, 20) + "...",
     signatureExpected: expected.substring(0, 20) + "...",
     rawBodyLength: rawBody.length,
+    match: expected === signature,
   });
   
+  // CRITICAL: Constant-time comparison to prevent timing attacks
   return constantTimeEquals(expected, signature);
 }
 
@@ -72,95 +92,93 @@ export async function handleCashfreeWebhook(req: NextRequest) {
     // Any modification (JSON parsing, string manipulation) will break signature
     const rawBody = await req.text();
 
-    // CRITICAL: Try multiple header name variations (Cashfree may use different names)
-    const timestamp = 
-      req.headers.get("x-webhook-timestamp") || 
-      req.headers.get("x-cf-timestamp") ||
-      req.headers.get("x-timestamp") ||
-      "";
-    
-    const signature = 
-      req.headers.get("x-webhook-signature") || 
-      req.headers.get("x-cf-signature") ||
-      req.headers.get("x-signature") ||
-      "";
+    // CRITICAL: Extract headers exactly as Cashfree sends them (case-sensitive)
+    // Cashfree 2025-01-01 uses exact header names:
+    // - x-webhook-timestamp
+    // - x-webhook-signature
+    const timestamp = req.headers.get("x-webhook-timestamp") || "";
+    const signature = req.headers.get("x-webhook-signature") || "";
 
-    // Log all headers for debugging
+    // Log all headers for debugging (to verify what Cashfree actually sends)
     const allHeaders: Record<string, string> = {};
     req.headers.forEach((value, key) => {
       if (key.toLowerCase().includes("webhook") || key.toLowerCase().includes("signature") || key.toLowerCase().includes("timestamp") || key.toLowerCase().includes("cf-")) {
         allHeaders[key] = value;
       }
     });
+    console.log("[Webhook] All request headers:", Object.keys(req.headers).filter(k => 
+      k.toLowerCase().includes("webhook") || 
+      k.toLowerCase().includes("signature") || 
+      k.toLowerCase().includes("timestamp") ||
+      k.toLowerCase().includes("cf-")
+    ));
     console.log("[Webhook] Signature-related headers:", allHeaders);
 
     // CRITICAL: Use webhook secret (NOT API secret)
     // Cashfree provides separate webhook secret in Dashboard → Developers → Webhooks
     // This is DIFFERENT from CASHFREE_SECRET_KEY (API secret)
-    // Fallback to API secret only for backward compatibility
-    const webhookSecret = process.env.CASHFREE_WEBHOOK_SECRET || process.env.CASHFREE_SECRET_KEY;
+    const webhookSecret = process.env.CASHFREE_WEBHOOK_SECRET;
     
     if (!webhookSecret) {
-      console.error("[Webhook] Webhook secret not configured", {
+      console.error("[Webhook] CASHFREE_WEBHOOK_SECRET not configured", {
         hasWebhookSecret: !!process.env.CASHFREE_WEBHOOK_SECRET,
         hasApiSecret: !!process.env.CASHFREE_SECRET_KEY,
+        hint: "Get webhook secret from Cashfree Dashboard → Developers → Webhooks (different from API secret)",
       });
-      return new Response("Webhook not configured", { status: 500 });
+      return new Response("Webhook secret not configured", { status: 500 });
     }
 
+    // CRITICAL: Validate required headers exist
     if (!timestamp || !signature) {
-      console.error("[Webhook] Missing signature headers", {
+      console.error("[Webhook] Missing required headers", {
         hasTimestamp: !!timestamp,
         hasSignature: !!signature,
+        timestampValue: timestamp || "MISSING",
+        signatureValue: signature ? signature.substring(0, 20) + "..." : "MISSING",
         allHeaders: Object.keys(allHeaders),
+        hint: "Cashfree should send: x-webhook-timestamp and x-webhook-signature headers",
       });
       return new Response("Missing webhook signature headers", { status: 401 });
     }
 
-    // CRITICAL: Verify signature using raw body (not parsed JSON)
-    // Log which secret is being used (for debugging)
-    const usingWebhookSecret = !!process.env.CASHFREE_WEBHOOK_SECRET;
-    console.log("[Webhook] Using secret for verification:", {
-      type: usingWebhookSecret ? "CASHFREE_WEBHOOK_SECRET" : "CASHFREE_SECRET_KEY",
+    // CRITICAL: Log verification attempt (safe - no secrets exposed)
+    console.log("[Webhook] Starting signature verification:", {
+      timestamp,
+      timestampLength: timestamp.length,
+      signatureLength: signature.length,
+      rawBodyLength: rawBody.length,
       secretLength: webhookSecret.length,
       secretPrefix: webhookSecret.substring(0, 5) + "...",
     });
 
-    // Try with the secret key as-is first
-    let verified = verifyCashfreeWebhookSignature({
+    // CRITICAL: Verify signature using Cashfree's exact algorithm
+    // Algorithm: Base64Encode(HMAC_SHA256(timestamp + "." + rawBody, CASHFREE_WEBHOOK_SECRET))
+    const verified = verifyCashfreeWebhookSignature({
       rawBody,
       timestamp,
       signature,
       secret: webhookSecret,
     });
 
-    // If verification fails, try with trimmed secret (common issue)
-    if (!verified && webhookSecret.trim() !== webhookSecret) {
-      console.log("[Webhook] Retrying signature verification with trimmed secret");
-      verified = verifyCashfreeWebhookSignature({
-        rawBody,
-        timestamp,
-        signature,
-        secret: webhookSecret.trim(),
-      });
-    }
-
     if (!verified) {
-      console.error("[Webhook] Signature verification failed", {
+      console.error("[Webhook] Signature verification FAILED", {
         timestamp,
         signatureLength: signature.length,
         rawBodyLength: rawBody.length,
         secretKeyLength: webhookSecret.length,
-        usingWebhookSecret,
-        // Log first few chars for debugging (safe - not full secret)
         secretKeyPrefix: webhookSecret.substring(0, 5) + "...",
-        // Helpful message for debugging
-        hint: usingWebhookSecret 
-          ? "Using CASHFREE_WEBHOOK_SECRET - verify it matches Cashfree Dashboard webhook secret"
-          : "Using CASHFREE_SECRET_KEY - consider using CASHFREE_WEBHOOK_SECRET if Cashfree provides separate webhook secret",
+        hint: "Verify CASHFREE_WEBHOOK_SECRET matches Cashfree Dashboard → Developers → Webhooks → Webhook Secret",
+        troubleshooting: [
+          "1. Check webhook secret is copied exactly (no spaces, no quotes)",
+          "2. Verify secret is from PRODUCTION dashboard (not sandbox)",
+          "3. Ensure webhook URL in Cashfree Dashboard matches: https://www.movigoo.in/api/cashfree/webhook",
+          "4. Check webhook version is 2025-01-01",
+        ],
       });
       return new Response("Invalid webhook signature", { status: 401 });
     }
+
+    console.log("[Webhook] ✅ Signature verification PASSED");
 
     // Only parse JSON AFTER signature verification
     let payload: CashfreeWebhookPayload;
