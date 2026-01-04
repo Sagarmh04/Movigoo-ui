@@ -3,8 +3,8 @@
 // Creates a Cashfree payment session (server-side only)
 
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/firebaseServer";
-import { doc, setDoc, serverTimestamp, getDoc } from "firebase/firestore";
+import { adminDb } from "@/lib/firebaseAdmin";
+import { FieldValue } from "firebase-admin/firestore";
 import { verifyAuthToken } from "@/lib/auth";
 
 // ✅ STEP 1 — FORCE NODE RUNTIME (CRITICAL)
@@ -82,12 +82,12 @@ export async function POST(req: NextRequest) {
     }
 
     // Backend safety check: fetch booking status first
-    if (bookingId && db) {
+    if (bookingId && adminDb) {
       try {
-        const bookingRef = doc(db, "bookings", bookingId);
-        const bookingSnap = await getDoc(bookingRef);
+        const bookingRef = adminDb.doc(`bookings/${bookingId}`);
+        const bookingSnap = await bookingRef.get();
         
-        if (bookingSnap.exists()) {
+        if (bookingSnap.exists) {
           const booking = bookingSnap.data();
           
           // CRITICAL: Check if booking data exists (could be corrupted)
@@ -153,12 +153,12 @@ export async function POST(req: NextRequest) {
     let orderId: string | null = null;
     
     // First, check if booking already has orderId (atomic read)
-    if (bookingId && db) {
+    if (bookingId && adminDb) {
       try {
-        const bookingRef = doc(db, "bookings", bookingId);
-        const bookingSnap = await getDoc(bookingRef);
+        const bookingRef = adminDb.doc(`bookings/${bookingId}`);
+        const bookingSnap = await bookingRef.get();
         
-        if (bookingSnap.exists()) {
+        if (bookingSnap.exists) {
           const booking = bookingSnap.data();
           
           // CRITICAL: Check if booking data exists
@@ -182,14 +182,14 @@ export async function POST(req: NextRequest) {
       orderId = `order_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
       
       // Store new orderId in booking atomically (before creating Cashfree order)
-      if (bookingId && db) {
+      if (bookingId && adminDb) {
         try {
-          const bookingRef = doc(db, "bookings", bookingId);
-          await setDoc(bookingRef, {
+          const bookingRef = adminDb.doc(`bookings/${bookingId}`);
+          await bookingRef.set({
             orderId: orderId,
             paymentStatus: "INITIATED",
             bookingStatus: "PENDING",
-            updatedAt: serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
           }, { merge: true });
           console.log("Stored new orderId in booking:", orderId);
         } catch (error) {
@@ -197,7 +197,7 @@ export async function POST(req: NextRequest) {
             error: error instanceof Error ? error.message : String(error),
             bookingId,
             orderId,
-            hasDb: !!db,
+            hasAdminDb: !!adminDb,
           });
           // CRITICAL: If we can't store orderId, webhook won't find booking
           // Return error instead of continuing
@@ -206,8 +206,8 @@ export async function POST(req: NextRequest) {
             { status: 500 }
           );
         }
-      } else if (bookingId && !db) {
-        console.error("Cannot store orderId: Firebase db not initialized", {
+      } else if (bookingId && !adminDb) {
+        console.error("Cannot store orderId: Firebase Admin SDK not initialized", {
           bookingId,
           orderId,
         });
@@ -390,12 +390,12 @@ export async function POST(req: NextRequest) {
     const cashfreeOrderId = data.order_id || orderId;
     
     // Update booking with the actual Cashfree order_id for webhook lookup
-    if (bookingId && db && cashfreeOrderId) {
+    if (bookingId && adminDb && cashfreeOrderId) {
       try {
-        const bookingRef = doc(db, "bookings", bookingId);
-        await setDoc(bookingRef, {
+        const bookingRef = adminDb.doc(`bookings/${bookingId}`);
+        await bookingRef.set({
           orderId: cashfreeOrderId, // Store the actual Cashfree order_id
-          updatedAt: serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
         }, { merge: true });
         console.log("Updated booking with Cashfree orderId:", cashfreeOrderId);
       } catch (error) {

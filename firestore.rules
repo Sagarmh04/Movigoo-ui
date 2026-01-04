@@ -2,6 +2,10 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
+    // ============================================
+    // Helper Functions
+    // ============================================
+    
     function isAuthenticated() {
       return request.auth != null;
     }
@@ -28,10 +32,19 @@ service cloud.firestore {
       return isAuthenticated() && bookingData.userId == request.auth.uid;
     }
     
+    // ============================================
+    // Events Collection
+    // ============================================
+    // Public read for all events (browsing)
+    // Server write only (via Admin SDK)
+    
     match /events/{eventId} {
       allow read: if true;
       allow create, update, delete: if false;
       
+      // Event bookings subcollection
+      // Users can read their own bookings
+      // Event hosts can read all bookings for their event
       match /bookings/{bookingId} {
         allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
         allow read: if isEventHost(eventId);
@@ -39,10 +52,24 @@ service cloud.firestore {
       }
     }
     
+    // ============================================
+    // Bookings Collection (Global)
+    // ============================================
+    // Main collection for customer bookings
+    // Users can read their own bookings
+    // Server write only (via Admin SDK - payment webhooks, booking creation)
+    
     match /bookings/{bookingId} {
       allow read: if isBookingOwner(resource.data);
       allow create, update, delete: if false;
     }
+    
+    // ============================================
+    // Users Collection
+    // ============================================
+    // Users can read/write their own profile
+    // Admins can read all profiles
+    // Server can write any profile (via Admin SDK)
     
     match /users/{uid} {
       allow read: if isOwner(uid);
@@ -51,37 +78,80 @@ service cloud.firestore {
       allow create, update: if isAdmin();
       allow delete: if false;
       
+      // User bookings subcollection (for host users)
       match /bookings/{bookingId} {
         allow read: if isOwner(uid);
         allow create, update, delete: if false;
       }
     }
     
+    // ============================================
+    // Admins Collection
+    // ============================================
+    // Admin users can read their own admin record
+    // Server write only
+    
     match /admins/{uid} {
       allow read: if isOwner(uid);
       allow create, update, delete: if false;
     }
     
+    // ============================================
+    // KYC Collection
+    // ============================================
+    // Admin-only access for KYC verification
+    
     match /kyc/{docId} {
       allow read, write: if isAdmin();
     }
+    
+    // ============================================
+    // Host Users Collection
+    // ============================================
+    // Admin-only access for host user management
     
     match /host_users/{docId} {
       allow read, write: if isAdmin();
     }
     
+    // ============================================
+    // Payment Sessions Collection
+    // ============================================
+    // CRITICAL: No client access
+    // Server-only (via Admin SDK) for payment processing
+    // Prevents payment manipulation attacks
+    
     match /paymentSessions/{sessionId} {
       allow read, write: if false;
     }
+    
+    // ============================================
+    // Idempotency Collection
+    // ============================================
+    // CRITICAL: No client access
+    // Server-only (via Admin SDK) for preventing duplicate operations
+    // Prevents duplicate payment processing
     
     match /idempotency/{key} {
       allow read, write: if false;
     }
     
+    // ============================================
+    // Host Analytics Collection
+    // ============================================
+    // Hosts can read their own analytics
+    // Server write only (auto-generated)
+    
     match /host_analytics/{hostId} {
       allow read: if isOwner(hostId);
       allow create, update, delete: if false;
     }
+    
+    // ============================================
+    // Event Analytics Collection
+    // ============================================
+    // Event hosts can read analytics for their events
+    // Server write only (auto-generated)
     
     match /event_analytics/{eventId} {
       allow read: if isEventHost(eventId);
@@ -93,16 +163,29 @@ service cloud.firestore {
       }
     }
     
+    // ============================================
+    // Support Tickets Collection
+    // ============================================
+    // Users can create and update their own tickets
+    // Users can only add messages (not modify other fields)
+    
     match /supportTickets/{ticketId} {
+      // Users can read their own tickets
       allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      
+      // Users can create tickets with required fields
       allow create: if isAuthenticated() && 
         request.resource.data.userId == request.auth.uid &&
         request.resource.data.keys().hasAll(['category', 'subject', 'description']) &&
         request.resource.data.status == 'OPEN';
+      
+      // Users can only update messages and updatedAt
+      // Messages array must grow (can't shrink or modify existing)
       allow update: if isAuthenticated() && 
         resource.data.userId == request.auth.uid &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['messages', 'updatedAt']) &&
         request.resource.data.messages.size() > resource.data.messages.size();
+      
       allow delete: if false;
     }
   }
