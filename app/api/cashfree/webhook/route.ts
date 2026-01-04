@@ -1,7 +1,7 @@
 // app/api/cashfree/webhook/route.ts
 // POST /api/cashfree/webhook
 // Cashfree webhook handler - BYTE-PERFECT implementation
-// FORCE Node.js runtime for exact byte handling
+// Hash RAW bytes, NOT string
 
 import crypto from "crypto";
 import { NextRequest } from "next/server";
@@ -25,38 +25,45 @@ export async function POST(req: NextRequest) {
       return new Response("OK", { status: 200 });
     }
 
-    // 🔴 BYTE-PERFECT BODY - CRITICAL for signature verification
+    // 🔴 BYTE-PERFECT BODY (NO STRING CONVERSION)
     const rawBuffer = Buffer.from(await req.arrayBuffer());
-    const rawBody = rawBuffer.toString("utf8");
 
-    // 🔐 EXACT Cashfree signature algorithm
-    const signedPayload = `${timestamp}.${rawBody}`;
+    // 🔐 EXACT CASHFREE SPEC - Hash RAW bytes
+    // signedPayload = timestamp + "." + rawBodyBytes
+    const signedPayload = Buffer.concat([
+      Buffer.from(`${timestamp}.`, "utf8"),
+      rawBuffer,
+    ]);
+
     const expectedSignature = crypto
       .createHmac("sha256", process.env.CASHFREE_SECRET_KEY!)
       .update(signedPayload)
       .digest("base64");
 
     // 🔒 Timing-safe comparison
-    const signatureValid = crypto.timingSafeEqual(
-      Buffer.from(expectedSignature),
-      Buffer.from(signature)
-    );
+    const isValid =
+      expectedSignature.length === signature.length &&
+      crypto.timingSafeEqual(
+        Buffer.from(expectedSignature),
+        Buffer.from(signature)
+      );
 
-    if (!signatureValid) {
+    if (!isValid) {
       console.error("[Webhook] Invalid signature - ignoring", {
         timestamp,
-        signatureLength: signature.length,
-        rawBodyLength: rawBody.length,
+        rawBodyLength: rawBuffer.length,
         expectedSignature: expectedSignature.substring(0, 20) + "...",
         receivedSignature: signature.substring(0, 20) + "...",
       });
       return new Response("OK", { status: 200 });
     }
 
-    // ✅ Signature valid - parse payload
+    console.log("[Webhook] ✅ Signature verified successfully");
+
+    // ✅ Parse ONLY AFTER verification (convert to string now)
     let payload;
     try {
-      payload = JSON.parse(rawBody);
+      payload = JSON.parse(rawBuffer.toString("utf8"));
     } catch (parseError) {
       console.error("[Webhook] JSON parse error:", parseError);
       return new Response("OK", { status: 200 });
@@ -70,7 +77,7 @@ export async function POST(req: NextRequest) {
     });
 
     // 🎯 Process ONLY payment.success events
-    if (payload.payment_status !== "SUCCESS" && payload.order_status !== "SUCCESS") {
+    if (payload?.payment_status !== "SUCCESS" && payload?.order_status !== "SUCCESS") {
       console.log("[Webhook] Not payment.success - ignoring");
       return new Response("OK", { status: 200 });
     }
