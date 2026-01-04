@@ -60,7 +60,11 @@ export async function POST(req: NextRequest) {
     // Use authenticated user ID - ignore userId from body
     const userId = user.uid;
 
-    if (!eventId || !totalAmount) {
+    const requestedTotalAmount = Number(totalAmount);
+    const requestedBookingFee = Number(bookingFee);
+    const safeBookingFee = Number.isFinite(requestedBookingFee) && requestedBookingFee >= 0 ? requestedBookingFee : 0;
+
+    if (!eventId || !Number.isFinite(requestedTotalAmount)) {
       return NextResponse.json(
         { error: "Missing required fields: eventId, totalAmount" },
         { status: 400 }
@@ -97,8 +101,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const eventData = eventDoc.data();
-
     // CRITICAL: Validate requested quantity and items
     if (requestedQuantity <= 0) {
       return NextResponse.json(
@@ -126,21 +128,28 @@ export async function POST(req: NextRequest) {
     }
 
     // Helper function to prepare booking data
-    const prepareBookingData = () => ({
+    const prepareBookingData = (overrides?: {
+      price: number;
+      bookingFee: number;
+      totalAmount: number;
+      items: any[];
+    }) => {
+      const itemsToUse = overrides?.items ?? (items || []);
+      return {
       bookingId,
-      userId: user.uid,
+      userId,
       eventId,
       eventTitle: eventTitle || "Event",
       coverUrl: coverUrl || "",
       venueName: venueName || "TBA",
       date: date || new Date().toISOString().split("T")[0],
       time: time || "00:00",
-      ticketType: ticketType || (items ? items.map((i: any) => `${i.ticketTypeId} (${i.quantity})`).join(", ") : ""),
+      ticketType: ticketType || (itemsToUse ? itemsToUse.map((i: any) => `${i.ticketTypeId} (${i.quantity})`).join(", ") : ""),
       quantity: requestedQuantity,
-      price: price || (items ? items.reduce((sum: number, i: any) => sum + (i.price * i.quantity), 0) : 0),
-      bookingFee: bookingFee || 0,
-      totalAmount,
-      items: items || [],
+      price: overrides?.price ?? (price || (itemsToUse ? itemsToUse.reduce((sum: number, i: any) => sum + (i.price * i.quantity), 0) : 0)),
+      bookingFee: overrides?.bookingFee ?? (bookingFee || 0),
+      totalAmount: overrides?.totalAmount ?? totalAmount,
+      items: itemsToUse,
       orderId: orderId || null,
       paymentGateway: "cashfree",
       paymentStatus: "INITIATED",
@@ -148,7 +157,8 @@ export async function POST(req: NextRequest) {
       userEmail: userEmail || null,
       userName: userName || null,
       createdAt: FieldValue.serverTimestamp(),
-    });
+      };
+    };
 
     const prepareEventBookingData = (bookingData: any) => ({
       ...bookingData,
@@ -194,17 +204,8 @@ export async function POST(req: NextRequest) {
         const venueConfigs = Array.isArray(tickets.venueConfigs) ? tickets.venueConfigs : [];
         
         if (venueConfigs.length === 0) {
-          // No ticket types configured - allow booking (backward compatibility)
-          console.log("[Create-Pending] No ticket types configured, allowing booking");
-          const bookingRef = firestore.doc(`bookings/${bookingId}`);
-          const eventBookingRef = firestore.doc(`events/${eventId}/bookings/${bookingId}`);
-
-          const bookingData = prepareBookingData();
-          const eventBookingData = prepareEventBookingData(bookingData);
-
-          transaction.set(bookingRef, bookingData);
-          transaction.set(eventBookingRef, eventBookingData);
-          return; // Exit transaction early
+          console.log("[Create-Pending] No ticket types configured - blocking booking for security");
+          throw new Error("Ticket pricing not configured");
         }
 
         // 3. CRITICAL: Validate and check inventory for EACH ticketType in items
@@ -223,8 +224,10 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        // 4. Validate all requested ticketTypes exist and check inventory
+        // 4. Validate all requested ticketTypes exist, calculate server-side price, and check inventory
         const inventoryUpdates: Array<{ venueConfigIndex: number; ticketTypeIndex: number; increment: number }> = [];
+        const sanitizedItems: Array<{ ticketTypeId: string; quantity: number; price: number }> = [];
+        let serverCalculatedPrice = 0;
         
         for (const item of items) {
           const ticketTypeInfo = ticketTypeMap.get(item.ticketTypeId);
@@ -234,6 +237,18 @@ export async function POST(req: NextRequest) {
           }
 
           const { ticketType } = ticketTypeInfo;
+          const realPrice = typeof ticketType.price === "number" ? ticketType.price : Number(ticketType.price);
+          if (!Number.isFinite(realPrice) || realPrice < 0) {
+            throw new Error(`Invalid price configured for ticket type: ${item.ticketTypeId}`);
+          }
+
+          serverCalculatedPrice += realPrice * item.quantity;
+          sanitizedItems.push({
+            ticketTypeId: item.ticketTypeId,
+            quantity: item.quantity,
+            price: realPrice,
+          });
+
           const totalQuantity = typeof ticketType.totalQuantity === "number" ? ticketType.totalQuantity : 0;
           
           // Initialize ticketsSold if missing (backward compatibility)
@@ -292,6 +307,19 @@ export async function POST(req: NextRequest) {
           });
         }
 
+        const serverCalculatedTotalAmount = serverCalculatedPrice + safeBookingFee;
+        if (Math.abs(serverCalculatedTotalAmount - requestedTotalAmount) > 1) {
+          console.error("[Create-Pending] Fraud Attempt — amount mismatch:", {
+            bookingId,
+            eventId,
+            requestedTotalAmount,
+            serverCalculatedTotalAmount,
+            serverCalculatedPrice,
+            safeBookingFee,
+          });
+          throw new Error("Fraud Attempt");
+        }
+
         // 5. ATOMIC: Update ticketsSold for all ticketTypes (modify nested arrays)
         // CRITICAL: Since Firestore doesn't support updating nested array elements directly,
         // we must read the entire document, modify in memory, and write back (still atomic in transaction)
@@ -327,7 +355,12 @@ export async function POST(req: NextRequest) {
         const bookingRef = firestore.doc(`bookings/${bookingId}`);
         const eventBookingRef = firestore.doc(`events/${eventId}/bookings/${bookingId}`);
 
-        const bookingData = prepareBookingData();
+        const bookingData = prepareBookingData({
+          price: serverCalculatedPrice,
+          bookingFee: safeBookingFee,
+          totalAmount: serverCalculatedTotalAmount,
+          items: sanitizedItems,
+        });
         const eventBookingData = prepareEventBookingData(bookingData);
 
         // Write both documents atomically
@@ -365,6 +398,14 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           { error: transactionError.message || "Tickets are sold out" },
           { status: 409 }
+        );
+      }
+
+      // Handle fraud attempt errors
+      if (transactionError.message?.includes("Fraud Attempt") || transactionError.message === "Fraud Attempt") {
+        return NextResponse.json(
+          { error: "Fraud Attempt" },
+          { status: 400 }
         );
       }
       

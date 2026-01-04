@@ -4,7 +4,6 @@
 
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin"; // ✅ Correct Admin SDK import
-import { FieldValue } from "firebase-admin/firestore";
 
 // 🔴 FIX 1: Prevent "Static Generation" Timeout during Build
 // This tells Next.js: "Don't run this during npm run build. Only run on request."
@@ -14,6 +13,12 @@ export const revalidate = 0;
 export async function GET(request: Request) {
   try {
     console.log("[Cleanup] Starting abandoned booking cleanup");
+
+    const { searchParams } = new URL(request.url);
+    const key = searchParams.get('key');
+    if (key !== process.env.CRON_SECRET) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     // Check if Admin SDK is initialized
     if (!adminDb) {
@@ -51,7 +56,6 @@ export async function GET(request: Request) {
     // Process bookings one by one (Sequential is safer for timeouts)
     for (const doc of snapshot.docs) {
       const bookingId = doc.id;
-      const bookingData = doc.data();
 
       try {
         // Capture adminDb in closure to satisfy TypeScript
