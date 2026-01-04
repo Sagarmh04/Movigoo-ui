@@ -24,7 +24,7 @@ function isOrderPaid(data: any): boolean {
   // Case 2: payments array
   if (Array.isArray(data.payments)) {
     return data.payments.some(
-      (p) => p.payment_status === "SUCCESS"
+      (p: any) => p.payment_status === "SUCCESS"
     );
   }
 
