@@ -2,6 +2,8 @@
 // GET /api/bookings/cleanup
 // Cleans up abandoned PENDING bookings (> 15 minutes old) and restores inventory
 
+export const runtime = "nodejs";
+
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin"; // ✅ Correct Admin SDK import
 
@@ -15,9 +17,24 @@ export async function GET(request: Request) {
     console.log("[Cleanup] Starting abandoned booking cleanup");
 
     const { searchParams } = new URL(request.url);
-    const key = searchParams.get('key');
-    if (key !== process.env.CRON_SECRET) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const keyFromUrl = searchParams.get("key");
+    const keyFromHeader = request.headers.get("x-cron-key");
+    const receivedKey = keyFromUrl ?? keyFromHeader;
+
+    const expectedSecret = process.env.CRON_SECRET;
+    const maskedExpectedSecret = expectedSecret?.trim()
+      ? `${expectedSecret.trim().substring(0, 3)}***`
+      : undefined;
+
+    console.log(
+      `[Cleanup][Auth] key(url)=${keyFromUrl ?? "<missing>"} expected(env)=${maskedExpectedSecret ?? "<missing>"}`
+    );
+
+    if (receivedKey?.trim() !== expectedSecret?.trim()) {
+      console.error(
+        "Auth Failure: Received " + (receivedKey ?? "<missing>") + " but expected " + (maskedExpectedSecret ?? "<missing>")
+      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // Check if Admin SDK is initialized
