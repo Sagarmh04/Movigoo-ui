@@ -105,6 +105,12 @@ service cloud.firestore {
       allow create: if request.auth != null && 
         request.resource.data.userId == request.auth.uid;
       allow update, delete: if false; // Server API only
+
+      match /messages/{messageId} {
+        allow read: if request.auth != null &&
+          get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == request.auth.uid;
+        allow write: if false;
+      }
     }
   }
 }

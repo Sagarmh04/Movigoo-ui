@@ -2,7 +2,7 @@
 // API route for adding user replies to support tickets
 
 import { NextRequest, NextResponse } from "next/server";
-import { getFirestore, doc, updateDoc, arrayUnion, serverTimestamp, getDoc } from "firebase/firestore";
+import { getFirestore, doc, updateDoc, serverTimestamp, getDoc, collection, addDoc } from "firebase/firestore";
 import { initializeApp, getApps } from "firebase/app";
 import { verifyAuthToken } from "@/lib/auth";
 
@@ -78,17 +78,19 @@ export async function POST(request: NextRequest) {
     }
 
     const now = new Date().toISOString();
-    const newMessage = {
-      id: `msg_${Date.now()}`,
+    const messagesRef = collection(firestore, "supportTickets", ticketId, "messages");
+
+    await addDoc(messagesRef, {
       ticketId,
       message: message.trim(),
       senderType: "user",
       senderName: ticketData.userName || "User",
-      createdAt: now,
-    };
+      senderId: user.uid,
+      createdAt: serverTimestamp(),
+      createdAtISO: now,
+    });
 
     await updateDoc(ticketRef, {
-      messages: arrayUnion(newMessage),
       updatedAt: serverTimestamp(),
     });
 

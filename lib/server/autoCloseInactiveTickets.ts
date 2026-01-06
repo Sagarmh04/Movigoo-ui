@@ -70,9 +70,25 @@ export async function autoCloseInactiveTickets() {
       const ticketId = ticketDoc.id;
 
       // Check if there are any admin/support replies
-      const hasAdminReply = ticketData.messages?.some(
-        (msg: any) => msg.senderType === "support" || msg.senderType === "admin"
-      ) || ticketData.adminResponse;
+      let hasAdminReply = Boolean(ticketData.adminResponse);
+
+      if (!hasAdminReply && Array.isArray(ticketData.messages)) {
+        hasAdminReply = ticketData.messages.some(
+          (msg: any) => msg?.senderType === "support" || msg?.senderType === "admin"
+        );
+      }
+
+      if (!hasAdminReply) {
+        try {
+          const messagesSnap = await getDocs(collection(firestore, "supportTickets", ticketId, "messages"));
+          hasAdminReply = messagesSnap.docs.some((d) => {
+            const msg: any = d.data();
+            return msg?.senderType === "support" || msg?.senderType === "admin";
+          });
+        } catch (err) {
+          console.warn(`⚠️  Failed to read messages subcollection for ticket ${ticketId}:`, err);
+        }
+      }
 
       if (hasAdminReply) {
         console.log(`⏭️  Skipping ticket ${ticketId} - has admin reply`);

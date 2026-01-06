@@ -178,15 +178,25 @@ service cloud.firestore {
         request.resource.data.userId == request.auth.uid &&
         request.resource.data.keys().hasAll(['category', 'subject', 'description']) &&
         request.resource.data.status == 'OPEN';
-      
-      // Users can only update messages and updatedAt
-      // Messages array must grow (can't shrink or modify existing)
-      allow update: if isAuthenticated() && 
+
+      // Users can update updatedAt (used when a new message is posted)
+      allow update: if isAuthenticated() &&
         resource.data.userId == request.auth.uid &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['messages', 'updatedAt']) &&
-        request.resource.data.messages.size() > resource.data.messages.size();
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['updatedAt']);
       
       allow delete: if false;
+
+      match /messages/{messageId} {
+        allow read: if isAuthenticated() &&
+          get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == request.auth.uid;
+
+        allow create: if isAuthenticated() &&
+          get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == request.auth.uid &&
+          request.resource.data.senderId == request.auth.uid &&
+          request.resource.data.senderType == 'user';
+
+        allow update, delete: if false;
+      }
     }
   }
 }

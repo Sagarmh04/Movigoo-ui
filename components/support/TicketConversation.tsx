@@ -5,9 +5,12 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Send, Clock, CheckCircle, AlertCircle, ArrowLeft, MessageSquare } from "lucide-react";
+import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
+import { Send, Clock, CheckCircle, AlertCircle, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { SupportTicket, SupportTicketStatus } from "@/types/supportTicket";
+import { SupportTicket, SupportTicketStatus, TicketMessage } from "@/types/supportTicket";
+import { useAuth } from "@/hooks/useAuth";
+import { db } from "@/lib/firebaseClient";
 
 type TicketConversationProps = {
   ticket: SupportTicket;
@@ -58,30 +61,72 @@ function formatDate(dateString: string): string {
 }
 
 export default function TicketConversation({ ticket, onBack, showBackButton = false }: TicketConversationProps) {
+  const { user } = useAuth();
   const [replyMessage, setReplyMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [showBotMessage, setShowBotMessage] = useState(false);
+  const [messages, setMessages] = useState<TicketMessage[]>([]);
 
   const status = statusConfig[ticket.status];
   const isTicketClosed = ticket.status === "CLOSED" || ticket.status === "RESOLVED";
 
+  useEffect(() => {
+    if (!db || !ticket?.id || !user) {
+      setMessages([]);
+      return;
+    }
+
+    const messagesRef = collection(db, "supportTickets", ticket.id, "messages");
+    const messagesQuery = query(messagesRef, orderBy("createdAt", "asc"));
+
+    const unsubscribe = onSnapshot(
+      messagesQuery,
+      (snapshot) => {
+        const list: TicketMessage[] = [];
+        snapshot.forEach((d) => {
+          const data: any = d.data();
+          list.push({
+            id: d.id,
+            ticketId: ticket.id,
+            message: data.message,
+            senderType: data.senderType,
+            senderName: data.senderName,
+            createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAtISO || new Date().toISOString(),
+          });
+        });
+        setMessages(list);
+      },
+      (err) => {
+        console.error("Error fetching ticket messages:", err);
+        setMessages([]);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [ticket.id, user]);
+
   // Show bot message for new tickets (OPEN status with no messages)
   useEffect(() => {
-    if (ticket.status === "OPEN" && (!ticket.messages || ticket.messages.length === 0)) {
+    if (ticket.status === "OPEN" && messages.length === 0) {
       setShowBotMessage(true);
     } else {
       setShowBotMessage(false);
     }
-  }, [ticket.id, ticket.status, ticket.messages]);
+  }, [ticket.id, ticket.status, messages.length]);
 
   const handleSendReply = async () => {
     if (!replyMessage.trim() || isTicketClosed) return;
+    if (!user) return;
 
     setIsSending(true);
     try {
+      const token = await user.getIdToken();
       const response = await fetch("/api/support-tickets/reply", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
         body: JSON.stringify({
           ticketId: ticket.id,
           message: replyMessage.trim(),
@@ -159,8 +204,8 @@ export default function TicketConversation({ ticket, onBack, showBackButton = fa
         )}
 
         {/* Messages */}
-        {ticket.messages && ticket.messages.length > 0 ? (
-          ticket.messages.map((msg, index) => (
+        {messages.length > 0 ? (
+          messages.map((msg, index) => (
             <motion.div
               key={msg.id || index}
               initial={{ opacity: 0, y: 10 }}
@@ -188,7 +233,7 @@ export default function TicketConversation({ ticket, onBack, showBackButton = fa
         ) : null}
 
         {/* Admin response (legacy field) */}
-        {ticket.adminResponse && !ticket.messages?.length && (
+        {ticket.adminResponse && messages.length === 0 && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
