@@ -293,6 +293,8 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
         showTime: showTime,
         showEndTime: showEndTime,
         venueAddress: venueAddress,
+        // Host analytics tracking
+        organizerId: data.event.organizerId || null, // Map organizerId to hostId for analytics
       };
 
       console.log("Creating pending booking...");

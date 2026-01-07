@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
       price,
       totalAmount,
       items, // Array of { ticketTypeId, quantity, price }
-      userEmail, // User email for sending confirmation
+      userEmail, // User email for sending confirmation email
       userName, // User name for email
       locationId, // Location ID for event bookings metadata
       locationName, // Location name
@@ -55,6 +55,7 @@ export async function POST(req: NextRequest) {
       showId, // Show ID for event bookings metadata
       showTime, // Show time
       orderId, // Cashfree order ID (if already created)
+      organizerId, // Host/organizer ID for analytics tracking
     } = body;
 
     // Use authenticated user ID - ignore userId from body
@@ -372,9 +373,30 @@ export async function POST(req: NextRequest) {
         transaction.set(bookingRef, bookingData);
         transaction.set(eventBookingRef, eventBookingData);
         
+        // 7. Update Host Analytics (if organizerId is provided)
+        // This tracks total revenue and ticket sales for the event organizer
+        if (organizerId) {
+          const analyticsRef = firestore.doc(`host_analytics/${organizerId}`);
+          
+          // Use merge: true to create the document if it doesn't exist
+          // FieldValue.increment() safely adds to existing numbers (or initializes to 0 if missing)
+          transaction.set(analyticsRef, {
+            totalRevenue: FieldValue.increment(serverCalculatedPrice), // Base price (excluding platform fee)
+            totalTickets: FieldValue.increment(requestedQuantity),
+            lastUpdated: FieldValue.serverTimestamp(),
+          }, { merge: true });
+          
+          console.log("[Create-Pending] Host analytics update queued:", {
+            organizerId,
+            revenueIncrement: serverCalculatedPrice,
+            ticketsIncrement: requestedQuantity
+          });
+        }
+        
         console.log("[Create-Pending] Transaction prepared (will commit if no conflicts):", {
           bookingId,
-          ticketTypesUpdated: inventoryUpdates.length
+          ticketTypesUpdated: inventoryUpdates.length,
+          analyticsUpdated: !!organizerId
         });
       });
 
