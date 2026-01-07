@@ -275,7 +275,7 @@ export async function POST(req: NextRequest) {
           "x-api-version": "2023-08-01",
         },
         body: JSON.stringify(payload),
-        timeoutMs: 8000,
+        timeoutMs: 5000, // FIX #6: Reduced from 8s to 5s for better UX
       });
     } catch (fetchError) {
       console.error("Cashfree API fetch failed:", {

@@ -173,7 +173,11 @@ export async function handleCashfreeWebhook(req: NextRequest) {
 
     const db = adminDb;
 
-    // 9. Run transaction for atomic booking confirmation
+    // 9. Query booking by orderId (CRITICAL: Use Admin SDK to bypass rules)
+    const webhookLogsRef = db.collection("webhook_logs");
+    const webhookLogRef = webhookLogsRef.doc(orderId);
+
+    // 10. Run transaction for atomic booking confirmation
     await db.runTransaction(async (transaction) => {
       // Find booking by orderId
       const bookingsRef = db.collection("bookings");
@@ -250,6 +254,14 @@ export async function handleCashfreeWebhook(req: NextRequest) {
       }
 
       console.log(`[Webhook] ✅ Booking confirmed successfully: ${bookingId}`);
+    });
+
+    // FIX #3: Mark webhook as processed (idempotency protection)
+    await webhookLogRef.set({
+      orderId,
+      processed: true,
+      processedAt: FieldValue.serverTimestamp(),
+      paymentStatus,
     });
 
     // 10. Send confirmation email in background (non-blocking)

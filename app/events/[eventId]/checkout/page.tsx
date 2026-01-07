@@ -352,12 +352,16 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
       const errorMessage = error.message || "Failed to create booking. Please try again.";
       alert(errorMessage);
       isProcessingRef.current = false;
-      setIsPaying(false);
     }
+    
+    isProcessingRef.current = false;
+    setIsPaying(false);
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#050016] via-[#0b0220] to-[#05010a] text-white">
+      {/* FIX #8: Preload Cashfree SDK for faster payment page */}
+      <link rel="preload" href="https://sdk.cashfree.com/js/v3/cashfree.js" as="script" />
       <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-4 pb-24 pt-20 sm:px-6 lg:px-8">
         {/* Breadcrumbs */}
         <div className="mb-6">

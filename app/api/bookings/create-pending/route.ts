@@ -8,6 +8,7 @@ import { adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { v4 as uuidv4 } from "uuid";
 import { verifyAuthToken } from "@/lib/auth";
+import { runTransactionWithRetry } from "@/lib/transactionWithRetry";
 
 export const runtime = "nodejs";
 
@@ -92,16 +93,10 @@ export async function POST(req: NextRequest) {
     // Query global bookings collection (not subcollection) for better transaction support
     const eventRef = firestore.doc(`events/${eventId}`);
     
-    // Pre-check: verify event exists before transaction
-    const eventDoc = await eventRef.get();
-    if (!eventDoc.exists) {
-      return NextResponse.json(
-        { error: "Event not found" },
-        { status: 404 }
-      );
-    }
+    // FIX #2: Skip pre-transaction check - transaction will handle non-existent event
+    // Saves 100-200ms duplicate read
 
-    // CRITICAL: Validate items array exists and has ticketTypeIds
+    // Validate items array exists and has at least one itemTypeIds
     if (!items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json(
         { error: "Missing required field: items array with ticketTypeId" },
@@ -188,9 +183,8 @@ export async function POST(req: NextRequest) {
       });
       
       // ATOMIC TRANSACTION: Check ticketType inventory + increment + create booking in ONE transaction
-      // CRITICAL: Firestore automatically retries transactions on conflicts
-      // This ensures only ONE transaction succeeds when multiple users book simultaneously
-      await firestore.runTransaction(async (transaction: any) => {
+      // FIX #7: Use retry-limited transaction (max 5 attempts) to prevent infinite loops
+      const transactionResult = await runTransactionWithRetry(firestore, async (transaction: any) => {
         // 1. Read event document inside transaction (atomic read)
         // FIX 6: Only read tickets field to reduce transaction payload
         const eventDocInTx = await transaction.get(eventRef);
@@ -372,33 +366,32 @@ export async function POST(req: NextRequest) {
         transaction.set(bookingRef, bookingData);
         transaction.set(eventBookingRef, eventBookingData);
         
-        // 7. Update Host Analytics (if organizerId is provided)
-        // This tracks total revenue and ticket sales for the event organizer
-        if (organizerId) {
-          const analyticsRef = firestore.doc(`host_analytics/${organizerId}`);
-          
-          // Use merge: true to create the document if it doesn't exist
-          // FieldValue.increment() safely adds to existing numbers (or initializes to 0 if missing)
-          transaction.set(analyticsRef, {
-            totalRevenue: FieldValue.increment(serverCalculatedPrice), // Base price (excluding platform fee)
-            totalTickets: FieldValue.increment(requestedQuantity),
-            lastUpdated: FieldValue.serverTimestamp(),
-          }, { merge: true });
-          
-          console.log("[Create-Pending] Host analytics update queued:", {
-            organizerId,
-            revenueIncrement: serverCalculatedPrice,
-            ticketsIncrement: requestedQuantity
-          });
-        }
+        console.log("[Create-Pending] Booking created successfully:", bookingId);
         
-        console.log("[Create-Pending] Transaction prepared (will commit if no conflicts):", {
-          bookingId,
-          ticketTypesUpdated: inventoryUpdates.length,
-          analyticsUpdated: !!organizerId
-        });
+        // Return serverCalculatedPrice from transaction for analytics
+        return serverCalculatedPrice;
       });
 
+      // FIX #4: Update Host Analytics OUTSIDE transaction (async, non-blocking)
+      // Reduces transaction payload and conflict probability
+      if (organizerId && typeof transactionResult === 'number') {
+        const analyticsRef = firestore.doc(`host_analytics/${organizerId}`);
+        
+        // Run async - don't block response
+        analyticsRef.set({
+          totalRevenue: FieldValue.increment(transactionResult),
+          totalTickets: FieldValue.increment(requestedQuantity),
+          lastUpdated: FieldValue.serverTimestamp(),
+        }, { merge: true }).catch((error) => {
+          console.error("[Create-Pending] Analytics update failed (non-critical):", error);
+        });
+        
+        console.log("[Create-Pending] Host analytics update queued (async):", {
+          organizerId,
+          revenue: transactionResult,
+          tickets: requestedQuantity
+        });
+      }
       console.log("[Create-Pending] Transaction committed successfully. Created pending booking:", bookingId);
 
       return NextResponse.json({
