@@ -1,5 +1,5 @@
 // app/api/bookings/cleanup/route.ts
-// GET /api/bookings/cleanup
+// GET /api/bookings/cleanups
 // Cleans up abandoned PENDING bookings (> 15 minutes old) and restores inventory
 
 export const runtime = "nodejs";
