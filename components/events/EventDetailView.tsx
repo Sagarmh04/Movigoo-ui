@@ -392,7 +392,7 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
   };
 
   return (
-    <div className="mx-auto max-w-md space-y-4 px-4 pb-24 sm:max-w-none sm:space-y-6 sm:px-0 sm:pb-6 lg:space-y-10">
+    <div className="mx-auto max-w-md space-y-4 px-4 pb-24 sm:max-w-none sm:space-y-6 sm:px-0 sm:pb-24 lg:space-y-10">
       {/* 1. Event Title & Cover Image */}
       <motion.section
         initial={{ opacity: 0, y: 20 }}
@@ -736,7 +736,7 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
 
       {/* Sticky Bottom Component for Single Location Events */}
       {hasSingleShow && availableTickets.length > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-black/90 px-4 py-4 backdrop-blur-xl sm:relative sm:mt-6 sm:rounded-2xl sm:border sm:bg-white/5 sm:px-0 sm:py-0">
+        <div className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-black/90 px-4 py-4 backdrop-blur-xl sm:mt-6 sm:rounded-2xl sm:border sm:bg-white/5 sm:px-0 sm:py-0">
           <div className="mx-auto w-full max-w-3xl">
             {hasSingleTicketType ? (
               // Single ticket type: quantity selector on left, checkout button on right

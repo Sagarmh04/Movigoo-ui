@@ -56,7 +56,7 @@ export default function EventDetailsPage({ params }: { params: { eventId: string
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#050016] via-[#0b0220] to-[#05010a] text-white">
-      <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-4 pb-24 pt-20 sm:px-6 lg:px-8">
+      <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-4 pb-24 pt-20 sm:px-6 sm:pb-24 lg:px-8">
         {/* Step Indicator */}
         <div className="mb-8">
           <StepIndicator currentStep={1} />
@@ -68,7 +68,7 @@ export default function EventDetailsPage({ params }: { params: { eventId: string
         </div>
 
         {/* Sticky Bottom Bar - Mobile (z-50 to be above navbar) */}
-        <div className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-black/90 px-4 py-3 backdrop-blur-xl sm:relative sm:z-auto sm:mt-6 sm:rounded-2xl sm:border sm:bg-white/5 sm:px-0 sm:py-0 sm:pb-0">
+        <div className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-black/90 px-4 py-3 backdrop-blur-xl sm:mt-6 sm:rounded-2xl sm:border sm:bg-white/5 sm:px-0 sm:py-0 sm:pb-0">
           <div className="mx-auto flex w-full max-w-3xl items-center justify-center sm:block">
             <Button
               onClick={handleBookNow}
