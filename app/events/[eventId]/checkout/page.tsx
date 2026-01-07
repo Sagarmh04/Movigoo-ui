@@ -250,7 +250,7 @@ export default function CheckoutPage({ params }: { params: { eventId: string } }
 
       let token: string;
       try {
-        token = await user.getIdToken(true); // Force refresh for faster token
+        token = await user.getIdToken();
         if (!token) {
           throw new Error("Token is null");
         }

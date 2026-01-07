@@ -9,6 +9,7 @@ import { adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { validateAmount, validateCashfreeWebhookSecret } from "@/lib/utils/cashfree";
 import { sendBookingConfirmationEmail } from "@/lib/email-helper";
+import { waitUntil } from "@vercel/functions";
 
 // Cashfree 2023-08-01 payload structure (nested data)
 type CashfreeWebhookPayload = {
@@ -251,28 +252,26 @@ export async function handleCashfreeWebhook(req: NextRequest) {
       console.log(`[Webhook] ✅ Booking confirmed successfully: ${bookingId}`);
     });
 
-    // 10. Send confirmation email (OUTSIDE transaction, non-blocking)
-    try {
-      // Re-query booking to get final confirmed data
-      const bookingsRef = db.collection("bookings");
-      const finalSnapshot = await bookingsRef.where("orderId", "==", orderId).limit(1).get();
+    // 10. Send confirmation email in background (non-blocking)
+    waitUntil(
+      (async () => {
+        try {
+          const bookingsRef = db.collection("bookings");
+          const finalSnapshot = await bookingsRef.where("orderId", "==", orderId).limit(1).get();
 
-      if (!finalSnapshot.empty) {
-        const finalBookingData = finalSnapshot.docs[0].data();
-        const finalBookingId = finalSnapshot.docs[0].id;
+          if (!finalSnapshot.empty) {
+            const finalBookingData = finalSnapshot.docs[0].data();
+            const finalBookingId = finalSnapshot.docs[0].id;
 
-        console.log(`[Webhook] 📧 Attempting to send confirmation email for: ${finalBookingId}`);
-
-        // Send email via helper (uses MSG91 via dispatcher)
-        await sendBookingConfirmationEmail(finalBookingData);
-
-        console.log(`[Webhook] ✅ Email sent successfully for booking: ${finalBookingId}`);
-      }
-    } catch (emailError: any) {
-      // Email failure should NOT fail the webhook
-      // Booking is already confirmed, email can be resent later
-      console.error("[Webhook] ⚠️ Payment confirmed, but email failed:", emailError.message);
-    }
+            console.log(`[Webhook] 📧 Attempting to send confirmation email for: ${finalBookingId}`);
+            await sendBookingConfirmationEmail(finalBookingData);
+            console.log(`[Webhook] ✅ Email sent successfully for booking: ${finalBookingId}`);
+          }
+        } catch (emailError: any) {
+          console.error("[Webhook] ⚠️ Email failed (background):", emailError.message);
+        }
+      })()
+    );
 
     return new Response("OK", { status: 200 });
   } catch (error: any) {

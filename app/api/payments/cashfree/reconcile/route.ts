@@ -8,6 +8,7 @@ import {
   query,
   where,
 } from "firebase/firestore";
+import { fetchWithTimeout } from "@/lib/fetchWithTimeout";
 
 export const runtime = "nodejs";
 
@@ -114,7 +115,7 @@ export async function POST(req: NextRequest) {
 
       try {
         const orderStatusUrl = `${process.env.CASHFREE_BASE_URL}/orders/${orderId}`;
-        const response = await fetch(orderStatusUrl, {
+        const response = await fetchWithTimeout(orderStatusUrl, {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
@@ -122,6 +123,7 @@ export async function POST(req: NextRequest) {
             "x-client-secret": process.env.CASHFREE_SECRET_KEY,
             "x-api-version": "2023-08-01",
           },
+          timeoutMs: 8000,
         });
 
         if (!response.ok) {

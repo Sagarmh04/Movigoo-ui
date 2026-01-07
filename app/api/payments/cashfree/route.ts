@@ -6,6 +6,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { verifyAuthToken } from "@/lib/auth";
+import { fetchWithTimeout } from "@/lib/fetchWithTimeout";
+import { rateLimit, getClientIp } from "@/lib/rateLimit";
 
 // ✅ STEP 1 — FORCE NODE RUNTIME (CRITICAL)
 // Vercel may run this route in Edge runtime
@@ -15,6 +17,15 @@ export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   try {
+    // FIX 7: Rate limiting (10 requests per minute per IP)
+    const clientIp = getClientIp(req);
+    const rateLimitResult = rateLimit(`payment:${clientIp}`, { windowMs: 60000, max: 10 });
+    if (!rateLimitResult.ok) {
+      return NextResponse.json(
+        { error: "Too many payment requests. Please try again later." },
+        { status: 429, headers: { "Retry-After": String(Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000)) } }
+      );
+    }
     // ✅ STEP 2 — HARD VERIFY ENV VARS (PRODUCTION SAFE)
     // Log BEFORE using env vars (⚠️ Do NOT log actual secrets)
     console.log("Cashfree ENV check (prod):", {
@@ -81,17 +92,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Backend safety check: fetch booking status first
+    // FIX 2: Single Firestore read - fetch booking once and reuse data
+    let orderId: string | null = null;
+    let bookingData: any = null;
+    
     if (bookingId && adminDb) {
       try {
         const bookingRef = adminDb.doc(`bookings/${bookingId}`);
         const bookingSnap = await bookingRef.get();
         
         if (bookingSnap.exists) {
-          const booking = bookingSnap.data();
+          bookingData = bookingSnap.data();
           
-          // CRITICAL: Check if booking data exists (could be corrupted)
-          if (!booking) {
+          if (!bookingData) {
             console.error("Booking document exists but data is null/undefined");
             return NextResponse.json(
               { error: "Booking data corrupted" },
@@ -99,8 +112,8 @@ export async function POST(req: NextRequest) {
             );
           }
           
-          // CRITICAL: Verify user owns this booking
-          if (booking.userId !== user.uid) {
+          // Verify user owns this booking
+          if (bookingData.userId !== user.uid) {
             return NextResponse.json(
               { error: "Access denied: You don't own this booking" },
               { status: 403 }
@@ -108,7 +121,7 @@ export async function POST(req: NextRequest) {
           }
           
           // If already confirmed, reject new order creation
-          if (booking.bookingStatus === "CONFIRMED" || booking.paymentStatus === "SUCCESS") {
+          if (bookingData.bookingStatus === "CONFIRMED" || bookingData.paymentStatus === "SUCCESS") {
             console.log("Booking already confirmed, rejecting payment order creation");
             return NextResponse.json(
               { error: "Booking already confirmed" },
@@ -116,8 +129,8 @@ export async function POST(req: NextRequest) {
             );
           }
 
-          // CRITICAL: Validate amount matches booking totalAmount
-          const expectedAmount = typeof booking.totalAmount === "number" ? booking.totalAmount : Number(booking.totalAmount);
+          // Validate amount matches booking totalAmount
+          const expectedAmount = typeof bookingData.totalAmount === "number" ? bookingData.totalAmount : Number(bookingData.totalAmount);
           const requestedAmount = parsedAmount;
           
           if (Number.isFinite(expectedAmount) && Number.isFinite(requestedAmount) && expectedAmount !== requestedAmount) {
@@ -128,51 +141,18 @@ export async function POST(req: NextRequest) {
             );
           }
 
-          // CRITICAL: If booking already has orderId, check if we should reuse it
-          if (booking.orderId) {
-            // If booking is already confirmed, reject payment creation
-            if (booking.bookingStatus === "CONFIRMED" || booking.paymentStatus === "SUCCESS") {
-              console.log("Booking already confirmed with orderId:", booking.orderId);
-              return NextResponse.json(
-                { error: "Booking already confirmed" },
-                { status: 409 }
-              );
-            }
-            // If booking has orderId but not confirmed, we can reuse it
-            // This prevents creating duplicate orders for the same booking
-            console.log("Booking already has orderId, will reuse:", booking.orderId);
-          }
-        }
-      } catch (error) {
-        console.error("Failed to check booking status:", error);
-        // Continue with payment creation even if this check fails
-      }
-    }
-
-    // CRITICAL: Get orderId BEFORE generating new one to prevent race conditions
-    let orderId: string | null = null;
-    
-    // First, check if booking already has orderId (atomic read)
-    if (bookingId && adminDb) {
-      try {
-        const bookingRef = adminDb.doc(`bookings/${bookingId}`);
-        const bookingSnap = await bookingRef.get();
-        
-        if (bookingSnap.exists) {
-          const booking = bookingSnap.data();
-          
-          // CRITICAL: Check if booking data exists
-          if (!booking) {
-            console.error("Booking document exists but data is null/undefined");
-            // Continue - will generate new orderId below
-          } else if (booking.orderId && typeof booking.orderId === "string") {
-            orderId = booking.orderId;
+          // Reuse existing orderId if available
+          if (bookingData.orderId && typeof bookingData.orderId === "string") {
+            orderId = bookingData.orderId;
             console.log("Reusing existing orderId from booking:", orderId);
           }
         }
       } catch (error) {
-        console.error("Failed to read booking for orderId:", error);
-        // Continue - will generate new orderId below
+        console.error("Failed to check booking status:", error);
+        return NextResponse.json(
+          { error: "Failed to verify booking" },
+          { status: 500 }
+        );
       }
     }
 
@@ -283,10 +263,10 @@ export async function POST(req: NextRequest) {
       },
     };
 
-    // CRITICAL: Fetch with timeout and error handling
+    // FIX 4: Fetch with timeout protection (8 seconds)
     let response: Response;
     try {
-      response = await fetch(`${CASHFREE_BASE}/orders`, {
+      response = await fetchWithTimeout(`${CASHFREE_BASE}/orders`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -295,6 +275,7 @@ export async function POST(req: NextRequest) {
           "x-api-version": "2023-08-01",
         },
         body: JSON.stringify(payload),
+        timeoutMs: 8000,
       });
     } catch (fetchError) {
       console.error("Cashfree API fetch failed:", {
@@ -302,8 +283,8 @@ export async function POST(req: NextRequest) {
         orderId,
       });
       return NextResponse.json(
-        { error: "Failed to connect to payment gateway" },
-        { status: 500 }
+        { error: "Payment gateway timeout. Please try again." },
+        { status: 504 }
       );
     }
 

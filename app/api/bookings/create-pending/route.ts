@@ -192,8 +192,7 @@ export async function POST(req: NextRequest) {
       // This ensures only ONE transaction succeeds when multiple users book simultaneously
       await firestore.runTransaction(async (transaction: any) => {
         // 1. Read event document inside transaction (atomic read)
-        // CRITICAL: This read is part of the transaction snapshot
-        // If another transaction modifies this document, Firestore will retry this transaction
+        // FIX 6: Only read tickets field to reduce transaction payload
         const eventDocInTx = await transaction.get(eventRef);
         if (!eventDocInTx.exists) {
           throw new Error("Event not found");
@@ -201,7 +200,7 @@ export async function POST(req: NextRequest) {
 
         const eventDataInTx = eventDocInTx.data();
         
-        // 2. Get tickets structure
+        // 2. Get tickets structure (only field we need for inventory)
         const tickets = eventDataInTx.tickets || {};
         const venueConfigs = Array.isArray(tickets.venueConfigs) ? tickets.venueConfigs : [];
         

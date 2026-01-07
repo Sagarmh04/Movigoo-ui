@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { verifyAuthToken } from "@/lib/auth";
+import { fetchWithTimeout } from "@/lib/fetchWithTimeout";
 
 export const runtime = "nodejs";
 
@@ -112,7 +113,7 @@ export async function POST(
     }
 
     const orderStatusUrl = `${CASHFREE_BASE}/orders/${orderId}`;
-    const response = await fetch(orderStatusUrl, {
+    const response = await fetchWithTimeout(orderStatusUrl, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -120,6 +121,7 @@ export async function POST(
         "x-client-secret": process.env.CASHFREE_SECRET_KEY.trim(),
         "x-api-version": "2023-08-01",
       },
+      timeoutMs: 8000,
     });
 
     if (!response.ok) {

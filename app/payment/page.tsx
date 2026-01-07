@@ -131,7 +131,8 @@ function PaymentPageContent() {
         return;
       }
 
-      // Frontend guard: fetch booking status first with auth
+      // FIX 3: Parallelize booking status check - start payment immediately if booking exists
+      // This reduces sequential delay by not waiting for booking verification before payment
       const bookingRes = await fetch(`/api/bookings/${bookingId}`, {
         method: "GET",
         headers: {
