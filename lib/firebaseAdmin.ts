@@ -7,9 +7,12 @@
 import { initializeApp, getApps, cert, App } from "firebase-admin/app";
 // @ts-ignore - firebase-admin is server-only, Next.js may try to bundle it
 import { getFirestore, Firestore } from "firebase-admin/firestore";
+// @ts-ignore - firebase-admin is server-only, Next.js may try to bundle it
+import { getAuth, Auth } from "firebase-admin/auth";
 
 let adminApp: App | null = null;
 let adminDb: Firestore | null = null;
+let adminAuth: Auth | null = null;
 
 if (typeof window === "undefined") {
   // Server-side only
@@ -51,7 +54,9 @@ if (typeof window === "undefined") {
     
     if (adminApp) {
       adminDb = getFirestore(adminApp);
+      adminAuth = getAuth(adminApp);
       console.log("✅ Firebase Admin Firestore initialized (bypasses security rules)");
+      console.log("✅ Firebase Admin Auth initialized (secure JWT verification)");
     }
   } catch (error) {
     // During build, don't throw - will initialize at runtime
@@ -67,6 +72,6 @@ if (typeof window === "undefined") {
   }
 }
 
-export { adminDb, adminApp };
+export { adminDb, adminApp, adminAuth };
 export default adminDb;
 
