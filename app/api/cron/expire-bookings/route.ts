@@ -1,16 +1,18 @@
-// FIX #5: Booking expiry mechanism
-// Vercel Cron: Runs every 5 minutes to expire PENDING bookings older than 15 minutes
-// Add to vercel.json: { "crons": [{ "path": "/api/cron/expire-bookings", "schedule": "*/5 * * * *" }] }
+// Booking expiry mechanism
+// Called by external cron service to expire PENDING bookings older than 15 minutes
+// External cron should call: GET /api/cron/expire-bookings with Authorization: Bearer <CRON_SECRET>
 
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export async function GET(req: NextRequest) {
   try {
-    // Verify cron secret (Vercel sets this automatically)
+    // Verify cron secret (external cron service must provide this)
     const authHeader = req.headers.get("authorization");
     if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

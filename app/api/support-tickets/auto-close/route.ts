@@ -1,9 +1,12 @@
 // app/api/support-tickets/auto-close/route.ts
 // API route to auto-close inactive support tickets
-// Can be called manually or via scheduled job (e.g., Vercel Cron)
+// Called by external cron service with Authorization: Bearer <CRON_SECRET>
 
 import { NextRequest, NextResponse } from "next/server";
 import { autoCloseInactiveTickets } from "@/lib/server/autoCloseInactiveTickets";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export async function POST(request: NextRequest) {
   try {

@@ -1,6 +1,7 @@
 // app/api/bookings/cleanup/route.ts
-// GET /api/bookings/cleanups
+// GET /api/bookings/cleanup
 // Cleans up abandoned PENDING bookings (> 15 minutes old) and restores inventory
+// Called by external cron service with CRON_SECRET parameter
 
 export const runtime = "nodejs";
 
