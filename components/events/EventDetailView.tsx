@@ -605,7 +605,21 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
 
         {/* 5. Venue Section (Mobile) */}
         <section className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
-          <p className="text-sm font-semibold text-white">Venue</p>
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold text-white">Venue</p>
+            {event.venueMapLink && (
+              <a
+                href={event.venueMapLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-[#0B62FF] hover:text-[#0A5AE6] transition-colors text-sm"
+                aria-label="Open venue location in Google Maps"
+              >
+                <MapPin size={16} className="inline" />
+                <span>View on Map</span>
+              </a>
+            )}
+          </div>
           <Image
             src="/placeholder-map.svg"
             alt="Map placeholder"
@@ -689,7 +703,21 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
           </section>
 
           <section className="space-y-4 rounded-3xl border border-white/10 bg-white/5 p-6">
-            <p className="text-lg font-semibold text-white">Venue</p>
+            <div className="flex items-center justify-between">
+              <p className="text-lg font-semibold text-white">Venue</p>
+              {event.venueMapLink && (
+                <a
+                  href={event.venueMapLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-[#0B62FF] hover:text-[#0A5AE6] transition-colors"
+                  aria-label="Open venue location in Google Maps"
+                >
+                  <MapPin size={18} className="inline" />
+                  <span>View on Map</span>
+                </a>
+              )}
+            </div>
             <Image
               src="/placeholder-map.svg"
               alt="Map placeholder"
