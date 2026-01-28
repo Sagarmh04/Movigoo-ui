@@ -33,6 +33,10 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
   const [isPaying, setIsPaying] = useState(false);
   const isProcessingRef = useRef(false); // Synchronous check to prevent double clicks
   const isHosted = event.organizerId === organizer.id;
+  
+  // Compute 'Hosted by' display text with fallback
+  const organizerDisplayName = event.organizerName?.trim() || "Movigoo Organizer";
+  const hostedByText = `Hosted by ${organizerDisplayName}`;
 
   // Fetch full event data with real-time listener to update ticketType-level inventory immediately
   useEffect(() => {
@@ -542,7 +546,7 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
           <div className="flex flex-col gap-3">
             <div>
               <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Organizer</p>
-              <p className="text-base font-semibold text-white">{organizer.name}</p>
+              <p className="text-base font-bold text-white">{hostedByText}</p>
             </div>
             <div className="rounded-2xl border border-white/10 px-3 py-1.5 text-xs text-slate-300">
               <ShieldCheck size={14} className="inline text-emerald-400" />
@@ -560,7 +564,20 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
                 <div key={index} className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 p-3">
                   <MapPin size={16} className="text-[#0B62FF]" />
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-white">{item.venue.name}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-white">{item.venue.name}</p>
+                      {item.venue.mapLink && (
+                        <a
+                          href={item.venue.mapLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[#0B62FF] hover:text-[#0A5AE6] transition-colors"
+                          aria-label="Open venue location in Google Maps"
+                        >
+                          <MapPin size={14} className="inline" />
+                        </a>
+                      )}
+                    </div>
                     {item.venue.address && (
                       <p className="text-xs text-slate-400">{item.venue.address}</p>
                     )}
@@ -604,7 +621,6 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
           <div className="space-y-2 text-xs text-slate-300">
             <p>• Gates open 60 minutes before showtime.</p>
             <p>• Contactless check-in via Movigoo QR bracelet.</p>
-            <p>• Premium lounges available for VIP & Infinity tiers.</p>
           </div>
         </section>
       </div>
@@ -616,7 +632,7 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Organizer</p>
-                <p className="text-xl font-semibold text-white">{organizer.name}</p>
+                <p className="text-xl font-bold text-white">{hostedByText}</p>
               </div>
               <div className="rounded-2xl border border-white/10 px-4 py-2 text-sm text-slate-300">
                 <ShieldCheck size={16} className="inline text-emerald-400" />
@@ -634,7 +650,20 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
                   <div key={index} className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-4">
                     <MapPin size={18} className="text-[#0B62FF]" />
                     <div className="flex-1">
-                      <p className="text-base font-medium text-white">{item.venue.name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-base font-medium text-white">{item.venue.name}</p>
+                        {item.venue.mapLink && (
+                          <a
+                            href={item.venue.mapLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[#0B62FF] hover:text-[#0A5AE6] transition-colors"
+                            aria-label="Open venue location in Google Maps"
+                          >
+                            <MapPin size={16} className="inline" />
+                          </a>
+                        )}
+                      </div>
                       {item.venue.address && (
                         <p className="text-sm text-slate-400">{item.venue.address}</p>
                       )}
@@ -675,7 +704,6 @@ const EventDetailView = ({ event, ticketTypes, organizer }: EventDetailViewProps
             <div className="space-y-3 text-sm text-slate-300">
               <p>• Gates open 60 minutes before showtime.</p>
               <p>• Contactless check-in via Movigoo QR bracelet.</p>
-              <p>• Premium lounges available for VIP & Infinity tiers.</p>
             </div>
           </section>
         </div>

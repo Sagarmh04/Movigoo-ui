@@ -16,6 +16,7 @@ export type Event = {
   coverPortrait: string[];
   city: string;
   venue: string;
+  venueMapLink?: string;
   dateStart: string;
   dateEnd?: string;
   categories: string[];
@@ -23,6 +24,7 @@ export type Event = {
   priceFrom: number;
   description: string;
   organizerId: string;
+  organizerName?: string;
   hosted?: boolean;
 };
 
