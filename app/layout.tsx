@@ -9,9 +9,9 @@ const font = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Movigoo — Premium Event Experiences",
+  title: "Movigoo – Discover and Book Amazing Events",
   description:
-    "Movigoo delivers cinematic event discovery and frictionless booking with premium design and motion.",
+    "Discover and book amazing events with Movigoo. Fast, secure ticket booking for concerts, shows, and experiences.",
   metadataBase: new URL("https://movigoo.example.com")
 };
 

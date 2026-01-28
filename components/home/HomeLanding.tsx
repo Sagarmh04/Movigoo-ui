@@ -34,7 +34,7 @@ const HomeLanding = ({ featuredEvents, searchQuery = "", isSearching = false }: 
         <div className="space-y-6">
           <p className="text-xs uppercase tracking-[0.5em] text-accent-amber">Premium access</p>
           <h1 className="text-4xl font-semibold leading-tight text-white sm:text-5xl">
-            Discover cinematic events. Book like a VIP.
+            Discover and Book Amazing Events
           </h1>
           <p className="text-lg text-slate-300">
             Effortless. Fast. Secure. Your events, booked in seconds
