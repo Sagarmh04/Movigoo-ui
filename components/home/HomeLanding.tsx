@@ -116,12 +116,22 @@ const HomeLanding = ({ featuredEvents, searchQuery = "", isSearching = false }: 
               </motion.div>
             ))
           ) : (
-            <div className="w-full rounded-3xl border border-white/10 bg-white/5 p-8 text-center">
-              <p className="text-slate-400">
-                {isSearching 
-                  ? `No events found for "${searchQuery}". Try a different search term.`
-                  : "No events available yet. Add events with status: \"published\" to see them here."}
-              </p>
+            <div className="w-full rounded-3xl border border-white/10 bg-white/5 p-12 text-center">
+              {isSearching ? (
+                <p className="text-slate-400">
+                  No events found for &quot;{searchQuery}&quot;. Try a different search term.
+                </p>
+              ) : (
+                <div className="flex flex-col items-center space-y-4">
+                  <Sparkles className="h-12 w-12 text-accent-amber" />
+                  <h3 className="text-xl font-semibold text-white">
+                    Something extraordinary is coming. 🚀
+                  </h3>
+                  <p className="text-gray-400">
+                    We are curating premium events for you. Stay tuned for the first drop!
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </motion.div>
