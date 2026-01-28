@@ -15,7 +15,7 @@ export default function RefundPolicyPage() {
             Refund Policy
           </h1>
           <p className="text-xs text-slate-400 mt-1">
-            Last updated: 19 December 2025
+            Last updated: 28 January 2026
           </p>
         </div>
 
@@ -26,132 +26,60 @@ export default function RefundPolicyPage() {
             bookings made through Movigoo. Please read this policy carefully before making a purchase.
           </p>
 
-          <section>
-            <div className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-6">
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-400">Legal Business Information</h3>
-              <div className="mt-3 space-y-2 text-sm text-white">
-                <p><strong>Business Name:</strong> Movigoo</p>
-                <p><strong>Registered Address:</strong><br />
-                  Akshay Garden Apartment<br />
-                  I Block 102, Banashankari Badavane<br />
-                  Vidyanagar, Hubli</p>
-                <p><strong>Business Category:</strong> Event Ticketing and Booking Platform</p>
-              </div>
-            </div>
-          </section>
+          <div className="mt-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-5">
+            <p className="font-semibold text-rose-200">Important Note:</p>
+            <p className="mt-2 text-sm text-rose-100">
+              Movigoo Platform Fees, Internet Handling Fees, and Payment Gateway Charges are strictly non-refundable under all circumstances, including event cancellations.
+            </p>
+          </div>
+
 
           <section>
             <h2 className="text-base font-semibold text-white mb-2">1. General Refund Policy</h2>
             <p>
               Refund eligibility for tickets purchased through Movigoo depends on the type of event and the applicable refund policy. 
-              Refunds may be available under certain circumstances as outlined below. Please review the specific refund terms for each 
-              event before completing your purchase.
+              Please read this policy carefully before making a purchase.
             </p>
-            <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-5">
-              <p className="font-semibold text-white">Important Note:</p>
-              <p className="mt-2 text-sm">
-                Refund policies vary based on event type: For events managed by third-party organizers, refund eligibility and processing 
-                are subject to the policies of the individual event organizers. For Movigoo-hosted pilot events, refunds are processed 
-                according to Movigoo&apos;s refund policy as outlined in this document.
-              </p>
-            </div>
-          </section>
-
-          <section>
-            <h2 className="text-base font-semibold text-white mb-2">1.1 Movigoo-Hosted Pilot Events</h2>
-            <p>
-              For events hosted directly by Movigoo as pilot events, the following refund policy applies:
-            </p>
-            <ul className="mt-3 ml-6 list-disc space-y-2">
-              <li><strong>Event Cancellation:</strong> If a Movigoo-hosted event is cancelled, full refunds (100% of ticket price including processing fees) will be provided to all ticket holders</li>
-              <li><strong>Significant Event Modification:</strong> If a Movigoo-hosted event is significantly modified (such as major venue change, date change, or substantial content alteration), ticket holders will be offered a full refund or the option to attend the modified event</li>
-              <li><strong>Refund Processing:</strong> Refunds for Movigoo-hosted events are processed within 7-14 business days to the original payment method</li>
-              <li><strong>Customer-Requested Cancellations:</strong> For Movigoo-hosted events, cancellation requests made at least 48 hours before the event may be eligible for partial refunds, subject to review</li>
-            </ul>
           </section>
 
           <section>
             <h2 className="text-base font-semibold text-white mb-2">2. Eligible Refund Scenarios</h2>
-            <p className="mb-3 text-sm text-slate-400">
-              The following scenarios apply primarily to events managed by third-party organizers. For Movigoo-hosted events, refer to section 1.1 above.
-            </p>
             
             <div className="space-y-4">
               <div>
                 <h3 className="text-base font-semibold text-white mb-2">2.1 Event Cancellation</h3>
                 <p className="mt-2">
-              If an event is cancelled by the organizer or venue:
+              If an event is cancelled by the organizer:
             </p>
                 <ul className="mt-3 ml-6 list-disc space-y-2">
-              <li><strong>Full Refund:</strong> 100% of the ticket price will be refunded</li>
-              <li><strong>Processing Time:</strong> Refunds are processed within 7-14 business days</li>
-              <li><strong>Payment Method:</strong> Refund will be credited to your original payment method</li>
-              <li><strong>Notification:</strong> You will receive email notification about the cancellation and refund</li>
-              <li><strong>Service Charges:</strong> Processing fees and service charges are also refunded in case of event cancellation</li>
+              <li><strong>Refund Amount:</strong> 100% of the Base Ticket Price will be refunded</li>
+              <li><strong>Non-Refundable Component:</strong> Platform fees, convenience fees, and internet handling charges are not refunded, as these cover the transaction costs already incurred</li>
+              <li><strong>Processing Time:</strong> 7-14 business days</li>
+              <li><strong>Notification:</strong> You will receive an email notification about the cancellation</li>
             </ul>
           </div>
 
               <div>
                 <h3 className="text-base font-semibold text-white mb-2">2.2 Event Postponement</h3>
                 <p className="mt-2">
-              If an event is postponed to a different date:
+              If an event is postponed:
             </p>
                 <ul className="mt-3 ml-6 list-disc space-y-2">
-              <li>Your tickets remain valid for the rescheduled date</li>
-              <li>If you cannot attend the new date, refund requests may be considered</li>
-              <li>Refund requests must be submitted within 7 days of the postponement announcement</li>
-              <li>Refund eligibility is subject to organizer approval</li>
-              <li>Processing time: 7-14 business days after approval</li>
+              <li>Your tickets remain valid for the new date</li>
+              <li>If you cannot attend, refund requests must be submitted within 7 days of the announcement</li>
+              <li>Approval is subject to the Event Organizer&apos;s discretion</li>
             </ul>
           </div>
 
               <div>
-                <h3 className="text-base font-semibold text-white mb-2">2.3 Event Venue Change (Significant)</h3>
+                <h3 className="text-base font-semibold text-white mb-2">2.3 Customer-Requested Cancellations</h3>
                 <p className="mt-2">
-              If an event is moved to a significantly different venue:
+              If you wish to cancel your booking:
             </p>
                 <ul className="mt-3 ml-6 list-disc space-y-2">
-              <li>Refund requests will be considered on a case-by-case basis</li>
-              <li>You may be offered tickets for the new venue or a full refund</li>
-              <li>Refund requests must be made within 48 hours of the venue change notification</li>
-            </ul>
-          </div>
-
-              <div>
-                <h3 className="text-base font-semibold text-white mb-2">2.4 Customer-Requested Cancellations</h3>
-                <p className="mt-2">
-              Customer-initiated cancellation requests are subject to the following:
-            </p>
-                <ul className="mt-3 ml-6 list-disc space-y-2">
-              <li><strong>Advance Notice Required:</strong> Minimum 48-72 hours before the event (varies by event)</li>
-              <li><strong>Cancellation Charges:</strong> May apply as per event organizer&apos;s policy (typically 10-20% of ticket value)</li>
-              <li><strong>Service Charges:</strong> Processing fees and service charges are generally non-refundable</li>
-              <li><strong>Approval Required:</strong> Subject to organizer approval and refund policy</li>
-              <li><strong>Partial Refunds:</strong> May be provided after deducting cancellation charges</li>
-            </ul>
-          </div>
-
-              <div>
-                <h3 className="text-base font-semibold text-white mb-2">2.5 Duplicate Booking</h3>
-                <p className="mt-2">
-              If you have accidentally made duplicate bookings:
-            </p>
-                <ul className="mt-3 ml-6 list-disc space-y-2">
-              <li>Contact customer support immediately with booking details</li>
-              <li>Refund may be provided for duplicate bookings if requested within 24 hours</li>
-              <li>Refund subject to verification and organizer approval</li>
-            </ul>
-          </div>
-
-              <div>
-                <h3 className="text-base font-semibold text-white mb-2">2.6 Technical Errors</h3>
-                <p className="mt-2">
-              In case of technical errors on our platform leading to incorrect charges:
-            </p>
-                <ul className="mt-3 ml-6 list-disc space-y-2">
-              <li>Full refund will be provided for any incorrect charges</li>
-              <li>Please report the issue immediately to customer support</li>
-              <li>Refunds processed within 5-7 business days after verification</li>
+              <li><strong>Advance Notice:</strong> Request must be made at least 48-72 hours before the event</li>
+              <li><strong>Approval:</strong> Strictly subject to the Organizer&apos;s specific policy. Many events have a &apos;No Cancellation&apos; policy</li>
+              <li><strong>Deductions:</strong> If approved, a cancellation fee (typically 10-20%) plus the non-refundable platform fees will be deducted</li>
             </ul>
           </div>
             </div>
@@ -160,176 +88,77 @@ export default function RefundPolicyPage() {
           <section>
             <h2 className="text-base font-semibold text-white mb-2">3. Non-Refundable Scenarios</h2>
             <p>
-          Refunds will NOT be provided in the following situations:
+          Refunds will NOT be provided for:
         </p>
             <ul className="ml-6 list-disc space-y-2">
-          <li><strong>No-Show:</strong> Failure to attend the event on the scheduled date and time</li>
-          <li><strong>Late Cancellation:</strong> Cancellation requests made less than 48 hours before the event (unless event-specific policy allows)</li>
-          <li><strong>Change of Mind:</strong> Personal preferences or change of plans after purchase</li>
-          <li><strong>Entry Denied:</strong> Due to violation of venue policies, inappropriate behavior, or invalid identification</li>
-          <li><strong>Lost Tickets:</strong> Lost, stolen, or damaged tickets (unless reissue is possible)</li>
-          <li><strong>Event Completion:</strong> After the event has taken place</li>
-          <li><strong>Service Charges:</strong> Processing fees, convenience charges, and service charges are generally non-refundable (except in case of event cancellation)</li>
-          <li><strong>Partial Attendance:</strong> Leaving the event early or missing part of the event</li>
+          <li><strong>No-Show:</strong> Failure to attend the event</li>
+          <li><strong>Late Requests:</strong> Requests made less than 48 hours before the event</li>
+          <li><strong>Service Charges:</strong> Platform fees and gateway charges are never refunded</li>
+          <li><strong>Lost Tickets:</strong> Lost or stolen digital ticket access</li>
+          <li><strong>Event Completion:</strong> After the event has ended</li>
         </ul>
       </section>
 
           <section>
             <h2 className="text-base font-semibold text-white mb-2">4. Refund Processing Timeframes</h2>
             <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
-              <p className="mb-3">Refund processing times vary based on payment method:</p>
               <ul className="space-y-2">
-            <li><strong>Credit/Debit Cards:</strong> 5-10 business days</li>
             <li><strong>UPI:</strong> 3-7 business days</li>
+            <li><strong>Credit/Debit Cards:</strong> 5-10 business days</li>
             <li><strong>Net Banking:</strong> 7-14 business days</li>
-            <li><strong>Digital Wallets:</strong> 3-7 business days</li>
-            <li><strong>Bank Transfers:</strong> 7-14 business days</li>
           </ul>
               <p className="mt-4 text-sm text-slate-400">
-                <strong>Note:</strong> Actual refund credit to your account may take additional time depending on your bank 
-                or payment provider&apos;s processing times. All refunds are processed to the original payment method used for the purchase.
+                <strong>Note:</strong> Timelines depend on your bank&apos;s processing speed.
               </p>
             </div>
           </section>
 
           <section>
             <h2 className="text-base font-semibold text-white mb-2">5. How to Request a Refund</h2>
-            <p>
-          To request a refund, please follow these steps:
-        </p>
-            <ol className="ml-6 list-decimal space-y-3">
-          <li>
-            <strong>Online Method:</strong>
-            <ul className="ml-6 mt-2 list-disc space-y-1">
-              <li>Log into your Movigoo account</li>
-              <li>Navigate to &quot;My Bookings&quot; section</li>
-              <li>Select the booking you wish to cancel</li>
-              <li>Click on &quot;Request Refund&quot; or &quot;Cancel Booking&quot; option</li>
-              <li>Provide the reason for cancellation</li>
-              <li>Submit your request</li>
-            </ul>
-          </li>
-          <li>
-            <strong>Email Method:</strong>
-            <ul className="ml-6 mt-2 list-disc space-y-1">
-              <li>Send an email to support@movigoo.in</li>
-              <li>Include your booking reference number</li>
-              <li>Mention the reason for refund request</li>
-              <li>Provide your contact details</li>
-            </ul>
-          </li>
-          <li>
-            <strong>Customer Support:</strong>
-            <ul className="ml-6 mt-2 list-disc space-y-1">
-              <li>Contact our customer support team</li>
-              <li>Have your booking details ready</li>
-              <li>Our team will guide you through the refund process</li>
-            </ul>
-          </li>
-        </ol>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+              <p className="font-semibold text-white">Email Method:</p>
+              <ul className="ml-6 mt-2 list-disc space-y-1">
+                <li>Send an email to <strong>movigootech@gmail.com</strong></li>
+                <li><strong>Details Required:</strong> Booking ID, Event Name, and Reason for Request</li>
+              </ul>
+            </div>
       </section>
 
           <section>
-            <h2 className="text-base font-semibold text-white mb-2">6. Refund Amount Calculation</h2>
-            <p>
-          The refund amount is calculated as follows:
-        </p>
+            <h2 className="text-base font-semibold text-white mb-2">6. Refund Amount Calculation (Example)</h2>
             <div className="mt-4 space-y-3">
               <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-                <p className="font-semibold text-white">Event Cancellation (Full Refund):</p>
+                <p className="font-semibold text-white">Event Cancellation:</p>
                 <p className="mt-2">
-                  Ticket Price + Processing Fees + Service Charges = Full Refund
+                  (Ticket Price) - (Platform Fees) = Refund Amount
                 </p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-                <p className="font-semibold text-white">Customer-Requested Cancellation (Partial Refund):</p>
+                <p className="font-semibold text-white">Customer Cancellation:</p>
                 <p className="mt-2">
-                  Ticket Price - Cancellation Charges - Service Charges = Refund Amount
-                </p>
-                <p className="mt-2 text-sm text-slate-400">
-                  Cancellation charges typically range from 10% to 20% of the ticket price, as per event organizer&apos;s policy.
+                  (Ticket Price) - (Cancellation Charge) - (Platform Fees) = Refund Amount
                 </p>
               </div>
             </div>
           </section>
 
           <section>
-            <h2 className="text-base font-semibold text-white mb-2">7. Refund Confirmation and Tracking</h2>
+            <h2 className="text-base font-semibold text-white mb-2">7. Contact Information</h2>
             <p>
-          Once your refund is approved and processed:
-        </p>
-            <ul className="ml-6 list-disc space-y-2">
-          <li>You will receive an email confirmation with refund details</li>
-          <li>Refund status can be tracked in your Movigoo account under &quot;My Bookings&quot;</li>
-          <li>You will receive an SMS notification when the refund is initiated</li>
-          <li>Refund will appear in your account statement within the stated timeframes</li>
-        </ul>
-      </section>
-
-          <section>
-            <h2 className="text-base font-semibold text-white mb-2">8. Disputed Refunds</h2>
-            <p>
-          If you believe a refund should have been processed but hasn&apos;t been, or if you disagree with a refund decision:
-        </p>
-            <ul className="ml-6 list-disc space-y-2">
-          <li>Contact our customer support team within 30 days of the event date</li>
-          <li>Provide all relevant booking details and documentation</li>
-          <li>Our team will review your case and respond within 5-7 business days</li>
-          <li>If the dispute is valid, the refund will be processed immediately</li>
-        </ul>
-      </section>
-
-          <section>
-            <h2 className="text-base font-semibold text-white mb-2">9. Event-Specific Refund Policies</h2>
-            <p>
-          Please note that individual events may have specific refund policies that differ from our general policy. 
-          These will be clearly stated:
-        </p>
-            <ul className="ml-6 list-disc space-y-2">
-          <li>During the booking process (before payment confirmation)</li>
-          <li>In your booking confirmation email</li>
-          <li>On the event detail page</li>
-        </ul>
-        <p className="mt-3 text-slate-300">
-          Event-specific policies take precedence over our general refund policy. We recommend reviewing these terms 
-          carefully before completing your purchase.
-        </p>
-      </section>
-
-          <section>
-            <h2 className="text-base font-semibold text-white mb-2">10. Contact for Refund Queries</h2>
-            <p>
-          For any questions, concerns, or assistance regarding refunds, please contact us:
+          For refund queries, contact us at:
         </p>
         <div className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-6">
-          <p className="text-white"><strong>Customer Support - Refund Department</strong></p>
+          <p className="text-white"><strong>Movigoo</strong></p>
           <p className="mt-2 text-slate-300">
-            Movigoo<br />
             Akshay Garden Apartment<br />
             I Block 102, Banashankari Badavane<br />
             Vidyanagar, Hubli
           </p>
           <p className="mt-3 text-slate-300">
-            Email: <a href="mailto:refunds@movigoo.in" className="text-accent-amber hover:underline">refunds@movigoo.in</a>
-          </p>
-          <p className="mt-2 text-slate-300">
-            General Support: <a href="mailto:support@movigoo.in" className="text-accent-amber hover:underline">support@movigoo.in</a>
-          </p>
-          <p className="mt-2 text-slate-300">
-            Support Hours: Monday to Saturday, 9:00 AM to 6:00 PM IST
+            Email: <a href="mailto:movigootech@gmail.com" className="text-accent-amber hover:underline">movigootech@gmail.com</a>
           </p>
         </div>
       </section>
-
-          <section>
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
-              <p className="text-sm text-slate-400">
-                By purchasing tickets through Movigoo, you acknowledge that you have read, understood, and agree to this 
-                Refund Policy. This policy is subject to change without prior notice, and any updates will be reflected on 
-                this page. We recommend reviewing this policy periodically for any changes.
-              </p>
-            </div>
-          </section>
         </div>
       </main>
     </LayoutWrapper>

@@ -15,7 +15,7 @@ export default function TermsPolicyPage() {
             Terms & Conditions
           </h1>
           <p className="text-xs text-slate-400 mt-1">
-            Last updated: 19 December 2025
+            Last updated: 28 January 2026
           </p>
         </div>
 
@@ -63,12 +63,13 @@ export default function TermsPolicyPage() {
 
           <section>
             <h2 className="text-base font-semibold text-white mb-2">
-              5. Event Listings & Information
+              5. Event Listings & Content
             </h2>
             <ul className="list-disc list-inside space-y-1 ml-2">
               <li>Event details such as date, time, venue, pricing, and availability are provided by event organizers.</li>
               <li>Movigoo does not guarantee the accuracy or completeness of event information.</li>
               <li>Event schedules, pricing, or availability may change without prior notice.</li>
+              <li><strong>Marketing Rights:</strong> By listing an event on the Platform, the Organizer grants Movigoo a royalty-free right to use the event content (images, names, descriptions, and posters) for marketing and promotional purposes on the Platform and official social media channels.</li>
             </ul>
           </section>
 
@@ -101,10 +102,10 @@ export default function TermsPolicyPage() {
               8. Cancellations & Refunds
             </h2>
             <ul className="list-disc list-inside space-y-1 ml-2">
-              <li>Cancellation and refund policies are determined by the event organizer.</li>
-              <li>Movigoo facilitates refunds strictly as per the applicable policy.</li>
-              <li>Convenience fees or platform charges may be non‑refundable.</li>
-              <li>Refund processing timelines depend on the payment gateway and banking partners.</li>
+              <li>Cancellation and refund policies are determined strictly by the event organizer.</li>
+              <li>Movigoo facilitates refunds strictly as per the applicable policy set by the organizer.</li>
+              <li><strong>Non-Refundable Fees:</strong> Movigoo Platform Fees, Booking Fees, and Internet Handling Fees are strictly non-refundable, even in the case of event cancellation or rescheduling by the organizer.</li>
+              <li>Refund processing timelines depend on the payment gateway and banking partners (typically 5-7 business days).</li>
             </ul>
           </section>
 
@@ -180,10 +181,10 @@ export default function TermsPolicyPage() {
 
           <section>
             <h2 className="text-base font-semibold text-white mb-2">
-              15. Governing Law
+              15. Governing Law & Jurisdiction
             </h2>
             <p>
-              These Terms & Conditions are governed by the laws of India. Any disputes shall be subject to the jurisdiction of Indian courts.
+              These Terms & Conditions are governed by the laws of India. You agree that any legal action or proceeding between you and Movigoo shall be brought exclusively in the courts located in Hubballi, Karnataka.
             </p>
           </section>
 
@@ -195,7 +196,7 @@ export default function TermsPolicyPage() {
               For questions or support, contact:
             </p>
             <p className="mt-1">
-              📧 support@movigoo.in
+              📧 movigootech@gmail.com
             </p>
           </section>
         </div>
