@@ -9,10 +9,15 @@ const font = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://www.movigoo.in"),
   title: "Movigoo – Discover and Book Amazing Events",
   description:
     "Discover and book amazing events with Movigoo. Fast, secure ticket booking for concerts, shows, and experiences.",
-  metadataBase: new URL("https://movigoo.example.com")
+  icons: {
+    icon: "/icon.png",
+    shortcut: "/icon.png",
+    apple: "/icon.png"
+  }
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
