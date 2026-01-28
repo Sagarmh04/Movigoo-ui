@@ -2,9 +2,9 @@ import Link from "next/link";
 import { Instagram, Linkedin, Twitter } from "lucide-react";
 
 const socials = [
-  { icon: <Instagram size={18} /> },
-  { icon: <Twitter size={18} /> },
-  { icon: <Linkedin size={18} /> }
+  { icon: <Instagram size={18} />, href: "https://www.instagram.com/movi.goo?igsh=MWN0a292ZnB4NWc2Mw==" },
+  { icon: <Twitter size={18} />, href: "" },
+  { icon: <Linkedin size={18} />, href: "" }
 ];
 
 const Footer = () => {
@@ -18,12 +18,24 @@ const Footer = () => {
           </p>
           <div className="flex gap-2">
             {socials.map((item, index) => (
-              <div
-                key={index}
-                className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 text-slate-300 cursor-default pointer-events-none"
-              >
-                {item.icon}
-              </div>
+              item.href ? (
+                <a
+                  key={index}
+                  href={item.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 text-slate-300 hover:text-white hover:border-white/20 transition-colors"
+                >
+                  {item.icon}
+                </a>
+              ) : (
+                <div
+                  key={index}
+                  className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 text-slate-300 cursor-default pointer-events-none"
+                >
+                  {item.icon}
+                </div>
+              )
             ))}
           </div>
         </div>
