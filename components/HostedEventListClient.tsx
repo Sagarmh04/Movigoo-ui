@@ -55,15 +55,27 @@ export default function HostedEventListClient() {
   }
 
   if (!displayEvents.length) {
+    if (searchQuery) {
+      return (
+        <div className="rounded-3xl border border-white/10 bg-white/5 p-12 text-center mx-4">
+          <p className="text-lg font-semibold text-white">
+            No events found for "{searchQuery}"
+          </p>
+          <p className="mt-2 text-sm text-slate-400">
+            Try a different search term or browse all events.
+          </p>
+        </div>
+      );
+    }
+    
     return (
-      <div className="rounded-3xl border border-white/10 bg-white/5 p-12 text-center mx-4">
-        <p className="text-lg font-semibold text-white">
-          {searchQuery ? `No events found for "${searchQuery}"` : "No events found."}
-        </p>
-        <p className="mt-2 text-sm text-slate-400">
-          {searchQuery 
-            ? "Try a different search term or browse all events."
-            : 'Add events with status: "published" to your Firestore events collection to see them here.'}
+      <div className="flex flex-col items-center justify-center py-20 text-center px-4">
+        <div className="text-4xl mb-4">🚀</div>
+        <h3 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">
+          Something extraordinary is coming.
+        </h3>
+        <p className="text-gray-500 dark:text-gray-400 max-w-md">
+          We are curating premium events for you. Stay tuned for the first drop!
         </p>
       </div>
     );
