@@ -59,7 +59,7 @@ export default function HostedEventListClient() {
       return (
         <div className="rounded-3xl border border-white/10 bg-white/5 p-12 text-center mx-4">
           <p className="text-lg font-semibold text-white">
-            No events found for "{searchQuery}"
+            No events found for &quot;{searchQuery}&quot;
           </p>
           <p className="mt-2 text-sm text-slate-400">
             Try a different search term or browse all events.
