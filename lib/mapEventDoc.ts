@@ -85,6 +85,7 @@ export function mapEventDoc(
     coverPortrait: basic.coverPortraitUrl ? [basic.coverPortraitUrl] : [],
     city: firstLocation.name || "TBA",
     venue: firstVenue.name || "TBA",
+    venueMapLink: d.venueMapLink || basic.venueMapLink || firstVenue.mapLink || undefined,
     dateStart,
     dateEnd,
     categories: basic.genres || [],
@@ -92,6 +93,7 @@ export function mapEventDoc(
     priceFrom: minTicketPrice,
     description: basic.description || "",
     organizerId: d.hostUid || "",
+    organizerName: d.organizerName || d.host || basic.organizerName || undefined,
     hosted: false, // Will be set based on current user comparison
   };
 
